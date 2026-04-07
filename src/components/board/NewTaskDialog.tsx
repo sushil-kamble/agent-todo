@@ -1,57 +1,57 @@
-import { useEffect, useRef, useState } from "react";
-import { Sparkle, Terminal, X } from "@phosphor-icons/react";
-import { Button } from "#/components/ui/button";
-import { useBoard } from "./store";
-import { COLUMNS, type Agent, type ColumnId } from "./types";
+import { Sparkle, Terminal, X } from '@phosphor-icons/react'
+import { useEffect, useRef, useState } from 'react'
+import { Button } from '#/components/ui/button'
+import { useBoard } from './store'
+import { type Agent, COLUMNS, type ColumnId } from './types'
 
 export function NewTaskDialog() {
-  const { dialogOpen, dialogColumn, closeNewTask, addTask } = useBoard();
+  const { dialogOpen, dialogColumn, closeNewTask, addTask } = useBoard()
 
-  const [title, setTitle] = useState("");
-  const [project, setProject] = useState("");
-  const [tag, setTag] = useState("");
-  const [agent, setAgent] = useState<Agent>("claude");
-  const [column, setColumn] = useState<ColumnId>(dialogColumn);
+  const [title, setTitle] = useState('')
+  const [project, setProject] = useState('')
+  const [tag, setTag] = useState('')
+  const [agent, setAgent] = useState<Agent>('claude')
+  const [column, setColumn] = useState<ColumnId>(dialogColumn)
 
-  const titleRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null)
 
   // Reset form when dialog opens
   useEffect(() => {
     if (dialogOpen) {
-      setTitle("");
-      setProject("");
-      setTag("");
-      setAgent("claude");
-      setColumn(dialogColumn);
+      setTitle('')
+      setProject('')
+      setTag('')
+      setAgent('claude')
+      setColumn(dialogColumn)
       // Focus title shortly after mount
-      requestAnimationFrame(() => titleRef.current?.focus());
+      requestAnimationFrame(() => titleRef.current?.focus())
     }
-  }, [dialogOpen, dialogColumn]);
+  }, [dialogOpen, dialogColumn])
 
   // Esc to close
   useEffect(() => {
-    if (!dialogOpen) return;
+    if (!dialogOpen) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeNewTask();
-    };
-    window.addEventListener("keydown", handler);
-    document.body.style.overflow = "hidden";
+      if (e.key === 'Escape') closeNewTask()
+    }
+    window.addEventListener('keydown', handler)
+    document.body.style.overflow = 'hidden'
     return () => {
-      window.removeEventListener("keydown", handler);
-      document.body.style.overflow = "";
-    };
-  }, [dialogOpen, closeNewTask]);
+      window.removeEventListener('keydown', handler)
+      document.body.style.overflow = ''
+    }
+  }, [dialogOpen, closeNewTask])
 
-  if (!dialogOpen) return null;
+  if (!dialogOpen) return null
 
   function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+    e.preventDefault()
     if (!title.trim()) {
-      titleRef.current?.focus();
-      return;
+      titleRef.current?.focus()
+      return
     }
-    addTask({ title, project, agent, tag, column });
-    closeNewTask();
+    addTask({ title, project, agent, tag, column })
+    closeNewTask()
   }
 
   return (
@@ -105,7 +105,7 @@ export function NewTaskDialog() {
               id="task-title"
               ref={titleRef}
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={e => setTitle(e.target.value)}
               placeholder="What needs to be done?"
               className="font-heading w-full border-b border-border bg-transparent pb-2 text-2xl leading-tight tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:border-foreground focus:outline-none"
             />
@@ -122,7 +122,7 @@ export function NewTaskDialog() {
               <input
                 id="task-project"
                 value={project}
-                onChange={(e) => setProject(e.target.value)}
+                onChange={e => setProject(e.target.value)}
                 placeholder="agent-todo/web"
                 className="h-8 w-full border border-border bg-card px-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-foreground focus:outline-none"
               />
@@ -137,7 +137,7 @@ export function NewTaskDialog() {
               <input
                 id="task-tag"
                 value={tag}
-                onChange={(e) => setTag(e.target.value)}
+                onChange={e => setTag(e.target.value)}
                 placeholder="design, backend…"
                 className="h-8 w-full border border-border bg-card px-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-foreground focus:outline-none"
               />
@@ -171,23 +171,23 @@ export function NewTaskDialog() {
               Column
             </span>
             <div className="grid grid-cols-3 gap-2">
-              {COLUMNS.map((col) => {
-                const active = column === col.id;
+              {COLUMNS.map(col => {
+                const active = column === col.id
                 return (
                   <button
                     key={col.id}
                     type="button"
                     onClick={() => setColumn(col.id)}
                     className={[
-                      "flex h-8 items-center justify-center border text-[0.62rem] font-medium tracking-[0.14em] uppercase transition-colors",
+                      'flex h-8 items-center justify-center border text-[0.62rem] font-medium tracking-[0.14em] uppercase transition-colors',
                       active
-                        ? "border-foreground bg-foreground text-background"
-                        : "border-border bg-card text-muted-foreground hover:border-foreground hover:text-foreground",
-                    ].join(" ")}
+                        ? 'border-foreground bg-foreground text-background'
+                        : 'border-border bg-card text-muted-foreground hover:border-foreground hover:text-foreground',
+                    ].join(' ')}
                   >
                     {col.label}
                   </button>
-                );
+                )
               })}
             </div>
           </div>
@@ -212,7 +212,7 @@ export function NewTaskDialog() {
         </div>
       </form>
     </div>
-  );
+  )
 }
 
 function AgentChoice({
@@ -222,30 +222,32 @@ function AgentChoice({
   Icon,
   label,
 }: {
-  value: Agent;
-  current: Agent;
-  onSelect: (a: Agent) => void;
-  Icon: React.ComponentType<{ size?: number; weight?: "fill" | "bold" | "duotone" }>;
-  label: string;
+  value: Agent
+  current: Agent
+  onSelect: (a: Agent) => void
+  Icon: React.ComponentType<{ size?: number; weight?: 'fill' | 'bold' | 'duotone' }>
+  label: string
 }) {
-  const active = current === value;
+  const active = current === value
   return (
     <button
       type="button"
       onClick={() => onSelect(value)}
       aria-pressed={active}
       className={[
-        "group/agent flex items-center gap-2 border px-3 py-2 text-left transition-colors",
+        'group/agent flex items-center gap-2 border px-3 py-2 text-left transition-colors',
         active
-          ? "border-foreground bg-foreground text-background"
-          : "border-border bg-card text-foreground hover:border-foreground",
-      ].join(" ")}
+          ? 'border-foreground bg-foreground text-background'
+          : 'border-border bg-card text-foreground hover:border-foreground',
+      ].join(' ')}
     >
       <span
         className={[
-          "flex size-6 items-center justify-center border",
-          active ? "border-background bg-background text-foreground" : "border-border bg-background text-foreground",
-        ].join(" ")}
+          'flex size-6 items-center justify-center border',
+          active
+            ? 'border-background bg-background text-foreground'
+            : 'border-border bg-background text-foreground',
+        ].join(' ')}
       >
         <Icon size={11} weight="fill" />
       </span>
@@ -253,13 +255,13 @@ function AgentChoice({
         <span className="text-[0.78rem] font-medium leading-tight">{label}</span>
         <span
           className={[
-            "text-[0.56rem] tracking-[0.12em] uppercase",
-            active ? "text-background/70" : "text-muted-foreground",
-          ].join(" ")}
+            'text-[0.56rem] tracking-[0.12em] uppercase',
+            active ? 'text-background/70' : 'text-muted-foreground',
+          ].join(' ')}
         >
-          {value === "claude" ? "thoughtful · prose" : "fast · code"}
+          {value === 'claude' ? 'thoughtful · prose' : 'fast · code'}
         </span>
       </span>
     </button>
-  );
+  )
 }

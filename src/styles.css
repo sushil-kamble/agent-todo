@@ -8,10 +8,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-heading: 'Instrument Serif', ui-serif, Georgia, serif;
-  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
-  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
-  --font-sans: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --font-heading: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --font-sans: "JetBrains Mono Variable", ui-monospace, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -132,7 +132,11 @@
     @apply font-mono;
     font-feature-settings: "ss01", "cv02";
   }
-  h1, h2, h3, h4, .font-heading {
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-heading {
     font-family: var(--font-heading);
     font-weight: 400;
     letter-spacing: -0.01em;
@@ -141,8 +145,11 @@
 
 @layer utilities {
   .bg-paper {
-    background-image:
-      radial-gradient(circle at 1px 1px, oklch(0.18 0.012 80 / 0.07) 1px, transparent 0);
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      oklch(0.18 0.012 80 / 0.07) 1px,
+      transparent 0
+    );
     background-size: 20px 20px;
   }
   .bg-grid {
@@ -152,8 +159,7 @@
     background-size: 32px 32px;
   }
   .dark .bg-paper {
-    background-image:
-      radial-gradient(circle at 1px 1px, oklch(1 0 0 / 0.06) 1px, transparent 0);
+    background-image: radial-gradient(circle at 1px 1px, oklch(1 0 0 / 0.06) 1px, transparent 0);
   }
   .dark .bg-grid {
     background-image:

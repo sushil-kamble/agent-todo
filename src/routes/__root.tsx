@@ -1,27 +1,22 @@
-import {
-  HeadContent,
-  Outlet,
-  Scripts,
-  createRootRoute,
-} from "@tanstack/react-router";
-import { Footer } from "../components/Footer";
-import { Header } from "../components/Header";
-import { BoardProvider } from "../components/board/store";
-import { NewTaskDialog } from "../components/board/NewTaskDialog";
-import appCss from "../styles.css?url";
+import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
+import { NewTaskDialog } from '../components/board/NewTaskDialog'
+import { BoardProvider } from '../components/board/store'
+import { Footer } from '../components/Footer'
+import { Header } from '../components/Header'
+import appCss from '../styles.css?url'
 
 export const Route = createRootRoute({
   head: () => ({
     meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Agent Todo" },
+      { charSet: 'utf-8' },
+      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+      { title: 'Agent Todo' },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [{ rel: 'stylesheet', href: appCss }],
   }),
   shellComponent: RootDocument,
   component: RootLayout,
-});
+})
 
 function RootLayout() {
   return (
@@ -33,7 +28,7 @@ function RootLayout() {
       <Footer />
       <NewTaskDialog />
     </BoardProvider>
-  );
+  )
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
@@ -47,5 +42,5 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <Scripts />
       </body>
     </html>
-  );
+  )
 }

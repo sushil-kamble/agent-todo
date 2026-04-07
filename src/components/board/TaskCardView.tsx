@@ -1,54 +1,56 @@
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { DotsSixVertical, Folder, Sparkle, Terminal } from "@phosphor-icons/react";
-import type { ColumnId, TaskCard } from "./types";
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { DotsSixVertical, Folder, Sparkle, Terminal } from '@phosphor-icons/react'
+import type { ColumnId, TaskCard } from './types'
 
 type Props = {
-  task: TaskCard;
-  column: ColumnId;
-  isOverlay?: boolean;
-};
+  task: TaskCard
+  column: ColumnId
+  isOverlay?: boolean
+}
 
 const agentMeta = {
   claude: {
-    label: "Claude",
+    label: 'Claude',
     Icon: Sparkle,
-    className: "text-primary-foreground bg-primary border-primary",
+    className: 'text-primary-foreground bg-primary border-primary',
   },
   codex: {
-    label: "Codex",
+    label: 'Codex',
     Icon: Terminal,
-    className: "text-foreground bg-background border-foreground",
+    className: 'text-foreground bg-background border-foreground',
   },
-} as const;
+} as const
 
 export function TaskCardView({ task, column, isOverlay = false }: Props) {
   const sortable = useSortable({
     id: task.id,
     data: { column, task },
-  });
+  })
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = sortable;
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = sortable
 
   const style = {
     transform: CSS.Translate.toString(transform),
     transition,
-  };
+  }
 
-  const agent = agentMeta[task.agent];
-  const AgentIcon = agent.Icon;
-  const isDone = column === "done";
+  const agent = agentMeta[task.agent]
+  const AgentIcon = agent.Icon
+  const isDone = column === 'done'
 
   return (
     <article
       ref={setNodeRef}
       style={style}
       className={[
-        "group/card relative flex flex-col border bg-card text-card-foreground transition-all",
-        "border-border hover:border-foreground/40 hover:-translate-y-px",
-        isDragging && !isOverlay ? "opacity-30" : "opacity-100",
-        isOverlay ? "rotate-[1.2deg] border-foreground shadow-[6px_6px_0_0_oklch(0.18_0.012_80/0.12)]" : "",
-      ].join(" ")}
+        'group/card relative flex flex-col border bg-card text-card-foreground transition-all',
+        'border-border hover:border-foreground/40 hover:-translate-y-px',
+        isDragging && !isOverlay ? 'opacity-30' : 'opacity-100',
+        isOverlay
+          ? 'rotate-[1.2deg] border-foreground shadow-[6px_6px_0_0_oklch(0.18_0.012_80/0.12)]'
+          : '',
+      ].join(' ')}
     >
       {/* Top: drag handle + agent pill */}
       <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
@@ -77,9 +79,11 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
       <div className="px-4 py-4">
         <h3
           className={[
-            "font-heading text-[1.35rem] leading-[1.2] tracking-tight",
-            isDone ? "text-muted-foreground line-through decoration-foreground/40" : "text-foreground",
-          ].join(" ")}
+            'font-heading text-[1.35rem] leading-[1.2] tracking-tight',
+            isDone
+              ? 'text-muted-foreground line-through decoration-foreground/40'
+              : 'text-foreground',
+          ].join(' ')}
         >
           {task.title}
         </h3>
@@ -104,5 +108,5 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
       {/* Decorative corner */}
       <span className="pointer-events-none absolute top-0 right-0 size-2 border-t-2 border-r-2 border-foreground/0 transition-colors group-hover/card:border-primary" />
     </article>
-  );
+  )
 }
