@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { Button } from '#/components/ui/button'
 
 const navLinks = [
   { to: '/' as const, label: 'Home' },
@@ -7,48 +8,10 @@ const navLinks = [
 
 export function Header() {
   return (
-    <header
-      style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 50,
-        background: "var(--header-bg)",
-        borderBottom: "1px solid var(--line)",
-        backdropFilter: "blur(12px)",
-        WebkitBackdropFilter: "blur(12px)",
-      }}
-    >
-      <div
-        className="page-wrap"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          height: "56px",
-        }}
-      >
-        {/* Logo */}
-        <Link
-          to="/"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            textDecoration: "none",
-          }}
-        >
-          <span
-            style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "7px",
-              background: "linear-gradient(135deg, var(--lagoon), var(--palm))",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
+    <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur">
+      <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
+        <Link to="/" className="flex items-center gap-2 text-foreground no-underline">
+          <span className="flex size-7 items-center justify-center bg-primary text-primary-foreground">
             <svg
               width="14"
               height="14"
@@ -58,58 +21,25 @@ export function Header() {
               role="img"
             >
               <title id="site-logo-title">Acme logo</title>
-              <circle cx="7" cy="7" r="5" stroke="white" strokeWidth="1.5" />
-              <circle cx="7" cy="7" r="2" fill="white" />
+              <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
+              <circle cx="7" cy="7" r="2" fill="currentColor" />
             </svg>
           </span>
-          <span
-            className="display-title"
-            style={{
-              fontSize: "1.05rem",
-              fontWeight: 700,
-              color: "var(--sea-ink)",
-              letterSpacing: "-0.01em",
-            }}
-          >
-            Acme
-          </span>
+          <span className="text-sm font-bold tracking-tight">Acme</span>
         </Link>
 
-        {/* Nav */}
-        <nav style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+        <nav className="flex items-center gap-1">
           {navLinks.map(({ to, label }) => (
             <Link
               key={to}
               to={to}
-              className="nav-link"
-              activeProps={{ className: "nav-link is-active" }}
-              style={{
-                padding: "6px 12px",
-                fontSize: "0.85rem",
-                fontWeight: 500,
-                borderRadius: "6px",
-              }}
+              className="px-3 py-1.5 text-xs font-medium text-muted-foreground no-underline hover:text-foreground"
+              activeProps={{ className: 'text-foreground' }}
             >
               {label}
             </Link>
           ))}
-          <Link
-            to="/about"
-            style={{
-              marginLeft: "8px",
-              padding: "6px 14px",
-              fontSize: "0.82rem",
-              fontWeight: 600,
-              borderRadius: "6px",
-              background: "var(--lagoon)",
-              color: "white",
-              textDecoration: "none",
-              border: "1px solid transparent",
-              letterSpacing: "0.01em",
-            }}
-          >
-            Get started
-          </Link>
+          <Button size="sm" nativeButton={false} render={<Link to="/about">Get started</Link>} />
         </nav>
       </div>
     </header>

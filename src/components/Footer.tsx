@@ -8,45 +8,30 @@ const footerLinks = [
 
 export function Footer() {
   return (
-    <footer className="site-footer">
-      <div
-        className="page-wrap"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "12px",
-          padding: "20px 0",
-        }}
-      >
-        <span
-          style={{
-            fontSize: "0.8rem",
-            color: "var(--sea-ink-soft)",
-          }}
-        >
+    <footer className="border-t border-border bg-background">
+      <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-5">
+        <span className="text-xs text-muted-foreground">
           © {new Date().getFullYear()} Acme. All rights reserved.
         </span>
-
-        <nav style={{ display: "flex", gap: "20px" }}>
-          {footerLinks.map(link => {
-            const linkStyle = {
-              fontSize: '0.8rem',
-              color: 'var(--sea-ink-soft)',
-              textDecoration: 'none',
-            } as const
-
+        <nav className="flex gap-5">
+          {footerLinks.map((link) => {
             if (link.kind === 'internal') {
               return (
-                <Link key={link.label} to={link.to} style={linkStyle}>
+                <Link
+                  key={link.label}
+                  to={link.to}
+                  className="text-xs text-muted-foreground no-underline hover:text-foreground"
+                >
                   {link.label}
                 </Link>
               )
             }
-
             return (
-              <a key={link.label} href={link.href} style={linkStyle}>
+              <a
+                key={link.label}
+                href={link.href}
+                className="text-xs text-muted-foreground no-underline hover:text-foreground"
+              >
                 {link.label}
               </a>
             )
