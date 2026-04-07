@@ -6,6 +6,8 @@ import {
 } from "@tanstack/react-router";
 import { Footer } from "../components/Footer";
 import { Header } from "../components/Header";
+import { BoardProvider } from "../components/board/store";
+import { NewTaskDialog } from "../components/board/NewTaskDialog";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -13,7 +15,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Acme" },
+      { title: "Agent Todo" },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),
@@ -23,13 +25,14 @@ export const Route = createRootRoute({
 
 function RootLayout() {
   return (
-    <>
+    <BoardProvider>
       <Header />
-      <main style={{ minHeight: "calc(100dvh - 56px - 61px)" }}>
+      <main>
         <Outlet />
       </main>
       <Footer />
-    </>
+      <NewTaskDialog />
+    </BoardProvider>
   );
 }
 

@@ -1,65 +1,53 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
-import { Button } from '#/components/ui/button'
+import { createFileRoute } from "@tanstack/react-router";
+import { Funnel, MagnifyingGlass, SlidersHorizontal } from "@phosphor-icons/react";
+import { Board } from "#/components/board/Board";
+import { Button } from "#/components/ui/button";
 
-export const Route = createFileRoute('/')({ component: Home })
+export const Route = createFileRoute("/")({ component: BoardPage });
 
-const placeholders = [
-  {
-    kicker: 'Feature One',
-    title: 'Placeholder block',
-    desc: 'This area is reserved for your first content section. Drop in whatever belongs here.',
-  },
-  {
-    kicker: 'Feature Two',
-    title: 'Another placeholder',
-    desc: 'A second content area. Use this for highlights, stats, or a key message.',
-  },
-  {
-    kicker: 'Feature Three',
-    title: 'And one more',
-    desc: 'Third section placeholder - ready for real content whenever you are.',
-  },
-]
-
-function Home() {
+function BoardPage() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 pt-12 pb-16">
-      <section className="mb-16 text-center">
-        <p className="mb-4 text-[0.69rem] font-bold tracking-[0.16em] text-muted-foreground uppercase">
-          Welcome
-        </p>
-        <h1 className="mx-auto mb-5 max-w-2xl text-4xl leading-tight font-bold tracking-tight text-foreground sm:text-5xl">
-          Your headline goes here
-        </h1>
-        <p className="mx-auto mb-8 max-w-md text-base leading-relaxed text-muted-foreground">
-          A short supporting sentence that gives context. Replace this with something real once
-          you&apos;re ready.
-        </p>
-        <div className="flex flex-wrap justify-center gap-3">
-          <Button size="lg" nativeButton={false} render={<Link to="/about">Primary action</Link>} />
-          <Button
-            size="lg"
-            variant="outline"
-            nativeButton={false}
-            render={<Link to="/">Secondary action</Link>}
-          />
-        </div>
-      </section>
-
-      <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {placeholders.map(({ kicker, title, desc }) => (
-          <div
-            key={title}
-            className="flex flex-col gap-2.5 border border-border bg-card p-7 text-card-foreground"
-          >
-            <p className="text-[0.69rem] font-bold tracking-[0.16em] text-muted-foreground uppercase">
-              {kicker}
+    <div className="bg-paper relative flex h-[calc(100dvh-64px-57px)] w-full flex-col">
+      {/* Board meta strip */}
+      <div className="border-b border-border bg-background/60 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-[1400px] items-end justify-between gap-6 px-8 pt-5 pb-4">
+          <div>
+            <p className="mb-1.5 flex items-center gap-2 text-[0.6rem] font-medium tracking-[0.2em] text-muted-foreground uppercase">
+              <span className="size-1.5 bg-primary" />
+              workspace · default
             </p>
-            <h3 className="text-base font-bold tracking-tight">{title}</h3>
-            <p className="text-sm leading-relaxed text-muted-foreground">{desc}</p>
+            <h1 className="font-heading text-4xl leading-[0.95] tracking-tight text-foreground">
+              Today&apos;s <span className="italic text-muted-foreground">board.</span>
+            </h1>
           </div>
-        ))}
-      </section>
+
+          <div className="flex items-center gap-2 pb-1">
+            <div className="flex h-8 items-center gap-2 border border-border bg-card px-2.5 text-muted-foreground focus-within:border-foreground">
+              <MagnifyingGlass size={13} />
+              <input
+                type="text"
+                placeholder="Search tasks…"
+                className="w-48 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+              />
+              <kbd className="border border-border bg-background px-1 text-[0.58rem] text-muted-foreground">
+                /
+              </kbd>
+            </div>
+            <Button size="sm" variant="outline" aria-label="Filter">
+              <Funnel size={13} />
+              <span className="text-[0.68rem] tracking-[0.12em] uppercase">Filter</span>
+            </Button>
+            <Button size="sm" variant="outline" aria-label="View options">
+              <SlidersHorizontal size={13} />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Board */}
+      <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-8 py-5 min-h-0">
+        <Board />
+      </div>
     </div>
-  )
+  );
 }
