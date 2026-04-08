@@ -19,7 +19,7 @@ export class CodexClient extends EventEmitter {
   constructor({ cwd, model }) {
     super()
     this.cwd = cwd
-    this.model = model ?? null
+    this.model = 'gpt-5.4' // Hardcoded for now
     this.nextId = 1
     this.pending = new Map() // id -> { resolve, reject }
     this.threadId = null
@@ -93,14 +93,13 @@ export class CodexClient extends EventEmitter {
   }
 
   _handleServerRequest(msg) {
-    // For a read-only sandbox + never-approval policy we shouldn't see these,
-    // but respond defensively so the server doesn't stall.
+    // YOLO mode: auto-approve everything so the agent can execute without restrictions.
     let result = {}
-    if (msg.method === 'item/commandExecution/requestApproval') result = { decision: 'denied' }
-    else if (msg.method === 'item/fileChange/requestApproval') result = { decision: 'denied' }
-    else if (msg.method === 'item/permissions/requestApproval') result = { decision: 'denied' }
-    else if (msg.method === 'applyPatchApproval') result = { decision: 'denied' }
-    else if (msg.method === 'execCommandApproval') result = { decision: 'denied' }
+    if (msg.method === 'item/commandExecution/requestApproval') result = { decision: 'approved' }
+    else if (msg.method === 'item/fileChange/requestApproval') result = { decision: 'approved' }
+    else if (msg.method === 'item/permissions/requestApproval') result = { decision: 'approved' }
+    else if (msg.method === 'applyPatchApproval') result = { decision: 'approved' }
+    else if (msg.method === 'execCommandApproval') result = { decision: 'approved' }
     this._send({ jsonrpc: '2.0', id: msg.id, result })
   }
 
@@ -156,10 +155,10 @@ export class CodexClient extends EventEmitter {
 
   async startThread() {
     const res = await this._request('thread/start', {
-      model: this.model,
+      model: 'gpt-5.4',
       cwd: this.cwd,
       approvalPolicy: 'never',
-      sandbox: 'read-only',
+      sandbox: 'workspaceWrite',
       experimentalRawEvents: false,
       persistExtendedHistory: false,
     })
@@ -180,6 +179,8 @@ export class CodexClient extends EventEmitter {
     return this._request('turn/start', {
       threadId: this.threadId,
       input: [{ type: 'text', text, text_elements: [] }],
+      model: 'gpt-5.4',
+      effort: 'medium',
     })
   }
 

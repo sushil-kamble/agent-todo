@@ -13,6 +13,7 @@ import type { Agent, ColumnId, TaskCard } from './types'
 type TasksByColumn = Record<ColumnId, TaskCard[]>
 
 const EMPTY: TasksByColumn = { todo: [], in_progress: [], done: [] }
+const ACTIVE_RUN_STATUSES = new Set(['starting', 'running', 'active'])
 
 type StoreValue = {
   tasks: TasksByColumn
@@ -73,16 +74,17 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     refresh()
   }, [refresh])
 
-  // Poll for run-status updates while any in-progress cards exist. This keeps
-  // the per-card indicator in sync as Codex transitions active ↔ idle without
-  // requiring the user to reload the page.
+  // Poll only while at least one visible in-progress task has an actively
+  // changing run status. Idle tasks can remain in the column for follow-up, but
+  // they should not keep the whole board polling forever.
   useEffect(() => {
-    if (tasks.in_progress.length === 0) return
+    const hasActiveRun = tasks.in_progress.some(task => ACTIVE_RUN_STATUSES.has(task.runStatus ?? ''))
+    if (!hasActiveRun) return
     const id = window.setInterval(() => {
       refresh()
     }, 2500)
     return () => window.clearInterval(id)
-  }, [tasks.in_progress.length, refresh])
+  }, [tasks.in_progress, refresh])
 
   const addTask = useCallback<StoreValue['addTask']>(async input => {
     const { task, column } = await api.createTask({
@@ -124,6 +126,14 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const persistMove = useCallback<StoreValue['persistMove']>(async (taskId, toColumn, position) => {
     try {
       const { runId } = await api.patchTask(taskId, { column_id: toColumn, position })
+      if (toColumn === 'in_progress' && runId) {
+        setTasks(prev => ({
+          ...prev,
+          in_progress: prev.in_progress.map(task =>
+            task.id === taskId ? { ...task, runStatus: 'starting' } : task
+          ),
+        }))
+      }
       return runId
     } catch (e) {
       console.error('[board] persistMove failed', e)

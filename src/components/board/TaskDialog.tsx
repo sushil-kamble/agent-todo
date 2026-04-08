@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, CaretRight, Check, Folder, FolderOpen, X } from '@phosphor-icons/react'
+import {
+  ArrowUp,
+  CaretRight,
+  Check,
+  CopySimple,
+  Folder,
+  FolderOpen,
+  X,
+} from '@phosphor-icons/react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
@@ -466,7 +474,7 @@ type TurnGroup = {
   final: LiveMessage | null
 }
 
-function groupByTurn(messages: LiveMessage[]): TurnGroup[] {
+function groupByTurn(messages: LiveMessage[], completedTurns: number): TurnGroup[] {
   // First pass: split into raw per-turn buckets preserving arrival order so
   // intermediate agent messages, reasoning, and tool calls all appear as a
   // sequential trace instead of stomping on each other.
@@ -490,18 +498,22 @@ function groupByTurn(messages: LiveMessage[]): TurnGroup[] {
   // answer" vs the trace. Rule: the last phase-'final' agent text message in
   // the turn is the final answer; everything else stays in thinking in order.
   // Commentary-phase messages and streaming bubbles stay in the trace.
-  return raw.map(({ user, items }) => {
+  return raw.map(({ user, items }, groupIdx) => {
+    // A turn's "response" only exists once the agent has actually finished
+    // its work (turnCompleted arrived). While the turn is still in flight
+    // every agent message — including the latest one — belongs in the
+    // thinking/tool-call trace, because subsequent tool calls may change
+    // what the agent ultimately wants to say.
+    const turnDone = groupIdx < completedTurns
     let finalIdx = -1
-    for (let i = items.length - 1; i >= 0; i--) {
-      const m = items[i]
-      if (m.role !== 'agent' || m.kind !== 'text') continue
-      if (m.phase === 'commentary') continue
-      // Don't promote a still-streaming bubble — let it live in the trace
-      // until the completed message arrives; otherwise it flickers between
-      // slots as chunks land.
-      if (m.streaming) continue
-      finalIdx = i
-      break
+    if (turnDone) {
+      for (let i = items.length - 1; i >= 0; i--) {
+        const m = items[i]
+        if (m.role !== 'agent' || m.kind !== 'text') continue
+        if (m.streaming) continue
+        finalIdx = i
+        break
+      }
     }
     const thinking: LiveMessage[] = []
     let final: LiveMessage | null = null
@@ -522,6 +534,38 @@ function formatTime(iso: string) {
   }
 }
 
+function ProjectPathChip({ path }: { path: string }) {
+  const [copied, setCopied] = useState(false)
+
+  async function copyPath() {
+    try {
+      await navigator.clipboard.writeText(path)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    } catch (e) {
+      console.error('[task-dialog] failed to copy path', e)
+    }
+  }
+
+  return (
+    <span className="inline-flex max-w-full items-center border border-border bg-muted text-[0.78rem] font-medium text-foreground">
+      <span className="flex min-w-0 items-center gap-1.5 px-2 py-0.5">
+        <Folder size={13} weight="duotone" />
+        <span className="truncate">{path}</span>
+      </span>
+      <button
+        type="button"
+        onClick={copyPath}
+        className="flex h-full shrink-0 items-center justify-center border-l border-border px-2 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+        aria-label={`Copy directory path ${path}`}
+        title={copied ? 'Copied' : 'Copy path'}
+      >
+        {copied ? <Check size={12} weight="bold" /> : <CopySimple size={12} weight="bold" />}
+      </button>
+    </span>
+  )
+}
+
 function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
   const AgentIcon = task.agent === 'claude' ? ClaudeIcon : OpenAIIcon
   const agentLabel = task.agent === 'claude' ? 'Claude' : 'Codex'
@@ -530,6 +574,10 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
   const [messages, setMessages] = useState<LiveMessage[]>([])
   const [draft, setDraft] = useState('')
   const [thinking, setThinking] = useState(false)
+  // Number of agent turns that have fully completed. groupByTurn uses this to
+  // decide whether the last message of a group is the agent's real "response"
+  // (turn done) or just an intermediate message still inside the trace.
+  const [completedTurns, setCompletedTurns] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   // "Stuck to bottom" — if the user scrolls up manually we stop auto-scrolling
@@ -565,6 +613,16 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
       }
       setRunId(run.id)
       setRunStatus(run.status)
+      // Every persisted turn except (possibly) the currently-active one is
+      // already complete. Use the run's live status to decide whether the
+      // most recent group counts as finished — if the run is idle/completed
+      // all user messages represent closed turns; if it's actively running,
+      // the final (latest) user message's turn is still in flight.
+      {
+        const userCount = persisted.filter(m => m.role === 'user').length
+        const active = run.status === 'active' || run.status === 'running'
+        setCompletedTurns(active ? Math.max(0, userCount - 1) : userCount)
+      }
       setMessages(
         persisted
           // Drop lifecycle noise ("thread started: …", "agent exited …") from
@@ -628,6 +686,40 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
           setMessages(prev => {
             // Skip if we already have this seq (replay + live overlap).
             if (prev.some(p => p.id === `p-${ev.seq}`)) return prev
+            // De-dupe: if we already have an agent message for this itemId
+            // (streaming bubble or an earlier persisted copy), drop it so the
+            // incoming authoritative row replaces it instead of duplicating.
+            // Also drop any earlier agent message with identical body text —
+            // Codex sometimes emits the same preamble as both a `reasoning`
+            // item and a subsequent `agentMessage` item under different ids,
+            // which would otherwise render as two identical bubbles.
+            if (ev.role === 'agent') {
+              const incomingBody = (ev.content ?? '').trim()
+              prev = prev.filter(p => {
+                if (ev.itemId && p.itemId === ev.itemId) return false
+                if (
+                  p.role === 'agent' &&
+                  p.kind === 'text' &&
+                  incomingBody &&
+                  p.body.trim() === incomingBody
+                )
+                  return false
+                return true
+              })
+            }
+            // De-dupe user messages: the optimistic bubble we added on send
+            // gets replaced by the authoritative persisted row when it lands.
+            if (ev.role === 'user') {
+              const incomingBody = (ev.content ?? '').trim()
+              prev = prev.filter(
+                p =>
+                  !(
+                    p.id.startsWith('u-local-') &&
+                    p.role === 'user' &&
+                    p.body.trim() === incomingBody
+                  )
+              )
+            }
             // If a completed command message arrives, replace the running bubble
             if (ev.kind === 'command') {
               const existingCmd = prev.find(
@@ -666,10 +758,10 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
           // Only drop the streaming bubble if *this* item is the one that was
           // streaming. Reasoning items and earlier agent messages must not
           // destroy an in-flight stream for a different item.
+          // The itemId-based de-dupe above already removed the streaming
+          // bubble; just clear the ref so the next delta starts fresh.
           if (ev.role === 'agent' && ev.itemId && streamingRef.current?.itemId === ev.itemId) {
-            const id = streamingRef.current.msgId
             streamingRef.current = null
-            setMessages(prev => prev.filter(p => p.id !== id))
           }
           if (ev.itemId) itemPhaseRef.current.delete(ev.itemId)
         } else if (ev.type === 'delta') {
@@ -701,6 +793,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
         } else if (ev.type === 'turnCompleted') {
           setRunStatus('idle')
           setThinking(false)
+          setCompletedTurns(n => n + 1)
           // Mark any remaining running commands as done
           setMessages(prev =>
             prev.map(p => (p.commandRunning ? { ...p, commandRunning: false } : p))
@@ -750,18 +843,25 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
     const body = draft.trim()
     if (!body || !runId) return
     setDraft('')
+    // Optimistic feedback: show the user's bubble *and* mark a fresh in-flight
+    // turn immediately, so the working indicator flips on the instant they
+    // press send — no waiting for the server round-trip or Codex handshake.
+    const localId = `u-local-${Date.now()}`
+    setMessages(prev => [...prev, { id: localId, role: 'user', kind: 'text', body, at: '' }])
     setThinking(true)
     try {
       await api.sendFollowUp(runId, body)
     } catch (e) {
       console.error('[chat] follow-up failed', e)
       setThinking(false)
+      // Roll back the optimistic bubble on failure.
+      setMessages(prev => prev.filter(p => p.id !== localId))
     }
   }
 
   // Group the flat message list into turn blocks. Memoized so we don't
   // re-walk the list on every render while deltas stream.
-  const turns = useMemo(() => groupByTurn(messages), [messages])
+  const turns = useMemo(() => groupByTurn(messages, completedTurns), [messages, completedTurns])
 
   return (
     <section className="relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] sm:h-[calc(100vh-3rem)]">
@@ -785,10 +885,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
             )}
           </div>
           <div className="mt-1.5 flex items-center pl-7">
-            <span className="inline-flex max-w-full items-center gap-1.5 border border-border bg-muted px-2 py-0.5 text-[0.78rem] font-medium text-foreground">
-              <Folder size={13} weight="duotone" />
-              <span className="truncate">{task.project}</span>
-            </span>
+            <ProjectPathChip path={task.project} />
           </div>
         </div>
         <button
@@ -809,8 +906,11 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
       >
         {turns.map((group, idx) => {
           const isLast = idx === turns.length - 1
-          // Show the thinking dots *inside* the active turn's thinking block
-          // while the agent is preparing to emit anything.
+          // A turn is still in-flight when it's the most recent group *and*
+          // the number of completed turns hasn't caught up to it yet. While
+          // in-flight, the collapsible header shows a live spinner so the
+          // user can see the agent is actively working.
+          const inFlight = isLast && idx >= completedTurns
           const showThinkingDots = isLast && thinking
           return (
             <TurnBlock
@@ -818,6 +918,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
               group={group}
               agentIcon={AgentIcon}
               showThinkingDots={showThinkingDots}
+              inFlight={inFlight}
             />
           )
         })}
@@ -865,28 +966,37 @@ function TurnBlock({
   group,
   agentIcon: AgentIcon,
   showThinkingDots,
+  inFlight,
 }: {
   group: TurnGroup
   agentIcon: React.ComponentType<{ size?: number }>
   showThinkingDots: boolean
+  inFlight: boolean
 }) {
-  const hasThinking = group.thinking.length > 0 || showThinkingDots
+  // Always render the collapsible for an in-flight turn so the animated
+  // working label is visible the instant the user sends — even before any
+  // trace items or the thinking-dots bubble have landed.
+  const hasThinking = group.thinking.length > 0 || showThinkingDots || inFlight
   const thinkingCount = group.thinking.length
   return (
     <div className="space-y-3">
       {group.user && <LiveChatBubble message={group.user} agentIcon={AgentIcon} />}
 
       {hasThinking && (
-        <Collapsible defaultOpen>
+        <Collapsible defaultOpen={false}>
           <CollapsibleTrigger className="group/th flex w-full items-center gap-2 border border-dashed border-border bg-muted/40 px-3 py-1.5 text-left transition-colors hover:border-foreground/40 hover:bg-muted aria-expanded:border-foreground/30">
             <CaretRight
               size={11}
               weight="bold"
               className="shrink-0 text-muted-foreground transition-transform duration-150 group-aria-expanded/th:rotate-90"
             />
-            <span className="text-[0.6rem] font-medium tracking-[0.14em] text-muted-foreground uppercase">
-              Thinking & tool calls
-            </span>
+            {inFlight ? (
+              <WorkingLabel />
+            ) : (
+              <span className="text-[0.6rem] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+                Trace
+              </span>
+            )}
             {thinkingCount > 0 && (
               <span className="ml-auto border border-border bg-background px-1.5 text-[0.55rem] font-medium tabular-nums text-muted-foreground">
                 {thinkingCount}
@@ -906,6 +1016,153 @@ function TurnBlock({
 
       {group.final && <LiveChatBubble message={group.final} agentIcon={AgentIcon} />}
     </div>
+  )
+}
+
+/**
+ * Claude-Code-style "working" label: a verb that rotates every couple of
+ * seconds, followed by three dots where each dot pulses on a staggered
+ * interval. Tells the user "we're on it" without a hard spinner.
+ */
+// Claude-Code-style loading vocabulary. Sourced from the leaked CLI
+// vocabulary — intentionally whimsical verbs so the loading state feels
+// alive rather than mechanical. Kept alphabetical for easy additions.
+const WORKING_VERBS = [
+  'Accomplishing',
+  'Actioning',
+  'Actualizing',
+  'Baking',
+  'Brainstorming',
+  'Brewing',
+  'Calculating',
+  'Cerebrating',
+  'Channelling',
+  'Churning',
+  'Clauding',
+  'Coalescing',
+  'Cogitating',
+  'Computing',
+  'Concocting',
+  'Conjuring',
+  'Considering',
+  'Constructing',
+  'Contemplating',
+  'Cooking',
+  'Crafting',
+  'Creating',
+  'Crunching',
+  'Deciphering',
+  'Deliberating',
+  'Determining',
+  'Digesting',
+  'Divining',
+  'Doing',
+  'Effecting',
+  'Envisioning',
+  'Excavating',
+  'Exploring',
+  'Finagling',
+  'Finessing',
+  'Forging',
+  'Forming',
+  'Frobnicating',
+  'Galumphing',
+  'Generating',
+  'Germinating',
+  'Grokking',
+  'Hacking',
+  'Hatching',
+  'Herding',
+  'Honking',
+  'Hustling',
+  'Ideating',
+  'Imagining',
+  'Incubating',
+  'Inferring',
+  'Investigating',
+  'Manifesting',
+  'Marinating',
+  'Meandering',
+  'Moseying',
+  'Mulling',
+  'Musing',
+  'Noodling',
+  'Orchestrating',
+  'Percolating',
+  'Philosophizing',
+  'Plotting',
+  'Pondering',
+  'Processing',
+  'Puttering',
+  'Puzzling',
+  'Reasoning',
+  'Reticulating',
+  'Riffing',
+  'Ruminating',
+  'Scheming',
+  'Schlepping',
+  'Shimmying',
+  'Shucking',
+  'Simmering',
+  'Smooshing',
+  'Spinning',
+  'Stewing',
+  'Summoning',
+  'Synthesizing',
+  'Thinking',
+  'Tinkering',
+  'Transmuting',
+  'Unfurling',
+  'Unravelling',
+  'Untangling',
+  'Vibing',
+  'Wibbling',
+  'Wizarding',
+  'Working',
+  'Wrangling',
+]
+
+function WorkingLabel() {
+  const [verb, setVerb] = useState(
+    () => WORKING_VERBS[Math.floor(Math.random() * WORKING_VERBS.length)]
+  )
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setVerb(prev => {
+        // Pick a different verb each cycle so it's never stuck on the same word.
+        let next = prev
+        while (next === prev) {
+          next = WORKING_VERBS[Math.floor(Math.random() * WORKING_VERBS.length)]
+        }
+        return next
+      })
+    }, 2200)
+    return () => window.clearInterval(id)
+  }, [])
+  return (
+    <span className="inline-flex items-center gap-0.5 text-[0.62rem] font-medium tracking-[0.14em] text-foreground uppercase">
+      <span className="animate-pulse">{verb}</span>
+      <span className="inline-flex gap-px" aria-hidden="true">
+        <span
+          className="animate-pulse text-foreground"
+          style={{ animationDelay: '0ms', animationDuration: '1.2s' }}
+        >
+          .
+        </span>
+        <span
+          className="animate-pulse text-foreground"
+          style={{ animationDelay: '200ms', animationDuration: '1.2s' }}
+        >
+          .
+        </span>
+        <span
+          className="animate-pulse text-foreground"
+          style={{ animationDelay: '400ms', animationDuration: '1.2s' }}
+        >
+          .
+        </span>
+      </span>
+    </span>
   )
 }
 
@@ -1124,10 +1381,7 @@ function ReadonlyPanel({ task, close }: { task: TaskCard; close: () => void }) {
             </span>
           </div>
           <div className="mt-1.5 flex items-center pl-7">
-            <span className="inline-flex max-w-full items-center gap-1.5 border border-border bg-muted px-2 py-0.5 text-[0.78rem] font-medium text-foreground">
-              <Folder size={13} weight="duotone" />
-              <span className="truncate">{task.project}</span>
-            </span>
+            <ProjectPathChip path={task.project} />
           </div>
         </div>
         <button
