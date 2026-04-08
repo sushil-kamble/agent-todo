@@ -18,8 +18,9 @@ import { TaskCardView } from './TaskCardView'
 import { COLUMNS, type ColumnId, type TaskCard } from './types'
 
 export function Board() {
-  const { tasks, setTasks } = useBoard()
+  const { tasks, setTasks, persistMove } = useBoard()
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [dragOrigin, setDragOrigin] = useState<ColumnId | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -43,7 +44,9 @@ export function Board() {
     : undefined
 
   function handleDragStart(e: DragStartEvent) {
-    setActiveId(String(e.active.id))
+    const id = String(e.active.id)
+    setActiveId(id)
+    setDragOrigin(findColumn(id))
   }
 
   function handleDragOver(e: DragOverEvent) {
@@ -69,15 +72,30 @@ export function Board() {
 
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e
+    const activeIdStr = String(active.id)
+    const origin = dragOrigin
     setActiveId(null)
+    setDragOrigin(null)
     if (!over) return
-    const col = findColumn(String(active.id))
+    const col = findColumn(activeIdStr)
     if (!col) return
     const items = tasks[col]
     const oldIdx = items.findIndex(t => t.id === active.id)
     const newIdx = items.findIndex(t => t.id === over.id)
-    if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return
-    setTasks(prev => ({ ...prev, [col]: arrayMove(prev[col], oldIdx, newIdx) }))
+
+    const finalCol = col
+    let finalIdx = oldIdx
+    if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
+      setTasks(prev => ({ ...prev, [col]: arrayMove(prev[col], oldIdx, newIdx) }))
+      finalIdx = newIdx
+    }
+
+    // Persist column transitions (this is what kicks off codex on in_progress).
+    if (origin && origin !== finalCol) {
+      void persistMove(activeIdStr, finalCol, Math.max(0, finalIdx))
+    } else if (origin === finalCol && oldIdx !== newIdx) {
+      void persistMove(activeIdStr, finalCol, Math.max(0, finalIdx))
+    }
   }
 
   return (

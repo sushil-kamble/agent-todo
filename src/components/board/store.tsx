@@ -7,26 +7,36 @@ import {
   useMemo,
   useState,
 } from 'react'
-import { type Agent, type ColumnId, SEED, type TaskCard } from './types'
+import * as api from '#/lib/api'
+import type { Agent, ColumnId, TaskCard } from './types'
 
 type TasksByColumn = Record<ColumnId, TaskCard[]>
 
+const EMPTY: TasksByColumn = { todo: [], in_progress: [], done: [] }
+
 type StoreValue = {
   tasks: TasksByColumn
+  /**
+   * Local-only setter. Use for optimistic UI (e.g. dnd reorder) — does NOT
+   * persist. Call persistMove/persistReorder afterwards to sync with the server.
+   */
   setTasks: React.Dispatch<React.SetStateAction<TasksByColumn>>
+  refresh: () => Promise<void>
+
   addTask: (input: {
     title: string
     project: string
     agent: Agent
     tag?: string
     column: ColumnId
-  }) => void
+  }) => Promise<void>
   updateTask: (
     taskId: string,
     updates: { title: string; project: string; agent: Agent; tag?: string },
     fromColumn: ColumnId,
     toColumn: ColumnId
-  ) => void
+  ) => Promise<void>
+  persistMove: (taskId: string, toColumn: ColumnId, position: number) => Promise<string | null>
 
   // New task dialog
   dialogOpen: boolean
@@ -34,7 +44,7 @@ type StoreValue = {
   openNewTask: (column?: ColumnId) => void
   closeNewTask: () => void
 
-  // Edit task dialog
+  // Edit / chat dialog
   editingTask: TaskCard | null
   editingColumn: ColumnId | null
   openEditTask: (task: TaskCard, column: ColumnId) => void
@@ -44,73 +54,87 @@ type StoreValue = {
 const BoardCtx = createContext<StoreValue | null>(null)
 
 export function BoardProvider({ children }: { children: ReactNode }) {
-  const [tasks, setTasks] = useState<TasksByColumn>(SEED)
+  const [tasks, setTasks] = useState<TasksByColumn>(EMPTY)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogColumn, setDialogColumn] = useState<ColumnId>('todo')
   const [editingTask, setEditingTask] = useState<TaskCard | null>(null)
   const [editingColumn, setEditingColumn] = useState<ColumnId | null>(null)
 
-  const addTask = useCallback<StoreValue['addTask']>(({ title, project, agent, tag, column }) => {
-    setTasks(prev => {
-      const id = `t-${Math.random().toString(36).slice(2, 7)}`
-      const card: TaskCard = {
-        id,
-        title: title.trim(),
-        project: project.trim() || 'untitled',
-        agent,
-        tag: tag?.trim() || undefined,
-        createdAt: new Date().toISOString().slice(0, 10),
-      }
-      return { ...prev, [column]: [card, ...prev[column]] }
+  const refresh = useCallback(async () => {
+    try {
+      const t = await api.fetchTasks()
+      setTasks(t)
+    } catch (e) {
+      console.error('[board] fetchTasks failed', e)
+    }
+  }, [])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  const addTask = useCallback<StoreValue['addTask']>(async input => {
+    const { task, column } = await api.createTask({
+      title: input.title.trim(),
+      project: input.project.trim() || 'untitled',
+      agent: input.agent,
+      tag: input.tag?.trim() || undefined,
+      column_id: input.column,
     })
+    setTasks(prev => ({ ...prev, [column]: [task, ...prev[column]] }))
   }, [])
 
   const updateTask = useCallback<StoreValue['updateTask']>(
-    (taskId, updates, fromColumn, toColumn) => {
-      setTasks(prev => {
-        const task = prev[fromColumn].find(t => t.id === taskId)
-        if (!task) return prev
-        const updated: TaskCard = {
-          ...task,
+    async (taskId, updates, fromColumn, toColumn) => {
+      const { task, column } = await (async () => {
+        const r = await api.patchTask(taskId, {
           title: updates.title.trim(),
           project: updates.project.trim() || 'untitled',
           agent: updates.agent,
-          tag: updates.tag?.trim() || undefined,
-        }
-        if (fromColumn === toColumn) {
-          return {
-            ...prev,
-            [fromColumn]: prev[fromColumn].map(t => (t.id === taskId ? updated : t)),
-          }
-        }
-        return {
+          tag: updates.tag?.trim() || null,
+          column_id: toColumn,
+        })
+        return r
+      })()
+      setTasks(prev => {
+        const without = {
           ...prev,
           [fromColumn]: prev[fromColumn].filter(t => t.id !== taskId),
-          [toColumn]: [updated, ...prev[toColumn]],
+        }
+        return {
+          ...without,
+          [column]: [task, ...without[column].filter(t => t.id !== taskId)],
         }
       })
     },
     []
   )
 
+  const persistMove = useCallback<StoreValue['persistMove']>(async (taskId, toColumn, position) => {
+    try {
+      const { runId } = await api.patchTask(taskId, { column_id: toColumn, position })
+      return runId
+    } catch (e) {
+      console.error('[board] persistMove failed', e)
+      return null
+    }
+  }, [])
+
   const openNewTask = useCallback((column: ColumnId = 'todo') => {
     setDialogColumn(column)
     setDialogOpen(true)
   }, [])
-
   const closeNewTask = useCallback(() => setDialogOpen(false), [])
 
   const openEditTask = useCallback((task: TaskCard, column: ColumnId) => {
     setEditingTask(task)
     setEditingColumn(column)
   }, [])
-
   const closeEditTask = useCallback(() => {
     setEditingTask(null)
     setEditingColumn(null)
   }, [])
 
-  // Global "N" shortcut to open the new task dialog (when not typing in an input)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== 'n') return
@@ -130,8 +154,10 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     () => ({
       tasks,
       setTasks,
+      refresh,
       addTask,
       updateTask,
+      persistMove,
       dialogOpen,
       dialogColumn,
       openNewTask,
@@ -143,8 +169,10 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     }),
     [
       tasks,
+      refresh,
       addTask,
       updateTask,
+      persistMove,
       dialogOpen,
       dialogColumn,
       openNewTask,
