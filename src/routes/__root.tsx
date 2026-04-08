@@ -1,8 +1,7 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
-import { NewTaskDialog } from '../components/board/NewTaskDialog'
+import { TaskDialog } from '../components/board/TaskDialog'
 import { BoardProvider } from '../components/board/store'
 import { Footer } from '../components/Footer'
-import { Header } from '../components/Header'
 import appCss from '../styles.css?url'
 
 export const Route = createRootRoute({
@@ -21,12 +20,13 @@ export const Route = createRootRoute({
 function RootLayout() {
   return (
     <BoardProvider>
-      <Header />
-      <main>
-        <Outlet />
-      </main>
-      <Footer />
-      <NewTaskDialog />
+      <div className="flex h-dvh flex-col">
+        <main className="min-h-0 flex-1">
+          <Outlet />
+        </main>
+        <Footer />
+      </div>
+      <TaskDialog />
     </BoardProvider>
   )
 }

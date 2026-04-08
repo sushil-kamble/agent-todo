@@ -54,10 +54,6 @@ export function BoardColumn({ column, tasks, index }: Props) {
         </button>
       </header>
 
-      <p className="border-b border-dashed border-border px-4 py-1.5 text-[0.6rem] tracking-[0.12em] text-muted-foreground/80 uppercase">
-        {column.hint}
-      </p>
-
       {/* Cards */}
       <div ref={setNodeRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
         <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>

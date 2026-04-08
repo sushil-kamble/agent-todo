@@ -1,60 +1,97 @@
-import {
-  Funnel,
-  MagnifyingGlass,
-  SlidersHorizontal,
-} from "@phosphor-icons/react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Board } from "#/components/board/Board";
-import { Button } from "#/components/ui/button";
+import { MagnifyingGlass, Plus } from '@phosphor-icons/react'
+import { Link, createFileRoute } from '@tanstack/react-router'
+import { useEffect, useRef } from 'react'
+import { Board } from '#/components/board/Board'
+import { Button } from '#/components/ui/button'
+import { useBoard } from '#/components/board/store'
 
-export const Route = createFileRoute("/")({ component: BoardPage });
+export const Route = createFileRoute('/')({ component: BoardPage })
+
+function AgentMark({ className = '' }: { className?: string }) {
+  return (
+    <span
+      className={`relative inline-flex size-7 shrink-0 items-center justify-center border border-foreground bg-foreground text-background ${className}`}
+      aria-hidden="true"
+    >
+      <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+        <title>Agent Todo mark</title>
+        <path
+          d="M2.2 15.5 L9 2.5 L15.8 15.5"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="square"
+          strokeLinejoin="miter"
+        />
+        <path
+          d="M5.2 10.8 L12.8 10.8"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="square"
+        />
+      </svg>
+      <span className="pointer-events-none absolute -right-[3px] -bottom-[3px] size-1.5 bg-primary" />
+    </span>
+  )
+}
 
 function BoardPage() {
-  return (
-    <div className="bg-paper relative flex h-[calc(100dvh-64px-57px)] w-full flex-col">
-      {/* Board meta strip */}
-      <div className="border-b border-border bg-background/60 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-350 items-end justify-between gap-6 px-8 pt-5 pb-4">
-          <div>
-            <p className="mb-1.5 flex items-center gap-2 text-[0.6rem] font-medium tracking-[0.2em] text-muted-foreground uppercase">
-              <span className="size-1.5 bg-primary" />
-              workspace · default
-            </p>
-            <h1 className="font-heading text-4xl leading-[0.95] tracking-tight text-foreground">
-              Today&apos;s{" "}
-              <span className="italic text-muted-foreground">board.</span>
-            </h1>
-          </div>
+  const { openNewTask } = useBoard()
+  const searchRef = useRef<HTMLInputElement>(null)
 
-          <div className="flex items-center gap-2 pb-1">
-            <div className="flex h-8 items-center gap-2 border border-border bg-card px-2.5 text-muted-foreground focus-within:border-foreground">
-              <MagnifyingGlass size={13} />
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== '/') return
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
+      e.preventDefault()
+      searchRef.current?.focus()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Unified top bar */}
+      <div className="shrink-0 border-b border-border bg-background">
+        <div className="mx-auto flex h-14 w-full max-w-350 items-center justify-between px-8">
+          <Link
+            to="/"
+            className="flex items-center gap-2.5 text-foreground no-underline"
+          >
+            <AgentMark />
+            <span className="font-heading text-[1.25rem] leading-none tracking-tight">
+              Agent<span className="italic text-muted-foreground">todo</span>
+            </span>
+          </Link>
+
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 items-center gap-2 border border-border bg-card px-2.5 text-muted-foreground focus-within:border-foreground/60 focus-within:bg-background">
+              <MagnifyingGlass size={13} weight="regular" />
               <input
+                ref={searchRef}
                 type="text"
                 placeholder="Search tasks…"
-                className="w-48 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
+                className="w-48 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
               />
               <kbd className="border border-border bg-background px-1 text-[0.58rem] text-muted-foreground">
                 /
               </kbd>
             </div>
-            <Button size="sm" variant="outline" aria-label="Filter">
-              <Funnel size={13} />
-              <span className="text-[0.68rem] tracking-[0.12em] uppercase">
-                Filter
-              </span>
-            </Button>
-            <Button size="sm" variant="outline" aria-label="View options">
-              <SlidersHorizontal size={13} />
+            <Button size="sm" variant="outline" onClick={() => openNewTask('todo')}>
+              <Plus size={13} />
+              <span className="text-xs">Add task</span>
             </Button>
           </div>
         </div>
       </div>
 
       {/* Board */}
-      <div className="mx-auto flex w-full max-w-350 min-h-0 flex-1 flex-col px-8 py-5">
-        <Board />
+      <div className="bg-paper min-h-0 flex-1 overflow-auto">
+        <div className="mx-auto flex h-full w-full max-w-350 flex-col px-8 py-5">
+          <Board />
+        </div>
       </div>
     </div>
-  );
+  )
 }

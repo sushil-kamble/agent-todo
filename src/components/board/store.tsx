@@ -21,12 +21,24 @@ type StoreValue = {
     tag?: string
     column: ColumnId
   }) => void
+  updateTask: (
+    taskId: string,
+    updates: { title: string; project: string; agent: Agent; tag?: string },
+    fromColumn: ColumnId,
+    toColumn: ColumnId
+  ) => void
 
-  // Dialog
+  // New task dialog
   dialogOpen: boolean
   dialogColumn: ColumnId
   openNewTask: (column?: ColumnId) => void
   closeNewTask: () => void
+
+  // Edit task dialog
+  editingTask: TaskCard | null
+  editingColumn: ColumnId | null
+  openEditTask: (task: TaskCard, column: ColumnId) => void
+  closeEditTask: () => void
 }
 
 const BoardCtx = createContext<StoreValue | null>(null)
@@ -35,6 +47,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<TasksByColumn>(SEED)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogColumn, setDialogColumn] = useState<ColumnId>('todo')
+  const [editingTask, setEditingTask] = useState<TaskCard | null>(null)
+  const [editingColumn, setEditingColumn] = useState<ColumnId | null>(null)
 
   const addTask = useCallback<StoreValue['addTask']>(({ title, project, agent, tag, column }) => {
     setTasks(prev => {
@@ -51,12 +65,50 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const updateTask = useCallback<StoreValue['updateTask']>(
+    (taskId, updates, fromColumn, toColumn) => {
+      setTasks(prev => {
+        const task = prev[fromColumn].find(t => t.id === taskId)
+        if (!task) return prev
+        const updated: TaskCard = {
+          ...task,
+          title: updates.title.trim(),
+          project: updates.project.trim() || 'untitled',
+          agent: updates.agent,
+          tag: updates.tag?.trim() || undefined,
+        }
+        if (fromColumn === toColumn) {
+          return {
+            ...prev,
+            [fromColumn]: prev[fromColumn].map(t => (t.id === taskId ? updated : t)),
+          }
+        }
+        return {
+          ...prev,
+          [fromColumn]: prev[fromColumn].filter(t => t.id !== taskId),
+          [toColumn]: [updated, ...prev[toColumn]],
+        }
+      })
+    },
+    []
+  )
+
   const openNewTask = useCallback((column: ColumnId = 'todo') => {
     setDialogColumn(column)
     setDialogOpen(true)
   }, [])
 
   const closeNewTask = useCallback(() => setDialogOpen(false), [])
+
+  const openEditTask = useCallback((task: TaskCard, column: ColumnId) => {
+    setEditingTask(task)
+    setEditingColumn(column)
+  }, [])
+
+  const closeEditTask = useCallback(() => {
+    setEditingTask(null)
+    setEditingColumn(null)
+  }, [])
 
   // Global "N" shortcut to open the new task dialog (when not typing in an input)
   useEffect(() => {
@@ -79,12 +131,17 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       tasks,
       setTasks,
       addTask,
+      updateTask,
       dialogOpen,
       dialogColumn,
       openNewTask,
       closeNewTask,
+      editingTask,
+      editingColumn,
+      openEditTask,
+      closeEditTask,
     }),
-    [tasks, addTask, dialogOpen, dialogColumn, openNewTask, closeNewTask]
+    [tasks, addTask, updateTask, dialogOpen, dialogColumn, openNewTask, closeNewTask, editingTask, editingColumn, openEditTask, closeEditTask]
   )
 
   return <BoardCtx.Provider value={value}>{children}</BoardCtx.Provider>

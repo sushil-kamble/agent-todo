@@ -1,6 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { DotsSixVertical, Folder, Sparkle, Terminal } from '@phosphor-icons/react'
+import { useBoard } from './store'
 import type { ColumnId, TaskCard } from './types'
 
 type Props = {
@@ -23,6 +24,7 @@ const agentMeta = {
 } as const
 
 export function TaskCardView({ task, column, isOverlay = false }: Props) {
+  const { openEditTask } = useBoard()
   const sortable = useSortable({
     id: task.id,
     data: { column, task },
@@ -75,35 +77,41 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
         </span>
       </div>
 
-      {/* Body: task title */}
-      <div className="px-4 py-4">
-        <h3
-          className={[
-            'font-heading text-[1.35rem] leading-[1.2] tracking-tight',
-            isDone
-              ? 'text-muted-foreground line-through decoration-foreground/40'
-              : 'text-foreground',
-          ].join(' ')}
-        >
-          {task.title}
-        </h3>
-      </div>
-
-      {/* Footer: project + tag + date */}
-      <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-border px-3 py-2">
-        <span className="flex items-center gap-1.5 text-[0.62rem] text-muted-foreground">
-          <Folder size={11} weight="duotone" />
-          <span className="truncate">{task.project}</span>
-        </span>
-        <div className="flex items-center gap-2 text-[0.58rem] tracking-[0.1em] text-muted-foreground uppercase">
-          {task.tag && (
-            <span className="border border-border bg-muted px-1.5 py-0.5 text-foreground/80">
-              {task.tag}
-            </span>
-          )}
-          <span>{task.createdAt.slice(5)}</span>
+      {/* Body: clickable to edit */}
+      <button
+        type="button"
+        onClick={() => !isDragging && openEditTask(task, column)}
+        className="block w-full cursor-pointer text-left"
+      >
+        <div className="px-4 py-4">
+          <h3
+            className={[
+              'font-heading text-[1.35rem] leading-[1.2] tracking-tight',
+              isDone
+                ? 'text-muted-foreground line-through decoration-foreground/40'
+                : 'text-foreground',
+            ].join(' ')}
+          >
+            {task.title}
+          </h3>
         </div>
-      </div>
+
+        {/* Footer: project + tag + date */}
+        <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-border px-3 py-2">
+          <span className="flex items-center gap-1.5 text-[0.62rem] text-muted-foreground">
+            <Folder size={11} weight="duotone" />
+            <span className="truncate">{task.project}</span>
+          </span>
+          <div className="flex items-center gap-2 text-[0.58rem] tracking-[0.1em] text-muted-foreground uppercase">
+            {task.tag && (
+              <span className="border border-border bg-muted px-1.5 py-0.5 text-foreground/80">
+                {task.tag}
+              </span>
+            )}
+            <span>{task.createdAt.slice(5)}</span>
+          </div>
+        </div>
+      </button>
 
       {/* Decorative corner */}
       <span className="pointer-events-none absolute top-0 right-0 size-2 border-t-2 border-r-2 border-foreground/0 transition-colors group-hover/card:border-primary" />
