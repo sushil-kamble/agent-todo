@@ -1,6 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { DotsSixVertical, Folder, Sparkle, Terminal } from '@phosphor-icons/react'
+import { DotsSixVertical, Folder } from '@phosphor-icons/react'
+import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
 import { useBoard } from './store'
 import type { ColumnId, TaskCard } from './types'
 
@@ -13,12 +14,12 @@ type Props = {
 const agentMeta = {
   claude: {
     label: 'Claude',
-    Icon: Sparkle,
+    Icon: ClaudeIcon,
     className: 'text-primary-foreground bg-primary border-primary',
   },
   codex: {
     label: 'Codex',
-    Icon: Terminal,
+    Icon: OpenAIIcon,
     className: 'text-foreground bg-background border-foreground',
   },
 } as const
@@ -72,7 +73,7 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
         <span
           className={`inline-flex items-center gap-1 border px-1.5 py-0.5 text-[0.58rem] font-medium tracking-[0.12em] uppercase ${agent.className}`}
         >
-          <AgentIcon size={10} weight="fill" />
+          <AgentIcon size={10} />
           {agent.label}
         </span>
       </div>
@@ -96,20 +97,15 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
           </h3>
         </div>
 
-        {/* Footer: project + tag + date */}
+        {/* Footer: project + date */}
         <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-border px-3 py-2">
           <span className="flex items-center gap-1.5 text-[0.62rem] text-muted-foreground">
             <Folder size={11} weight="duotone" />
             <span className="truncate">{task.project}</span>
           </span>
-          <div className="flex items-center gap-2 text-[0.58rem] tracking-[0.1em] text-muted-foreground uppercase">
-            {task.tag && (
-              <span className="border border-border bg-muted px-1.5 py-0.5 text-foreground/80">
-                {task.tag}
-              </span>
-            )}
-            <span>{task.createdAt.slice(5)}</span>
-          </div>
+          <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
+            {task.createdAt.slice(5)}
+          </span>
         </div>
       </button>
 

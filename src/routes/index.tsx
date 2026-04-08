@@ -42,7 +42,8 @@ function BoardPage() {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== '/') return
       const tag = (e.target as HTMLElement).tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable)
+        return
       e.preventDefault()
       searchRef.current?.focus()
     }
@@ -55,10 +56,7 @@ function BoardPage() {
       {/* Unified top bar */}
       <div className="shrink-0 border-b border-border bg-background">
         <div className="mx-auto flex h-14 w-full max-w-350 items-center justify-between px-8">
-          <Link
-            to="/"
-            className="flex items-center gap-2.5 text-foreground no-underline"
-          >
+          <Link to="/" className="flex items-center gap-2.5 text-foreground no-underline">
             <AgentMark />
             <span className="font-heading text-[1.25rem] leading-none tracking-tight">
               Agent<span className="italic text-muted-foreground">todo</span>

@@ -141,7 +141,19 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       openEditTask,
       closeEditTask,
     }),
-    [tasks, addTask, updateTask, dialogOpen, dialogColumn, openNewTask, closeNewTask, editingTask, editingColumn, openEditTask, closeEditTask]
+    [
+      tasks,
+      addTask,
+      updateTask,
+      dialogOpen,
+      dialogColumn,
+      openNewTask,
+      closeNewTask,
+      editingTask,
+      editingColumn,
+      openEditTask,
+      closeEditTask,
+    ]
   )
 
   return <BoardCtx.Provider value={value}>{children}</BoardCtx.Provider>

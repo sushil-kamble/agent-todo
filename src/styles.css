@@ -133,7 +133,10 @@
     @apply font-sans;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
-  code, kbd, pre, .font-mono {
+  code,
+  kbd,
+  pre,
+  .font-mono {
     font-family: var(--font-mono);
     font-feature-settings: "ss01", "cv02";
   }
