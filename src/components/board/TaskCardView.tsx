@@ -41,6 +41,13 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
   const agent = agentMeta[task.agent]
   const AgentIcon = agent.Icon
   const isDone = column === 'done'
+  const isInProgress = column === 'in_progress'
+  // Working: agent is actively processing a turn (show pulsing indicator).
+  // AwaitingFollowUp: agent finished the turn; card stays in-progress until the
+  // user either sends a follow-up or manually moves the card to Completed.
+  const isAgentWorking =
+    isInProgress && !!task.runStatus && ['starting', 'running', 'active'].includes(task.runStatus)
+  const isAwaitingFollowUp = isInProgress && task.runStatus === 'idle'
 
   return (
     <article
@@ -48,7 +55,11 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
       style={style}
       className={[
         'group/card relative flex flex-col border bg-card text-card-foreground transition-all',
-        'border-border hover:border-foreground/40 hover:-translate-y-px',
+        isAgentWorking
+          ? 'border-primary/40 hover:border-primary/70 hover:-translate-y-px'
+          : isAwaitingFollowUp
+            ? 'border-emerald-500/40 hover:border-emerald-500/70 hover:-translate-y-px'
+            : 'border-border hover:border-foreground/40 hover:-translate-y-px',
         isDragging && !isOverlay ? 'opacity-30' : 'opacity-100',
         isOverlay
           ? 'rotate-[1.2deg] border-foreground shadow-[6px_6px_0_0_oklch(0.18_0.012_80/0.12)]'
@@ -87,7 +98,7 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
         <div className="px-4 py-4">
           <h3
             className={[
-              'font-heading text-[1.35rem] leading-[1.2] tracking-tight',
+              'font-heading text-sm leading-snug tracking-tight line-clamp-3',
               isDone
                 ? 'text-muted-foreground line-through decoration-foreground/40'
                 : 'text-foreground',
@@ -108,6 +119,14 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
           </span>
         </div>
       </button>
+
+      {/* Agent status — left-edge indicator (sits inside the 1px border). */}
+      {isAgentWorking && (
+        <span className="pointer-events-none absolute inset-y-[1px] left-[1px] w-[4px] animate-pulse bg-primary" />
+      )}
+      {isAwaitingFollowUp && (
+        <span className="pointer-events-none absolute inset-y-[1px] left-[1px] w-[4px] bg-emerald-500" />
+      )}
 
       {/* Decorative corner */}
       <span className="pointer-events-none absolute top-0 right-0 size-2 border-t-2 border-r-2 border-foreground/0 transition-colors group-hover/card:border-primary" />

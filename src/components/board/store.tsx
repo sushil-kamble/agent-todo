@@ -73,6 +73,17 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     refresh()
   }, [refresh])
 
+  // Poll for run-status updates while any in-progress cards exist. This keeps
+  // the per-card indicator in sync as Codex transitions active ↔ idle without
+  // requiring the user to reload the page.
+  useEffect(() => {
+    if (tasks.in_progress.length === 0) return
+    const id = window.setInterval(() => {
+      refresh()
+    }, 2500)
+    return () => window.clearInterval(id)
+  }, [tasks.in_progress.length, refresh])
+
   const addTask = useCallback<StoreValue['addTask']>(async input => {
     const { task, column } = await api.createTask({
       title: input.title.trim(),
@@ -133,7 +144,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const closeEditTask = useCallback(() => {
     setEditingTask(null)
     setEditingColumn(null)
-  }, [])
+    refresh()
+  }, [refresh])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

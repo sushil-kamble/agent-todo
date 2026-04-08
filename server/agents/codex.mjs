@@ -110,6 +110,15 @@ export class CodexClient extends EventEmitter {
         this.threadId = msg.params?.thread?.id ?? this.threadId
         this.emit('thread', { threadId: this.threadId })
         break
+      case 'item/started':
+        this.emit('itemStarted', { item: msg.params?.item })
+        break
+      case 'item/commandExecution/outputDelta':
+        this.emit('commandDelta', {
+          itemId: msg.params?.itemId,
+          delta: msg.params?.delta ?? '',
+        })
+        break
       case 'turn/started':
         this.activeTurnId = msg.params?.turn?.id ?? null
         this.emit('turnStarted', { turnId: this.activeTurnId })

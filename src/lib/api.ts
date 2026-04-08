@@ -9,6 +9,7 @@ type ServerTask = {
   column_id: ColumnId
   position: number
   created_at: string
+  run_status: string | null
 }
 
 export type RunSummary = {
@@ -31,15 +32,31 @@ export type RunMessage = {
   created_at: string
 }
 
+/** Agent-message phase: "commentary" = thinking/preamble; "final" = the reply. */
+export type AgentPhase = 'commentary' | 'final'
+
 export type RunEvent =
   | ({ type: 'message' } & {
       seq: number
       role: RunMessage['role']
       kind: RunMessage['kind']
       content: string
+      phase?: AgentPhase
+      itemId?: string
+      source?: string
       createdAt: string
     })
   | { type: 'delta'; itemId: string; delta: string }
+  | { type: 'turnStarted'; turnId: string }
+  | {
+      type: 'itemStarted'
+      itemType: string
+      itemId: string
+      command?: string
+      cwd?: string
+      phase?: AgentPhase
+    }
+  | { type: 'commandDelta'; itemId: string; delta: string }
   | { type: 'turnCompleted'; status?: string }
   | { type: 'end' }
 
@@ -51,6 +68,7 @@ function toCard(t: ServerTask): TaskCard {
     agent: t.agent,
     tag: t.tag ?? undefined,
     createdAt: t.created_at,
+    runStatus: t.run_status ?? undefined,
   }
 }
 

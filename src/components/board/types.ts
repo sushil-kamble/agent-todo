@@ -8,6 +8,7 @@ export type TaskCard = {
   agent: Agent
   createdAt: string
   tag?: string
+  runStatus?: string
 }
 
 export type Column = {

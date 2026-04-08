@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
+    "dev:full": "concurrently -n \"server,vite\" -c \"blue,green\" \"node server/index.mjs\" \"vite dev --port 3000\"",
     "server": "node server/index.mjs",
     "build": "vite build",
     "preview": "vite preview",
@@ -56,6 +57,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.1.4",
+    "concurrently": "^9.2.1",
     "jsdom": "^28.1.0",
     "typescript": "^5.7.2",
     "vite": "^7.3.1",

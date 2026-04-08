@@ -1,12 +1,44 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, Check, Folder, FolderOpen, X } from '@phosphor-icons/react'
+import { ArrowUp, CaretRight, Check, Folder, FolderOpen, X } from '@phosphor-icons/react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
 import { Button } from '#/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '#/components/ui/collapsible'
 import * as api from '#/lib/api'
+import type { AgentPhase } from '#/lib/api'
 import { useBoard } from './store'
 import type { Agent, ColumnId, TaskCard } from './types'
+
+// Rewrite links that point at local source files (e.g.
+// `/Users/foo/Projects/one-percent/1cc/README.md#L1` or the same path resolved
+// against the dev origin like `http://localhost:3000/Users/.../README.md#L1`)
+// into a `vscode://file/...:line` URI so clicking opens the file in VS Code at
+// the referenced line instead of 404-ing against the dev server.
+function rewriteFileHref(href: string | undefined): string | null {
+  if (!href) return null
+  let pathname: string
+  let hash = ''
+  try {
+    const u = new URL(href, 'http://localhost')
+    // Only rewrite same-origin / absolute-path style links — leave real external URLs alone.
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+    if (u.hostname && u.hostname !== 'localhost' && u.hostname !== '127.0.0.1') return null
+    pathname = u.pathname
+    hash = u.hash
+  } catch {
+    return null
+  }
+  if (!pathname.startsWith('/')) return null
+  // Heuristic: must look like an actual filesystem path to a file (has an extension).
+  if (!/\.[A-Za-z0-9]+$/.test(pathname)) return null
+  const lineMatch = hash.match(/^#L(\d+)(?:[-:](\d+))?/)
+  const line = lineMatch ? lineMatch[1] : null
+  const col = lineMatch?.[2] ?? null
+  let uri = `vscode://file${pathname}`
+  if (line) uri += `:${line}${col ? `:${col}` : ''}`
+  return uri
+}
 
 // Markdown renderer tuned to the app's design tokens. We avoid pulling in
 // @tailwindcss/typography's `prose` classes (Tailwind v4 plugin wiring is
@@ -19,14 +51,18 @@ const MD_COMPONENTS = {
     <strong className="font-semibold text-foreground" {...props} />
   ),
   em: (props: React.ComponentProps<'em'>) => <em className="italic" {...props} />,
-  a: (props: React.ComponentProps<'a'>) => (
-    <a
-      className="underline decoration-foreground/30 underline-offset-2 hover:decoration-foreground break-all"
-      target="_blank"
-      rel="noreferrer noopener"
-      {...props}
-    />
-  ),
+  a: ({ href, ...props }: React.ComponentProps<'a'>) => {
+    const rewritten = rewriteFileHref(href)
+    return (
+      <a
+        className="underline decoration-foreground/30 underline-offset-2 hover:decoration-foreground break-all"
+        target={rewritten ? undefined : '_blank'}
+        rel="noreferrer noopener"
+        href={rewritten ?? href}
+        {...props}
+      />
+    )
+  },
   ul: (props: React.ComponentProps<'ul'>) => (
     <ul className="my-1.5 list-disc space-y-1 pl-5 marker:text-muted-foreground" {...props} />
   ),
@@ -36,13 +72,13 @@ const MD_COMPONENTS = {
   li: (props: React.ComponentProps<'li'>) => <li className="leading-snug" {...props} />,
   h1: (props: React.ComponentProps<'h1'>) => (
     <h1
-      className="font-heading mt-3 mb-1.5 text-base leading-tight tracking-tight text-foreground first:mt-0"
+      className="font-heading mt-3 mb-1.5 text-[0.9rem] leading-tight tracking-tight text-foreground first:mt-0"
       {...props}
     />
   ),
   h2: (props: React.ComponentProps<'h2'>) => (
     <h2
-      className="font-heading mt-3 mb-1.5 text-[0.95rem] leading-tight tracking-tight text-foreground first:mt-0"
+      className="font-heading mt-3 mb-1.5 text-[0.82rem] leading-tight tracking-tight text-foreground first:mt-0"
       {...props}
     />
   ),
@@ -67,7 +103,7 @@ const MD_COMPONENTS = {
     }
     return (
       <code
-        className="border border-border bg-muted px-1 py-[1px] font-mono text-[0.78rem] text-foreground"
+        className="border border-border bg-muted px-1 py-px font-mono text-[0.78rem] text-foreground"
         {...rest}
       >
         {children}
@@ -210,17 +246,15 @@ export function TaskDialog() {
 
 function PanelHeader({ label, onClose }: { label: string; onClose: () => void }) {
   return (
-    <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
-      <div className="flex items-center gap-2">
-        <span className="size-1.5 bg-primary" />
-        <span className="text-[0.6rem] font-medium tracking-[0.2em] text-muted-foreground uppercase">
-          {label}
-        </span>
+    <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3 gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="size-1.5 shrink-0 bg-primary" />
+        <span className="truncate text-xs font-medium text-foreground">{label}</span>
       </div>
       <button
         type="button"
         onClick={onClose}
-        className="flex size-6 items-center justify-center border border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+        className="flex size-6 shrink-0 items-center justify-center border border-transparent text-muted-foreground hover:border-border hover:text-foreground"
         aria-label="Close"
       >
         <X size={12} weight="bold" />
@@ -301,10 +335,7 @@ function FormPanel({
       onSubmit={handleSubmit}
       className="relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] sm:max-h-[calc(100vh-3rem)]"
     >
-      <PanelHeader
-        label={isEdit ? `edit task · ${editingTask?.id ?? ''}` : 'new task'}
-        onClose={close}
-      />
+      <PanelHeader label={title.trim() || (isEdit ? 'Edit task' : 'New task')} onClose={close} />
 
       <div className="space-y-5 overflow-y-auto px-5 py-5">
         <div>
@@ -331,7 +362,7 @@ function FormPanel({
               }
             }}
             placeholder="Describe exactly what needs to be done…"
-            className="font-heading w-full resize-none overflow-hidden border-b border-border bg-transparent pb-2 text-2xl leading-tight tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:border-foreground focus:outline-none"
+            className="font-heading w-full resize-none overflow-hidden border-b border-border bg-transparent pb-2 text-base leading-tight tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:border-foreground focus:outline-none"
           />
         </div>
 
@@ -411,6 +442,75 @@ type LiveMessage = {
   body: string
   at: string
   streaming?: boolean
+  /** Agent-message phase: "commentary" → thinking; "final" → actual reply. */
+  phase?: AgentPhase
+  /** Codex item id for matching streaming bubbles to completion events. */
+  itemId?: string
+  /** Live command output accumulated from commandDelta events */
+  commandOutput?: string
+  /** Whether this is an in-progress command (item/started but not item/completed) */
+  commandRunning?: boolean
+}
+
+/**
+ * A "turn" as the UI models it: the user prompt, everything the agent did
+ * while working on it (commentary + tool calls), and the final reply.
+ * Grouping is inferred at render time from the flat message list.
+ */
+type TurnGroup = {
+  /** The user prompt that opens this turn (may be null for a pre-start bootstrap). */
+  user: LiveMessage | null
+  /** Commentary agent messages, command executions, errors — all "thinking". */
+  thinking: LiveMessage[]
+  /** The final answer the agent wants the user to read. */
+  final: LiveMessage | null
+}
+
+function groupByTurn(messages: LiveMessage[]): TurnGroup[] {
+  // First pass: split into raw per-turn buckets preserving arrival order so
+  // intermediate agent messages, reasoning, and tool calls all appear as a
+  // sequential trace instead of stomping on each other.
+  type RawGroup = { user: LiveMessage | null; items: LiveMessage[] }
+  const raw: RawGroup[] = []
+  let cur: RawGroup | null = null
+  for (const m of messages) {
+    if (m.role === 'user') {
+      cur = { user: m, items: [] }
+      raw.push(cur)
+      continue
+    }
+    if (!cur) {
+      cur = { user: null, items: [] }
+      raw.push(cur)
+    }
+    cur.items.push(m)
+  }
+
+  // Second pass: decide which single message (if any) is the turn's "final
+  // answer" vs the trace. Rule: the last phase-'final' agent text message in
+  // the turn is the final answer; everything else stays in thinking in order.
+  // Commentary-phase messages and streaming bubbles stay in the trace.
+  return raw.map(({ user, items }) => {
+    let finalIdx = -1
+    for (let i = items.length - 1; i >= 0; i--) {
+      const m = items[i]
+      if (m.role !== 'agent' || m.kind !== 'text') continue
+      if (m.phase === 'commentary') continue
+      // Don't promote a still-streaming bubble — let it live in the trace
+      // until the completed message arrives; otherwise it flickers between
+      // slots as chunks land.
+      if (m.streaming) continue
+      finalIdx = i
+      break
+    }
+    const thinking: LiveMessage[] = []
+    let final: LiveMessage | null = null
+    items.forEach((m, i) => {
+      if (i === finalIdx) final = m
+      else thinking.push(m)
+    })
+    return { user, thinking, final }
+  })
 }
 
 function formatTime(iso: string) {
@@ -429,6 +529,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
   const [runStatus, setRunStatus] = useState<string | null>(null)
   const [messages, setMessages] = useState<LiveMessage[]>([])
   const [draft, setDraft] = useState('')
+  const [thinking, setThinking] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   // "Stuck to bottom" — if the user scrolls up manually we stop auto-scrolling
@@ -437,6 +538,10 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
   // Track the currently-streaming agent message (by itemId) so deltas append
   // to a single bubble until item/completed replaces it.
   const streamingRef = useRef<{ itemId: string; msgId: string } | null>(null)
+  // Maps an in-flight agentMessage itemId to its phase. Populated by
+  // `itemStarted` events and consulted when deltas arrive so the streaming
+  // bubble can be placed in the correct bucket (thinking vs final).
+  const itemPhaseRef = useRef<Map<string, AgentPhase>>(new Map())
 
   // Bootstrap: fetch the active run + its persisted messages, then subscribe to SSE.
   useEffect(() => {
@@ -461,20 +566,90 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
       setRunId(run.id)
       setRunStatus(run.status)
       setMessages(
-        persisted.map(m => ({
-          id: `p-${m.seq}`,
-          role: m.role,
-          kind: m.kind,
-          body: m.content,
-          at: formatTime(m.created_at),
-        }))
+        persisted
+          // Drop lifecycle noise ("thread started: …", "agent exited …") from
+          // legacy runs. Current runs no longer persist these rows at all.
+          .filter(m => m.kind !== 'status')
+          .map(m => {
+            const meta = (m.meta ?? null) as { phase?: AgentPhase } | null
+            return {
+              id: `p-${m.seq}`,
+              role: m.role,
+              kind: m.kind,
+              body: m.content,
+              at: formatTime(m.created_at),
+              phase: meta?.phase,
+            }
+          })
       )
 
       unsubscribe = api.subscribeRunEvents(run.id, ev => {
-        if (ev.type === 'message') {
+        if (ev.type === 'turnStarted') {
+          setRunStatus('active')
+          setThinking(true)
+        } else if (ev.type === 'itemStarted') {
+          setThinking(false) // Agent is doing something — stop thinking
+          // Remember the phase for agent messages so streaming deltas can be
+          // classified correctly (commentary vs final).
+          if (ev.itemType === 'agentMessage' && ev.phase) {
+            itemPhaseRef.current.set(ev.itemId, ev.phase)
+          }
+          if (ev.itemType === 'commandExecution' && ev.command) {
+            // Insert a running command bubble
+            setMessages(prev => [
+              ...prev,
+              {
+                id: `cmd-${ev.itemId}`,
+                role: 'system',
+                kind: 'command',
+                body: `$ ${ev.command}`,
+                at: '',
+                commandRunning: true,
+                commandOutput: '',
+              },
+            ])
+          }
+        } else if (ev.type === 'commandDelta') {
+          // Append stdout/stderr to the running command bubble
+          setMessages(prev =>
+            prev.map(p =>
+              p.id === `cmd-${ev.itemId}`
+                ? { ...p, commandOutput: (p.commandOutput ?? '') + ev.delta }
+                : p
+            )
+          )
+        } else if (ev.type === 'message') {
+          // Skip lifecycle "status" messages entirely — they're plumbing noise.
+          if (ev.kind === 'status') return
+          // Only clear the thinking indicator for agent/system messages.
+          // The server echoes the user's own follow-up message first — if we
+          // clear on that, the indicator disappears before the agent replies.
+          if (ev.role !== 'user') setThinking(false)
           setMessages(prev => {
             // Skip if we already have this seq (replay + live overlap).
             if (prev.some(p => p.id === `p-${ev.seq}`)) return prev
+            // If a completed command message arrives, replace the running bubble
+            if (ev.kind === 'command') {
+              const existingCmd = prev.find(
+                p =>
+                  p.kind === 'command' &&
+                  p.commandRunning &&
+                  ev.content.startsWith(p.body.slice(0, 20))
+              )
+              if (existingCmd) {
+                return prev.map(p =>
+                  p.id === existingCmd.id
+                    ? {
+                        ...p,
+                        id: `p-${ev.seq}`,
+                        body: ev.content,
+                        commandRunning: false,
+                        at: formatTime(ev.createdAt),
+                      }
+                    : p
+                )
+              }
+            }
             return [
               ...prev,
               {
@@ -483,20 +658,29 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
                 kind: ev.kind,
                 body: ev.content,
                 at: formatTime(ev.createdAt),
+                phase: ev.phase,
+                itemId: ev.itemId,
               },
             ]
           })
-          // An agent message arriving as a final item means the delta stream ended.
-          if (ev.role === 'agent' && streamingRef.current) {
+          // Only drop the streaming bubble if *this* item is the one that was
+          // streaming. Reasoning items and earlier agent messages must not
+          // destroy an in-flight stream for a different item.
+          if (ev.role === 'agent' && ev.itemId && streamingRef.current?.itemId === ev.itemId) {
             const id = streamingRef.current.msgId
             streamingRef.current = null
             setMessages(prev => prev.filter(p => p.id !== id))
           }
+          if (ev.itemId) itemPhaseRef.current.delete(ev.itemId)
         } else if (ev.type === 'delta') {
+          setThinking(false)
           setMessages(prev => {
             if (!streamingRef.current || streamingRef.current.itemId !== ev.itemId) {
               const msgId = `s-${ev.itemId}`
               streamingRef.current = { itemId: ev.itemId, msgId }
+              // Default to "final" when phase is unknown so deltas always land
+              // in the prominent slot; commentary items typically don't stream.
+              const phase = itemPhaseRef.current.get(ev.itemId) ?? 'final'
               return [
                 ...prev,
                 {
@@ -506,6 +690,8 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
                   body: ev.delta,
                   at: '',
                   streaming: true,
+                  phase,
+                  itemId: ev.itemId,
                 },
               ]
             }
@@ -514,8 +700,14 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
           })
         } else if (ev.type === 'turnCompleted') {
           setRunStatus('idle')
+          setThinking(false)
+          // Mark any remaining running commands as done
+          setMessages(prev =>
+            prev.map(p => (p.commandRunning ? { ...p, commandRunning: false } : p))
+          )
         } else if (ev.type === 'end') {
           setRunStatus('completed')
+          setThinking(false)
         }
       })
     })()
@@ -531,7 +723,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
   // content. Uses rAF so the scroll lands after layout, and scrollIntoView
   // on a sentinel to avoid relying on scrollHeight before reflow.
   useEffect(() => {
-    if (messages.length === 0) return
+    if (messages.length === 0 && !thinking) return
     if (!stickyRef.current) return
     const raf = requestAnimationFrame(() => {
       const bottom = bottomRef.current
@@ -543,7 +735,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
       if (el) el.scrollTop = el.scrollHeight
     })
     return () => cancelAnimationFrame(raf)
-  }, [messages])
+  }, [messages, thinking])
 
   // Detect whether the user is pinned to the bottom. When they scroll away
   // we pause auto-scroll; when they come back we resume.
@@ -558,12 +750,18 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
     const body = draft.trim()
     if (!body || !runId) return
     setDraft('')
+    setThinking(true)
     try {
       await api.sendFollowUp(runId, body)
     } catch (e) {
       console.error('[chat] follow-up failed', e)
+      setThinking(false)
     }
   }
+
+  // Group the flat message list into turn blocks. Memoized so we don't
+  // re-walk the list on every render while deltas stream.
+  const turns = useMemo(() => groupByTurn(messages), [messages])
 
   return (
     <section className="relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] sm:h-[calc(100vh-3rem)]">
@@ -607,11 +805,22 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 space-y-3 overflow-y-auto bg-background px-5 py-4"
+        className="flex-1 space-y-5 overflow-x-hidden overflow-y-auto bg-background px-5 py-4"
       >
-        {messages.map(m => (
-          <LiveChatBubble key={m.id} message={m} agentIcon={AgentIcon} />
-        ))}
+        {turns.map((group, idx) => {
+          const isLast = idx === turns.length - 1
+          // Show the thinking dots *inside* the active turn's thinking block
+          // while the agent is preparing to emit anything.
+          const showThinkingDots = isLast && thinking
+          return (
+            <TurnBlock
+              key={group.user?.id ?? `g-${idx}`}
+              group={group}
+              agentIcon={AgentIcon}
+              showThinkingDots={showThinkingDots}
+            />
+          )
+        })}
         <div ref={bottomRef} aria-hidden="true" />
       </div>
 
@@ -627,7 +836,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
                 send()
               }
             }}
-            rows={1}
+            rows={2}
             placeholder="Send a follow-up to the agent…"
             className="max-h-32 min-h-6 flex-1 resize-none bg-transparent px-1 text-sm leading-snug text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
           />
@@ -646,15 +855,133 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
   )
 }
 
+/**
+ * Renders a single turn: the user prompt, a collapsible "thinking" section
+ * containing commentary + tool calls, and then the final answer. The
+ * collapsible defaults to open — the user can fold it away once they've seen
+ * what the agent did, so the final answer gets the room it deserves.
+ */
+function TurnBlock({
+  group,
+  agentIcon: AgentIcon,
+  showThinkingDots,
+}: {
+  group: TurnGroup
+  agentIcon: React.ComponentType<{ size?: number }>
+  showThinkingDots: boolean
+}) {
+  const hasThinking = group.thinking.length > 0 || showThinkingDots
+  const thinkingCount = group.thinking.length
+  return (
+    <div className="space-y-3">
+      {group.user && <LiveChatBubble message={group.user} agentIcon={AgentIcon} />}
+
+      {hasThinking && (
+        <Collapsible defaultOpen>
+          <CollapsibleTrigger className="group/th flex w-full items-center gap-2 border border-dashed border-border bg-muted/40 px-3 py-1.5 text-left transition-colors hover:border-foreground/40 hover:bg-muted aria-expanded:border-foreground/30">
+            <CaretRight
+              size={11}
+              weight="bold"
+              className="shrink-0 text-muted-foreground transition-transform duration-150 group-aria-expanded/th:rotate-90"
+            />
+            <span className="text-[0.6rem] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+              Thinking & tool calls
+            </span>
+            {thinkingCount > 0 && (
+              <span className="ml-auto border border-border bg-background px-1.5 text-[0.55rem] font-medium tabular-nums text-muted-foreground">
+                {thinkingCount}
+              </span>
+            )}
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2 border-l-2 border-dashed border-border pl-3">
+            <div className="space-y-2.5">
+              {group.thinking.map(m => (
+                <LiveChatBubble key={m.id} message={m} agentIcon={AgentIcon} muted />
+              ))}
+              {showThinkingDots && <ThinkingDots agentIcon={AgentIcon} />}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {group.final && <LiveChatBubble message={group.final} agentIcon={AgentIcon} />}
+    </div>
+  )
+}
+
+function ThinkingDots({
+  agentIcon: AgentIcon,
+}: {
+  agentIcon: React.ComponentType<{ size?: number }>
+}) {
+  return (
+    <div className="flex gap-2">
+      <span className="flex size-6 shrink-0 items-center justify-center border border-border bg-card text-foreground">
+        <AgentIcon size={11} />
+      </span>
+      <div className="flex items-center gap-1.5 border border-border bg-card px-3 py-2">
+        <span className="inline-flex gap-1">
+          <span
+            className="size-1.5 animate-bounce bg-muted-foreground"
+            style={{ animationDelay: '0ms' }}
+          />
+          <span
+            className="size-1.5 animate-bounce bg-muted-foreground"
+            style={{ animationDelay: '150ms' }}
+          />
+          <span
+            className="size-1.5 animate-bounce bg-muted-foreground"
+            style={{ animationDelay: '300ms' }}
+          />
+        </span>
+        <span className="ml-1 text-xs text-muted-foreground">Thinking…</span>
+      </div>
+    </div>
+  )
+}
+
 function LiveChatBubble({
   message,
   agentIcon: AgentIcon,
+  muted = false,
 }: {
   message: LiveMessage
   agentIcon: React.ComponentType<{ size?: number }>
+  /** Render in a quieter style (used inside the thinking section). */
+  muted?: boolean
 }) {
   if (message.role === 'system') {
     const isError = message.kind === 'error'
+    const isCommand = message.kind === 'command'
+
+    if (isCommand) {
+      return (
+        <div className="overflow-hidden border border-border bg-foreground/3">
+          <div className="flex min-w-0 items-center gap-2 border-b border-border px-3 py-1.5">
+            {message.commandRunning && (
+              <span className="size-1.5 shrink-0 animate-pulse bg-primary" />
+            )}
+            <span
+              className="min-w-0 truncate font-mono text-[0.7rem] font-medium text-foreground"
+              title={message.body}
+            >
+              {message.body}
+            </span>
+            {message.commandRunning && (
+              <span className="ml-auto text-[0.55rem] tracking-[0.12em] text-muted-foreground uppercase">
+                running
+              </span>
+            )}
+          </div>
+          {message.commandOutput && (
+            <pre className="max-h-40 overflow-auto whitespace-pre-wrap px-3 py-2 font-mono text-[0.68rem] leading-relaxed text-muted-foreground">
+              {message.commandOutput}
+            </pre>
+          )}
+        </div>
+      )
+    }
+
     return (
       <div
         className={[
@@ -670,30 +997,35 @@ function LiveChatBubble({
   }
   const isUser = message.role === 'user'
   return (
-    <div className={`flex gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
-      <span
-        className={[
-          'flex size-6 shrink-0 items-center justify-center border',
-          isUser
-            ? 'border-foreground bg-foreground text-background'
-            : 'border-border bg-card text-foreground',
-        ].join(' ')}
-      >
-        {isUser ? (
-          <span className="text-[0.55rem] font-bold tracking-wider">YOU</span>
-        ) : (
-          <AgentIcon size={11} />
-        )}
-      </span>
+    <div className={`flex min-w-0 gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
+      {!muted && (
+        <span
+          className={[
+            'flex size-6 shrink-0 items-center justify-center border',
+            isUser
+              ? 'border-foreground bg-foreground text-background'
+              : 'border-border bg-card text-foreground',
+          ].join(' ')}
+        >
+          {isUser ? (
+            <span className="text-[0.55rem] font-bold tracking-wider">YOU</span>
+          ) : (
+            <AgentIcon size={11} />
+          )}
+        </span>
+      )}
       <div
-        className={`max-w-[80%] ${isUser ? 'items-end text-right' : 'items-start text-left'} flex flex-col`}
+        className={`flex min-w-0 max-w-[80%] flex-col ${isUser ? 'items-end text-right' : 'items-start text-left'}`}
       >
         <div
           className={[
-            'border px-3 py-2 text-sm leading-snug',
+            'min-w-0 max-w-full overflow-hidden border wrap-break-word',
+            muted ? 'px-2.5 py-1.5 text-[0.78rem] leading-snug' : 'px-3 py-2 text-sm leading-snug',
             isUser
               ? 'whitespace-pre-wrap border-foreground bg-foreground text-background'
-              : 'border-border bg-card text-foreground',
+              : muted
+                ? 'border-border/70 bg-muted/30 text-muted-foreground'
+                : 'border-border bg-card text-foreground',
             message.streaming ? 'animate-pulse' : '',
           ].join(' ')}
         >
@@ -707,7 +1039,7 @@ function LiveChatBubble({
             '…'
           ) : null}
         </div>
-        {message.at && (
+        {!muted && message.at && (
           <span className="mt-1 text-[0.55rem] tracking-widest text-muted-foreground uppercase">
             {message.at}
           </span>
