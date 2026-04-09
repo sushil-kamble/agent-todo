@@ -122,10 +122,10 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
 
       {/* Agent status — left-edge indicator (sits inside the 1px border). */}
       {isAgentWorking && (
-        <span className="pointer-events-none absolute inset-y-[1px] left-[1px] w-[4px] animate-pulse bg-primary" />
+        <span className="pointer-events-none absolute inset-y-px left-px w-[4px] animate-pulse bg-primary" />
       )}
       {isAwaitingFollowUp && (
-        <span className="pointer-events-none absolute inset-y-[1px] left-[1px] w-[4px] bg-emerald-500" />
+        <span className="pointer-events-none absolute inset-y-px left-px w-[4px] bg-emerald-500" />
       )}
 
       {/* Decorative corner */}
