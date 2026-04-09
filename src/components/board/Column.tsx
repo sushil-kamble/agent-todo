@@ -17,8 +17,33 @@ const accent: Record<string, string> = {
   done: 'bg-muted-foreground',
 }
 
+// Hand-crafted shimmer that mirrors TaskCardView's DOM structure.
+// Shown as fallback until boneyard captures and generates real bones.
+function TaskCardSkeleton() {
+  return (
+    <div className="flex flex-col border border-border bg-card">
+      {/* Top: drag handle row */}
+      <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+        <div className="h-3 w-16 animate-pulse rounded-sm bg-muted" />
+        <div className="h-4 w-12 animate-pulse rounded-sm bg-muted" />
+      </div>
+      {/* Body */}
+      <div className="space-y-2 px-4 py-4">
+        <div className="h-3.5 w-full animate-pulse rounded-sm bg-muted" />
+        <div className="h-3.5 w-4/5 animate-pulse rounded-sm bg-muted" />
+        <div className="h-3.5 w-3/5 animate-pulse rounded-sm bg-muted" />
+      </div>
+      {/* Footer */}
+      <div className="mt-auto flex items-center justify-between border-t border-dashed border-border px-3 py-2">
+        <div className="h-3 w-24 animate-pulse rounded-sm bg-muted" />
+        <div className="h-3 w-10 animate-pulse rounded-sm bg-muted" />
+      </div>
+    </div>
+  )
+}
+
 export function BoardColumn({ column, tasks, index }: Props) {
-  const { openNewTask } = useBoard()
+  const { openNewTask, isLoading } = useBoard()
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
     data: { column: column.id },
@@ -41,7 +66,7 @@ export function BoardColumn({ column, tasks, index }: Props) {
           </span>
           <h2 className="font-heading text-xl leading-none text-foreground">{column.label}</h2>
           <span className="ml-1 border border-border bg-background px-1.5 text-[0.6rem] font-medium text-muted-foreground tabular-nums">
-            {tasks.length}
+            {isLoading ? '–' : tasks.length}
           </span>
         </div>
         <button
@@ -56,13 +81,17 @@ export function BoardColumn({ column, tasks, index }: Props) {
 
       {/* Cards */}
       <div ref={setNodeRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
-        <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-          {tasks.map(task => (
-            <TaskCardView key={task.id} task={task} column={column.id} />
-          ))}
-        </SortableContext>
+        {isLoading ? (
+          <TaskCardSkeleton />
+        ) : (
+          <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+            {tasks.map(task => (
+              <TaskCardView key={task.id} task={task} column={column.id} />
+            ))}
+          </SortableContext>
+        )}
 
-        {tasks.length === 0 && (
+        {!isLoading && tasks.length === 0 && (
           <div className="flex flex-1 items-center justify-center border border-dashed border-border/70 p-6 text-center">
             <p className="font-heading text-sm italic text-muted-foreground">drop a task here</p>
           </div>

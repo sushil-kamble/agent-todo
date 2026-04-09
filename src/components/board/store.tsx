@@ -17,6 +17,7 @@ const ACTIVE_RUN_STATUSES = new Set(['starting', 'running', 'active'])
 
 type StoreValue = {
   tasks: TasksByColumn
+  isLoading: boolean
   /**
    * Local-only setter. Use for optimistic UI (e.g. dnd reorder) — does NOT
    * persist. Call persistMove/persistReorder afterwards to sync with the server.
@@ -56,6 +57,7 @@ const BoardCtx = createContext<StoreValue | null>(null)
 
 export function BoardProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<TasksByColumn>(EMPTY)
+  const [isLoading, setIsLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogColumn, setDialogColumn] = useState<ColumnId>('todo')
   const [editingTask, setEditingTask] = useState<TaskCard | null>(null)
@@ -67,6 +69,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       setTasks(t)
     } catch (e) {
       console.error('[board] fetchTasks failed', e)
+    } finally {
+      setIsLoading(false)
     }
   }, [])
 
@@ -175,6 +179,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const value = useMemo<StoreValue>(
     () => ({
       tasks,
+      isLoading,
       setTasks,
       refresh,
       addTask,
@@ -191,6 +196,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     }),
     [
       tasks,
+      isLoading,
       refresh,
       addTask,
       updateTask,
