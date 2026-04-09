@@ -7,10 +7,11 @@
  *   2. Import it here and add to the `agents` map.
  */
 import { CodexClient } from './codex.mjs'
+import { ClaudeClient } from './claude.mjs'
 
 const agents = {
   codex: CodexClient,
-  // claude: ClaudeClient,  ← future
+  claude: ClaudeClient,
 }
 
 /**

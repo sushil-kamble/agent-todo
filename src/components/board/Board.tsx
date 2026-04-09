@@ -11,16 +11,34 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { BoardColumn } from './Column'
 import { useBoard } from './store'
 import { TaskCardView } from './TaskCardView'
 import { COLUMNS, type ColumnId, type TaskCard } from './types'
 
 export function Board() {
-  const { tasks, setTasks, persistMove } = useBoard()
+  const { tasks, setTasks, persistMove, searchQuery } = useBoard()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [dragOrigin, setDragOrigin] = useState<ColumnId | null>(null)
+
+  const filteredTasks = useMemo(() => {
+    if (!searchQuery.trim()) return tasks
+    const query = searchQuery.toLowerCase()
+
+    return Object.fromEntries(
+      COLUMNS.map(col => [
+        col.id,
+        tasks[col.id].filter(
+          t =>
+            (t.title && t.title.toLowerCase().includes(query)) ||
+            (t.id && t.id.toLowerCase().includes(query)) ||
+            (t.project && t.project.toLowerCase().includes(query)) ||
+            (t.tag && t.tag.toLowerCase().includes(query))
+        ),
+      ])
+    ) as Record<ColumnId, TaskCard[]>
+  }, [tasks, searchQuery])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -109,7 +127,7 @@ export function Board() {
     >
       <div className="grid h-full min-h-0 grid-cols-3 gap-5">
         {COLUMNS.map((col, i) => (
-          <BoardColumn key={col.id} column={col} tasks={tasks[col.id]} index={i} />
+          <BoardColumn key={col.id} column={col} tasks={filteredTasks[col.id]} index={i} />
         ))}
       </div>
 

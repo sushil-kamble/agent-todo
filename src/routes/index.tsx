@@ -1,4 +1,4 @@
-import { MagnifyingGlass, Plus } from '@phosphor-icons/react'
+import { MagnifyingGlass, Plus, X } from '@phosphor-icons/react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import { Board } from '#/components/board/Board'
@@ -35,7 +35,7 @@ function AgentMark({ className = '' }: { className?: string }) {
 }
 
 function BoardPage() {
-  const { openNewTask } = useBoard()
+  const { openNewTask, searchQuery, setSearchQuery } = useBoard()
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -69,12 +69,25 @@ function BoardPage() {
               <input
                 ref={searchRef}
                 type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search tasks…"
                 className="w-48 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
               />
-              <kbd className="border border-border bg-background px-1 text-[0.58rem] text-muted-foreground">
-                /
-              </kbd>
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
+                  aria-label="Clear search"
+                >
+                  <X size={12} weight="bold" />
+                </button>
+              ) : (
+                <kbd className="border border-border bg-background px-1 text-[0.58rem] text-muted-foreground">
+                  /
+                </kbd>
+              )}
             </div>
             <Button size="sm" variant="outline" onClick={() => openNewTask('todo')}>
               <Plus size={13} />

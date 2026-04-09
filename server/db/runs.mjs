@@ -24,7 +24,9 @@ export function getActiveRunForTask(taskId) {
 }
 
 export function getLatestRunForTask(taskId) {
-  return db.prepare('SELECT * FROM runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1').get(taskId)
+  return db
+    .prepare('SELECT * FROM runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1')
+    .get(taskId)
 }
 
 export function updateRun(id, updates) {

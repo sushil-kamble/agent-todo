@@ -245,7 +245,7 @@ export async function startRun(task) {
  * is already active, otherwise starts a new one.
  */
 export async function ensureRunForTask(task) {
-  if (task.agent !== 'codex') return null
+  if (task.agent !== 'codex' && task.agent !== 'claude') return null
   const existing = getActiveRunForTask(task.id)
   if (existing && runs.has(existing.id)) return existing
   if (existing) {

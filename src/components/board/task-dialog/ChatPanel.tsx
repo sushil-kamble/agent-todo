@@ -37,7 +37,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
             id: 'bootstrap',
             role: 'system',
             kind: 'status',
-            body: 'No active codex run for this task yet.',
+            body: `No active ${task.agent === 'claude' ? 'Claude' : 'Codex'} run for this task yet.`,
             at: '',
           },
         ])
@@ -235,7 +235,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
       cancelled = true
       unsubscribe?.()
     }
-  }, [task.id])
+  }, [task.id, task.agent])
 
   useEffect(() => {
     if (messages.length === 0 && !thinking) return

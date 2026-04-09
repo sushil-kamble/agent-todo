@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import readline from 'node:readline'
+import { CODEX_EFFORT, CODEX_MODEL } from './config.mjs'
 
 /**
  * CodexClient: one instance per run. Spawns `codex app-server`, speaks JSON-RPC
@@ -19,7 +20,7 @@ export class CodexClient extends EventEmitter {
   constructor({ cwd, model }) {
     super()
     this.cwd = cwd
-    this.model = 'gpt-5.4' // Hardcoded for now
+    this.model = CODEX_MODEL
     this.nextId = 1
     this.pending = new Map() // id -> { resolve, reject }
     this.threadId = null
@@ -155,7 +156,7 @@ export class CodexClient extends EventEmitter {
 
   async startThread() {
     const res = await this._request('thread/start', {
-      model: 'gpt-5.4',
+      model: this.model,
       cwd: this.cwd,
       approvalPolicy: 'never',
       sandbox: 'danger-full-access',
@@ -179,8 +180,8 @@ export class CodexClient extends EventEmitter {
     return this._request('turn/start', {
       threadId: this.threadId,
       input: [{ type: 'text', text, text_elements: [] }],
-      model: 'gpt-5.4',
-      effort: 'medium',
+      model: this.model,
+      effort: CODEX_EFFORT,
     })
   }
 

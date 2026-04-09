@@ -25,6 +25,9 @@ type StoreValue = {
   setTasks: React.Dispatch<React.SetStateAction<TasksByColumn>>
   refresh: () => Promise<void>
 
+  searchQuery: string
+  setSearchQuery: React.Dispatch<React.SetStateAction<string>>
+
   addTask: (input: {
     title: string
     project: string
@@ -62,6 +65,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const [dialogColumn, setDialogColumn] = useState<ColumnId>('todo')
   const [editingTask, setEditingTask] = useState<TaskCard | null>(null)
   const [editingColumn, setEditingColumn] = useState<ColumnId | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const refresh = useCallback(async () => {
     try {
@@ -82,7 +86,9 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   // changing run status. Idle tasks can remain in the column for follow-up, but
   // they should not keep the whole board polling forever.
   useEffect(() => {
-    const hasActiveRun = tasks.in_progress.some(task => ACTIVE_RUN_STATUSES.has(task.runStatus ?? ''))
+    const hasActiveRun = tasks.in_progress.some(task =>
+      ACTIVE_RUN_STATUSES.has(task.runStatus ?? '')
+    )
     if (!hasActiveRun) return
     const id = window.setInterval(() => {
       refresh()
@@ -193,6 +199,8 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       editingColumn,
       openEditTask,
       closeEditTask,
+      searchQuery,
+      setSearchQuery,
     }),
     [
       tasks,
@@ -209,6 +217,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       editingColumn,
       openEditTask,
       closeEditTask,
+      searchQuery,
     ]
   )
 

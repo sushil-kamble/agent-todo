@@ -52,19 +52,21 @@ export async function handleTaskRoutes(req, res, pathname) {
       position: body.position ?? prev.position,
     })
 
-    // If this task is being placed in the in-progress column and it's a Codex
-    // task, ensure a live run exists. This covers both the initial move from
-    // todo -> in_progress and retries while the task is already in_progress
-    // but its previous run has failed.
+    // If this task is being placed in the in-progress column and it has a
+    // supported agent, ensure a live run exists. This covers both the initial
+    // move from todo -> in_progress and retries while the task is already
+    // in_progress but its previous run has failed.
     let runId = null
     const shouldEnsureRun =
-      body.column_id === 'in_progress' && t.column_id === 'in_progress' && t.agent === 'codex'
+      body.column_id === 'in_progress' &&
+      t.column_id === 'in_progress' &&
+      (t.agent === 'codex' || t.agent === 'claude')
     if (shouldEnsureRun) {
       try {
         const run = await ensureRunForTask(t)
         runId = run?.id ?? null
       } catch (e) {
-        return json(res, 500, { error: `failed to start codex: ${e.message}` })
+        return json(res, 500, { error: `failed to start ${t.agent}: ${e.message}` })
       }
     }
     return json(res, 200, { task: t, runId })
@@ -83,7 +85,11 @@ export async function handleTaskRoutes(req, res, pathname) {
     if (!task) return json(res, 404, { error: 'not found' })
 
     let run = getActiveRunForTask(task.id)
-    if (!run && task.agent === 'codex' && task.column_id === 'in_progress') {
+    if (
+      !run &&
+      (task.agent === 'codex' || task.agent === 'claude') &&
+      task.column_id === 'in_progress'
+    ) {
       try {
         run = await ensureRunForTask(task)
       } catch (e) {
