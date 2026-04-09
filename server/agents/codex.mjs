@@ -32,6 +32,7 @@ export class CodexClient extends EventEmitter {
   start() {
     this.proc = spawn('codex', ['app-server'], {
       stdio: ['pipe', 'pipe', 'pipe'],
+      cwd: this.cwd,
       env: process.env,
     })
     this.proc.on('error', e => this.emit('error', { message: `spawn failed: ${e.message}` }))

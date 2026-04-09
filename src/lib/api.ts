@@ -80,6 +80,14 @@ export async function fetchTasks(): Promise<Record<ColumnId, TaskCard[]>> {
   return out
 }
 
+export async function fetchTaskStatuses(taskIds: string[]): Promise<Record<string, string | null>> {
+  if (taskIds.length === 0) return {}
+  const query = new URLSearchParams({ ids: taskIds.join(',') })
+  const r = await fetch(`/api/tasks/statuses?${query.toString()}`)
+  const { statuses } = (await r.json()) as { statuses: Record<string, string | null> }
+  return statuses
+}
+
 export async function createTask(input: {
   title: string
   project: string

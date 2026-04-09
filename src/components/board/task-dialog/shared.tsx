@@ -1,8 +1,9 @@
-import { useEffect, useState, type ComponentType } from 'react'
+import { memo, useCallback, useEffect, useRef, useState, type ComponentType } from 'react'
 import { CaretRight, Check, CopySimple, Folder, X } from '@phosphor-icons/react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '#/components/ui/collapsible'
+import { WORKING_VERBS } from './constants'
 import { MD_COMPONENTS } from './markdown'
 import type { ChatMessage, LiveMessage, TurnGroup } from './types'
 import { formatWorkedFor } from './utils'
@@ -58,7 +59,7 @@ export function ProjectPathChip({ path }: { path: string }) {
   )
 }
 
-export function TurnBlock({
+function TurnBlockImpl({
   group,
   agentIcon: AgentIcon,
   showThinkingDots,
@@ -70,20 +71,10 @@ export function TurnBlock({
   inFlight: boolean
 }) {
   const hasThinking = group.thinking.length > 0 || showThinkingDots || inFlight
-  const [nowMs, setNowMs] = useState(() => Date.now())
-
-  useEffect(() => {
-    if (!inFlight) return
-    setNowMs(Date.now())
-    const id = window.setInterval(() => setNowMs(Date.now()), 1000)
-    return () => window.clearInterval(id)
-  }, [inFlight])
-
-  const workedFor = formatWorkedFor(group.startedAt, inFlight ? undefined : group.endedAt, nowMs)
 
   return (
     <div className="space-y-3">
-      {group.user && <LiveChatBubble message={group.user} agentIcon={AgentIcon} />}
+      {group.user && <LiveChatBubbleMemo message={group.user} agentIcon={AgentIcon} />}
 
       {hasThinking && (
         <Collapsible defaultOpen={false}>
@@ -93,19 +84,13 @@ export function TurnBlock({
               weight="bold"
               className="shrink-0 text-muted-foreground transition-transform duration-150 group-aria-expanded/th:rotate-90"
             />
-            <span className="text-[0.6rem] font-medium tracking-[0.14em] text-muted-foreground uppercase">
-              Reasoning
-            </span>
-            {workedFor && (
-              <span className="ml-auto text-[0.55rem] font-medium tabular-nums text-muted-foreground">
-                {workedFor}
-              </span>
-            )}
+            <CyclingVerb active={inFlight || showThinkingDots} />
+            <WorkedForBadge startedAt={group.startedAt} endedAt={group.endedAt} inFlight={inFlight} />
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 border-l-2 border-dashed border-border pl-3">
             <div className="space-y-2.5">
               {group.thinking.map(m => (
-                <LiveChatBubble key={m.id} message={m} agentIcon={AgentIcon} muted />
+                <LiveChatBubbleMemo key={m.id} message={m} agentIcon={AgentIcon} muted />
               ))}
               {showThinkingDots && <ThinkingDots agentIcon={AgentIcon} />}
             </div>
@@ -113,8 +98,94 @@ export function TurnBlock({
         </Collapsible>
       )}
 
-      {group.final && <LiveChatBubble message={group.final} agentIcon={AgentIcon} />}
+      {group.final && <LiveChatBubbleMemo message={group.final} agentIcon={AgentIcon} />}
     </div>
+  )
+}
+
+export const TurnBlock = memo(TurnBlockImpl, (prev, next) => {
+  if (prev.agentIcon !== next.agentIcon) return false
+  if (prev.showThinkingDots !== next.showThinkingDots) return false
+  if (prev.inFlight !== next.inFlight) return false
+  if (prev.group.user !== next.group.user) return false
+  if (prev.group.final !== next.group.final) return false
+  if (prev.group.startedAt !== next.group.startedAt || prev.group.endedAt !== next.group.endedAt)
+    return false
+  if (prev.group.thinking.length !== next.group.thinking.length) return false
+  return prev.group.thinking.every((message, index) => message === next.group.thinking[index])
+})
+
+function WorkedForBadge({
+  startedAt,
+  endedAt,
+  inFlight,
+}: {
+  startedAt?: string
+  endedAt?: string
+  inFlight: boolean
+}) {
+  const [nowMs, setNowMs] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!inFlight) return
+    setNowMs(Date.now())
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [inFlight])
+
+  const workedFor = formatWorkedFor(startedAt, inFlight ? undefined : endedAt, nowMs)
+  if (!workedFor) return null
+  return (
+    <span className="ml-auto text-[0.55rem] font-medium tabular-nums text-muted-foreground">
+      {workedFor}
+    </span>
+  )
+}
+
+/** Cycles through WORKING_VERBS while active, settles on "Reasoning" when done. */
+function CyclingVerb({ active }: { active: boolean }) {
+  const [index, setIndex] = useState(() => Math.floor(Math.random() * WORKING_VERBS.length))
+  const [fading, setFading] = useState(false)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const advance = useCallback(() => {
+    setFading(true)
+    // After the fade-out finishes, swap the word and fade back in
+    setTimeout(() => {
+      setIndex(prev => (prev + 1) % WORKING_VERBS.length)
+      setFading(false)
+    }, 400) // matches the CSS transition duration
+  }, [])
+
+  useEffect(() => {
+    if (!active) {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      intervalRef.current = null
+      setFading(false)
+      return
+    }
+    // Start cycling immediately
+    advance()
+    intervalRef.current = setInterval(advance, 4000)
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
+  }, [active, advance])
+
+  const label = active ? WORKING_VERBS[index] : 'Reasoning'
+
+  return (
+    <span
+      className="text-[0.6rem] font-medium tracking-[0.14em] text-muted-foreground uppercase"
+      style={{
+        display: 'inline-block',
+        minWidth: '5em',
+        opacity: fading ? 0 : 1,
+        transition: 'opacity 400ms ease',
+      }}
+    >
+      {label}{active ? '...' : ''}
+    </span>
   )
 }
 
@@ -145,7 +216,7 @@ function ThinkingDots({ agentIcon: AgentIcon }: { agentIcon: ComponentType<{ siz
   )
 }
 
-export function LiveChatBubble({
+function LiveChatBubble({
   message,
   agentIcon: AgentIcon,
   muted = false,
@@ -253,6 +324,10 @@ export function LiveChatBubble({
     </div>
   )
 }
+
+const LiveChatBubbleMemo = memo(LiveChatBubble, (prev, next) => {
+  return prev.agentIcon === next.agentIcon && prev.muted === next.muted && prev.message === next.message
+})
 
 export function ChatBubble({
   message,

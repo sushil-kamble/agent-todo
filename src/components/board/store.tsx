@@ -70,7 +70,26 @@ type StoreValue = {
   closeEditTask: () => void
 }
 
-const BoardCtx = createContext<StoreValue | null>(null)
+type TasksStateValue = Pick<
+  StoreValue,
+  'tasks' | 'isLoading' | 'setTasks' | 'refresh' | 'addTask' | 'updateTask' | 'persistMove'
+>
+type SearchStateValue = Pick<StoreValue, 'searchQuery' | 'setSearchQuery'>
+type DialogStateValue = Pick<
+  StoreValue,
+  | 'dialogOpen'
+  | 'dialogColumn'
+  | 'openNewTask'
+  | 'closeNewTask'
+  | 'editingTask'
+  | 'editingColumn'
+  | 'openEditTask'
+  | 'closeEditTask'
+>
+
+const BoardTasksCtx = createContext<TasksStateValue | null>(null)
+const BoardSearchCtx = createContext<SearchStateValue | null>(null)
+const BoardDialogCtx = createContext<DialogStateValue | null>(null)
 
 export function BoardProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<TasksByColumn>(EMPTY)
@@ -97,19 +116,30 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     refresh()
   }, [refresh])
 
-  // Poll only while at least one visible in-progress task has an actively
-  // changing run status. Idle tasks can remain in the column for follow-up, but
-  // they should not keep the whole board polling forever.
+  // Poll only the statuses for active in-progress tasks instead of refetching
+  // the entire board whenever a single run is busy.
   useEffect(() => {
-    const hasActiveRun = tasks.in_progress.some(task =>
-      ACTIVE_RUN_STATUSES.has(task.runStatus ?? '')
-    )
-    if (!hasActiveRun) return
+    const activeTaskIds = tasks.in_progress
+      .filter(task => ACTIVE_RUN_STATUSES.has(task.runStatus ?? ''))
+      .map(task => task.id)
+    if (activeTaskIds.length === 0) return
     const id = window.setInterval(() => {
-      refresh()
+      void api.fetchTaskStatuses(activeTaskIds).then(statuses => {
+        setTasks(prev => {
+          let changed = false
+          const nextInProgress = prev.in_progress.map(task => {
+            if (!activeTaskIds.includes(task.id)) return task
+            const nextStatus = statuses[task.id] ?? undefined
+            if (task.runStatus === nextStatus) return task
+            changed = true
+            return { ...task, runStatus: nextStatus }
+          })
+          return changed ? { ...prev, in_progress: nextInProgress } : prev
+        })
+      })
     }, 2500)
     return () => window.clearInterval(id)
-  }, [tasks.in_progress, refresh])
+  }, [tasks.in_progress])
 
   const addTask = useCallback<StoreValue['addTask']>(async input => {
     const { task, column } = await api.createTask({
@@ -251,7 +281,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  const value = useMemo<StoreValue>(
+  const tasksValue = useMemo<TasksStateValue>(
     () => ({
       tasks,
       isLoading,
@@ -260,16 +290,6 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       addTask,
       updateTask,
       persistMove,
-      dialogOpen,
-      dialogColumn,
-      openNewTask,
-      closeNewTask,
-      editingTask,
-      editingColumn,
-      openEditTask,
-      closeEditTask,
-      searchQuery,
-      setSearchQuery,
     }),
     [
       tasks,
@@ -278,6 +298,19 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       addTask,
       updateTask,
       persistMove,
+    ]
+  )
+
+  const searchValue = useMemo<SearchStateValue>(
+    () => ({
+      searchQuery,
+      setSearchQuery,
+    }),
+    [searchQuery]
+  )
+
+  const dialogValue = useMemo<DialogStateValue>(
+    () => ({
       dialogOpen,
       dialogColumn,
       openNewTask,
@@ -286,15 +319,50 @@ export function BoardProvider({ children }: { children: ReactNode }) {
       editingColumn,
       openEditTask,
       closeEditTask,
-      searchQuery,
+    }),
+    [
+      dialogOpen,
+      dialogColumn,
+      openNewTask,
+      closeNewTask,
+      editingTask,
+      editingColumn,
+      openEditTask,
+      closeEditTask,
     ]
   )
 
-  return <BoardCtx.Provider value={value}>{children}</BoardCtx.Provider>
+  return (
+    <BoardTasksCtx.Provider value={tasksValue}>
+      <BoardSearchCtx.Provider value={searchValue}>
+        <BoardDialogCtx.Provider value={dialogValue}>{children}</BoardDialogCtx.Provider>
+      </BoardSearchCtx.Provider>
+    </BoardTasksCtx.Provider>
+  )
 }
 
 export function useBoard() {
-  const ctx = useContext(BoardCtx)
-  if (!ctx) throw new Error('useBoard must be used inside <BoardProvider>')
+  return {
+    ...useBoardTasks(),
+    ...useBoardSearch(),
+    ...useBoardDialogs(),
+  }
+}
+
+export function useBoardTasks() {
+  const ctx = useContext(BoardTasksCtx)
+  if (!ctx) throw new Error('useBoardTasks must be used inside <BoardProvider>')
+  return ctx
+}
+
+export function useBoardSearch() {
+  const ctx = useContext(BoardSearchCtx)
+  if (!ctx) throw new Error('useBoardSearch must be used inside <BoardProvider>')
+  return ctx
+}
+
+export function useBoardDialogs() {
+  const ctx = useContext(BoardDialogCtx)
+  if (!ctx) throw new Error('useBoardDialogs must be used inside <BoardProvider>')
   return ctx
 }

@@ -11,7 +11,7 @@ import { appendMessage } from '../db/messages.mjs'
 import { getAgentClass } from '../agents/index.mjs'
 
 // In-memory registry of live runs keyed by runId
-// { client: AgentClient, bus: EventEmitter, partials: Map<itemId,string> }
+// { client: AgentClient, bus: EventEmitter, partials: Map<itemId,string>, ready: Promise<void> }
 const runs = new Map()
 
 function extractReasoningText(item) {
@@ -60,7 +60,36 @@ export function emit(runId, event) {
  * Start a new agent run for a task.
  * Creates the DB row, spawns the agent process, wires all events.
  */
-export async function startRun(task) {
+async function bootstrapRun(runId, task, client, bus) {
+  // Build a richer first message so the agent always knows its working context,
+  // even if the SDK's own cwd handling misbehaves.
+  const prompt = [
+    `Working directory: ${task.project}`,
+    '',
+    task.title,
+  ].join('\n')
+  try {
+    client.start()
+    await client.initialize()
+    await client.startThread()
+    await client.sendUserText(prompt)
+  } catch (e) {
+    updateRun(runId, { status: 'failed' })
+    const s = appendMessage(runId, 'system', 'error', String(e.message || e))
+    bus.emit('evt', {
+      type: 'message',
+      seq: s,
+      role: 'system',
+      kind: 'error',
+      content: String(e.message || e),
+      createdAt: new Date().toISOString(),
+    })
+    client.stop()
+    runs.delete(runId)
+  }
+}
+
+export function startRun(task) {
   const runId = `r-${randomUUID().slice(0, 8)}`
   const run = createRun({
     id: runId,
@@ -76,7 +105,13 @@ export async function startRun(task) {
   const bus = new EventEmitter()
   bus.setMaxListeners(0)
   const partials = new Map()
-  runs.set(runId, { client, bus, partials })
+
+  // Deferred promise so `entry.ready` is trustworthy from the very first
+  // `runs.set()` — eliminates the race where a caller could await a stale
+  // `Promise.resolve()` before bootstrap actually finishes.
+  let resolveReady
+  const ready = new Promise((resolve) => { resolveReady = resolve })
+  runs.set(runId, { client, bus, partials, ready })
 
   // Persist the initial user instruction
   const seq = appendMessage(runId, 'user', 'text', task.title)
@@ -214,28 +249,7 @@ export async function startRun(task) {
     runs.delete(runId)
   })
 
-  // ---- Start the agent ----
-
-  try {
-    client.start()
-    await client.initialize()
-    await client.startThread()
-    await client.sendUserText(task.title)
-  } catch (e) {
-    updateRun(runId, { status: 'failed' })
-    const s = appendMessage(runId, 'system', 'error', String(e.message || e))
-    bus.emit('evt', {
-      type: 'message',
-      seq: s,
-      role: 'system',
-      kind: 'error',
-      content: String(e.message || e),
-      createdAt: new Date().toISOString(),
-    })
-    client.stop()
-    runs.delete(runId)
-    throw e
-  }
+  bootstrapRun(runId, task, client, bus).then(resolveReady)
 
   return run
 }

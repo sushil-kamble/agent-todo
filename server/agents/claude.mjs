@@ -54,6 +54,11 @@ export class ClaudeClient extends EventEmitter {
           includePartialMessages: true,
           env: process.env,
           settingSources: ['user', 'project', 'local'],
+          // Disable sandboxing so tools can access the host filesystem at the
+          // project's cwd. Without this, user/project settings picked up via
+          // settingSources can enable the sandbox, which containerises tool
+          // execution and causes "No such file or directory" errors.
+          sandbox: { enabled: false },
           stderr: data => process.stderr.write(`[claude ${this.cwd}] ${data}`),
         },
       })

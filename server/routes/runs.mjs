@@ -28,6 +28,7 @@ export async function handleRunRoutes(req, res, pathname) {
       createdAt: new Date().toISOString(),
     })
     try {
+      await entry.ready
       await entry.client.sendUserText(text)
     } catch (e) {
       return json(res, 500, { error: e.message })

@@ -10,7 +10,14 @@
 import { randomUUID } from 'node:crypto'
 import { json, readBody } from '../lib/http.mjs'
 import { normalizeProjectPath } from '../lib/project-path.mjs'
-import { listTasks, getTask, createTask, updateTaskFields, deleteTask } from '../db/tasks.mjs'
+import {
+  listTasks,
+  listTaskStatuses,
+  getTask,
+  createTask,
+  updateTaskFields,
+  deleteTask,
+} from '../db/tasks.mjs'
 import { getActiveRunForTask, getLatestRunForTask } from '../db/runs.mjs'
 import { listMessages } from '../db/messages.mjs'
 import { ensureRunForTask } from '../services/run-manager.mjs'
@@ -21,9 +28,22 @@ export async function handleTaskRoutes(req, res, pathname) {
     return json(res, 200, { tasks: listTasks() })
   }
 
+  if (req.method === 'GET' && pathname === '/api/tasks/statuses') {
+    const url = new URL(req.url, 'http://localhost')
+    const ids = url.searchParams
+      .get('ids')
+      ?.split(',')
+      .map(id => id.trim())
+      .filter(Boolean)
+    const statuses = Object.fromEntries(
+      listTaskStatuses(ids ?? []).map(row => [row.id, row.run_status ?? null])
+    )
+    return json(res, 200, { statuses })
+  }
+
   if (req.method === 'POST' && pathname === '/api/paths/resolve-directory') {
     const body = await readBody(req)
-    return json(res, 200, { path: normalizeProjectPath(body.path) })
+    return json(res, 200, { path: await normalizeProjectPath(body.path) })
   }
 
   // POST /api/tasks
@@ -33,7 +53,7 @@ export async function handleTaskRoutes(req, res, pathname) {
     const t = createTask({
       id,
       title: String(body.title || '').trim(),
-      project: normalizeProjectPath(String(body.project || '').trim()) || 'untitled',
+      project: (await normalizeProjectPath(String(body.project || '').trim())) || 'untitled',
       agent: body.agent === 'claude' ? 'claude' : 'codex',
       tag: body.tag ? String(body.tag) : null,
       column_id: ['todo', 'in_progress', 'done'].includes(body.column_id) ? body.column_id : 'todo',
@@ -52,7 +72,7 @@ export async function handleTaskRoutes(req, res, pathname) {
     const normalizedProject =
       body.project === undefined
         ? prev.project
-        : normalizeProjectPath(String(body.project).trim()) || 'untitled'
+        : (await normalizeProjectPath(String(body.project).trim())) || 'untitled'
     const t = updateTaskFields(id, {
       title: body.title ?? prev.title,
       project: normalizedProject,

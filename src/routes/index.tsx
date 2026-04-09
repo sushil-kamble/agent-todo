@@ -3,7 +3,7 @@ import { Link, createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import { Board } from '#/components/board/Board'
 import { Button } from '#/components/ui/button'
-import { useBoard } from '#/components/board/store'
+import { useBoardDialogs, useBoardSearch } from '#/components/board/store'
 
 export const Route = createFileRoute('/')({ component: BoardPage })
 
@@ -35,7 +35,8 @@ function AgentMark({ className = '' }: { className?: string }) {
 }
 
 function BoardPage() {
-  const { openNewTask, searchQuery, setSearchQuery } = useBoard()
+  const { openNewTask } = useBoardDialogs()
+  const { searchQuery, setSearchQuery } = useBoardSearch()
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {

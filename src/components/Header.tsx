@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { useBoard } from '#/components/board/store'
+import { useBoardDialogs } from '#/components/board/store'
 import { Button } from '#/components/ui/button'
 
 /**
@@ -34,7 +34,7 @@ function AgentMark({ className = '' }: { className?: string }) {
 }
 
 export function Header() {
-  const { openNewTask } = useBoard()
+  const { openNewTask } = useBoardDialogs()
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-[1400px] items-center justify-between px-8">

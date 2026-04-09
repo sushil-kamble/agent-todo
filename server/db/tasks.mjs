@@ -17,6 +17,22 @@ export function listTasks() {
     .all()
 }
 
+export function listTaskStatuses(taskIds) {
+  if (!Array.isArray(taskIds) || taskIds.length === 0) return []
+  const placeholders = taskIds.map(() => '?').join(', ')
+  return db
+    .prepare(
+      `SELECT t.id,
+              (SELECT status FROM runs
+               WHERE task_id = t.id
+                 AND status NOT IN ('completed','failed')
+               ORDER BY created_at DESC LIMIT 1) AS run_status
+       FROM tasks t
+       WHERE t.id IN (${placeholders})`
+    )
+    .all(...taskIds)
+}
+
 export function getTask(id) {
   return db.prepare('SELECT * FROM tasks WHERE id = ?').get(id)
 }

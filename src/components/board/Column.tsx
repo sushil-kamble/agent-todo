@@ -1,7 +1,8 @@
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { Plus } from '@phosphor-icons/react'
-import { useBoard } from './store'
+import { ArrowDownIcon, Plus } from '@phosphor-icons/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useBoardDialogs, useBoardTasks } from './store'
 import { TaskCardView } from './TaskCardView'
 import type { Column, TaskCard } from './types'
 
@@ -42,12 +43,60 @@ function TaskCardSkeleton() {
   )
 }
 
+const SCROLL_BOTTOM_OFFSET = 80
+
 export function BoardColumn({ column, tasks, index }: Props) {
-  const { openNewTask, isLoading } = useBoard()
+  const { openNewTask } = useBoardDialogs()
+  const { isLoading } = useBoardTasks()
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
     data: { column: column.id },
   })
+
+  // Separate ref for scroll-position tracking (dnd setNodeRef is a callback ref).
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
+  const isInProgress = column.id === 'in_progress'
+
+  const combinedRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setNodeRef(node)
+      scrollRef.current = node
+    },
+    [setNodeRef]
+  )
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const check = () => {
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_BOTTOM_OFFSET
+      setShowScrollBtn(isInProgress && el.scrollHeight > el.clientHeight && !atBottom)
+    }
+
+    // Recompute whenever the rendered task list changes. The initial mount often
+    // happens before the final column height/content settles, so a one-time
+    // check can leave the button permanently hidden.
+    check()
+    el.addEventListener('scroll', check, { passive: true })
+
+    // Re-check when the scroll container itself resizes or its children change.
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    const mo = new MutationObserver(check)
+    mo.observe(el, { childList: true, subtree: true, characterData: true })
+
+    return () => {
+      el.removeEventListener('scroll', check)
+      ro.disconnect()
+      mo.disconnect()
+    }
+  }, [isInProgress])
+
+  const scrollToBottom = () => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }
 
   return (
     <section
@@ -80,7 +129,7 @@ export function BoardColumn({ column, tasks, index }: Props) {
       </header>
 
       {/* Cards */}
-      <div ref={setNodeRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+      <div ref={combinedRef} className="relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
         {isLoading ? (
           <TaskCardSkeleton />
         ) : (
@@ -106,6 +155,25 @@ export function BoardColumn({ column, tasks, index }: Props) {
           <Plus size={11} weight="bold" />
           add task
         </button>
+
+        {/* Scroll-to-bottom button — visible only when content is above the fold */}
+        {showScrollBtn && (
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            aria-label="Scroll to bottom"
+            className={[
+              'sticky bottom-0 left-1/2 z-10 mx-auto flex -translate-x-px items-center justify-center',
+              'size-7 border bg-background/90 backdrop-blur-sm',
+              'transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0',
+              isInProgress
+                ? 'border-primary/40 text-primary hover:border-primary hover:bg-primary hover:text-primary-foreground'
+                : 'border-border text-muted-foreground hover:border-foreground hover:text-foreground',
+            ].join(' ')}
+          >
+            <ArrowDownIcon size={13} weight="bold" />
+          </button>
+        )}
       </div>
     </section>
   )

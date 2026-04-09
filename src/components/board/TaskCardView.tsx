@@ -2,7 +2,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { DotsSixVertical, Folder } from '@phosphor-icons/react'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
-import { useBoard } from './store'
+import { useBoardDialogs } from './store'
 import type { ColumnId, TaskCard } from './types'
 
 type Props = {
@@ -25,7 +25,7 @@ const agentMeta = {
 } as const
 
 export function TaskCardView({ task, column, isOverlay = false }: Props) {
-  const { openEditTask } = useBoard()
+  const { openEditTask } = useBoardDialogs()
   const sortable = useSortable({
     id: task.id,
     data: { column, task },

@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, X } from '@phosphor-icons/react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { ArrowDownIcon, ArrowUp, X } from '@phosphor-icons/react'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
 import * as api from '#/lib/api'
 import type { AgentPhase } from '#/lib/api'
@@ -19,12 +19,22 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
   const [thinking, setThinking] = useState(false)
   const [completedTurns, setCompletedTurns] = useState(0)
   const [scrollReady, setScrollReady] = useState(false)
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const didInitialScrollRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(true)
   const streamingRef = useRef<{ itemId: string; msgId: string } | null>(null)
   const itemPhaseRef = useRef<Map<string, AgentPhase>>(new Map())
+
+  const syncScrollState = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+    const isNearBottom = distance < 80
+    stickyRef.current = isNearBottom
+    setShowScrollToBottom(el.scrollHeight > el.clientHeight && !isNearBottom)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -250,23 +260,44 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
       el.scrollTop = el.scrollHeight
       didInitialScrollRef.current = true
       setScrollReady(true)
+      syncScrollState()
       return
     }
 
-    if (!stickyRef.current) return
+    if (!stickyRef.current) {
+      syncScrollState()
+      return
+    }
     const bottom = bottomRef.current
     if (bottom) {
       bottom.scrollIntoView({ block: 'end', behavior: 'smooth' })
+      requestAnimationFrame(syncScrollState)
       return
     }
     el.scrollTop = el.scrollHeight
-  }, [messages, thinking])
+    syncScrollState()
+  }, [messages, thinking, syncScrollState])
 
-  function handleScroll() {
+  useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
-    stickyRef.current = distance < 80
+    syncScrollState()
+    const ro = new ResizeObserver(syncScrollState)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [syncScrollState])
+
+  function handleScroll() {
+    syncScrollState()
+  }
+
+  function scrollToBottom() {
+    const el = scrollRef.current
+    if (!el) return
+    stickyRef.current = true
+    setShowScrollToBottom(false)
+    bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
+    requestAnimationFrame(syncScrollState)
   }
 
   async function send() {
@@ -354,6 +385,17 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
         })}
         <div ref={bottomRef} aria-hidden="true" />
       </div>
+
+      {showScrollToBottom && (
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          aria-label="Scroll to latest message"
+          className="absolute right-5 bottom-22 z-20 flex size-8 items-center justify-center border border-foreground bg-background/95 text-foreground shadow-[3px_3px_0_0_oklch(0.18_0.012_80/0.08)] backdrop-blur-sm transition-all duration-150 hover:-translate-y-0.5 hover:bg-foreground hover:text-background active:translate-y-0"
+        >
+          <ArrowDownIcon size={14} weight="bold" />
+        </button>
+      )}
 
       <div className="border-t border-border bg-card px-3 py-3">
         <div className="flex items-end gap-2 border border-border bg-background px-2 py-1.5 focus-within:border-foreground">

@@ -13,12 +13,13 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useMemo, useState } from 'react'
 import { BoardColumn } from './Column'
-import { useBoard } from './store'
+import { useBoardSearch, useBoardTasks } from './store'
 import { TaskCardView } from './TaskCardView'
 import { COLUMNS, type ColumnId, type TaskCard } from './types'
 
 export function Board() {
-  const { tasks, setTasks, persistMove, searchQuery } = useBoard()
+  const { tasks, setTasks, persistMove } = useBoardTasks()
+  const { searchQuery } = useBoardSearch()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [dragOrigin, setDragOrigin] = useState<ColumnId | null>(null)
 
@@ -31,10 +32,10 @@ export function Board() {
         col.id,
         tasks[col.id].filter(
           t =>
-            (t.title && t.title.toLowerCase().includes(query)) ||
-            (t.id && t.id.toLowerCase().includes(query)) ||
-            (t.project && t.project.toLowerCase().includes(query)) ||
-            (t.tag && t.tag.toLowerCase().includes(query))
+            t.title?.toLowerCase().includes(query) ||
+            t.id?.toLowerCase().includes(query) ||
+            t.project?.toLowerCase().includes(query) ||
+            t.tag?.toLowerCase().includes(query)
         ),
       ])
     ) as Record<ColumnId, TaskCard[]>

@@ -1,19 +1,18 @@
 import { useEffect } from 'react'
-import { useBoard } from './store'
+import { useBoardDialogs, useBoardTasks } from './store'
 import { ChatPanel } from './task-dialog/ChatPanel'
 import { FormPanel } from './task-dialog/FormPanel'
 import { ReadonlyPanel } from './task-dialog/ReadonlyPanel'
 
 export function TaskDialog() {
+  const { addTask, updateTask } = useBoardTasks()
   const {
     dialogOpen,
     closeNewTask,
-    addTask,
     editingTask,
     editingColumn,
     closeEditTask,
-    updateTask,
-  } = useBoard()
+  } = useBoardDialogs()
 
   const isEdit = !!editingTask
   const isOpen = dialogOpen || isEdit
