@@ -1,17 +1,11 @@
 import { useEffect, useState, type ComponentType } from 'react'
-import {
-  CaretRight,
-  Check,
-  CopySimple,
-  Folder,
-  X,
-} from '@phosphor-icons/react'
+import { CaretRight, Check, CopySimple, Folder, X } from '@phosphor-icons/react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '#/components/ui/collapsible'
-import { WORKING_VERBS } from './constants'
 import { MD_COMPONENTS } from './markdown'
 import type { ChatMessage, LiveMessage, TurnGroup } from './types'
+import { formatWorkedFor } from './utils'
 
 export function PanelHeader({ label, onClose }: { label: string; onClose: () => void }) {
   return (
@@ -76,7 +70,16 @@ export function TurnBlock({
   inFlight: boolean
 }) {
   const hasThinking = group.thinking.length > 0 || showThinkingDots || inFlight
-  const thinkingCount = group.thinking.length
+  const [nowMs, setNowMs] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!inFlight) return
+    setNowMs(Date.now())
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [inFlight])
+
+  const workedFor = formatWorkedFor(group.startedAt, inFlight ? undefined : group.endedAt, nowMs)
 
   return (
     <div className="space-y-3">
@@ -90,16 +93,12 @@ export function TurnBlock({
               weight="bold"
               className="shrink-0 text-muted-foreground transition-transform duration-150 group-aria-expanded/th:rotate-90"
             />
-            {inFlight ? (
-              <WorkingLabel />
-            ) : (
-              <span className="text-[0.6rem] font-medium tracking-[0.14em] text-muted-foreground uppercase">
-                Trace
-              </span>
-            )}
-            {thinkingCount > 0 && (
-              <span className="ml-auto border border-border bg-background px-1.5 text-[0.55rem] font-medium tabular-nums text-muted-foreground">
-                {thinkingCount}
+            <span className="text-[0.6rem] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+              Reasoning
+            </span>
+            {workedFor && (
+              <span className="ml-auto text-[0.55rem] font-medium tabular-nums text-muted-foreground">
+                {workedFor}
               </span>
             )}
           </CollapsibleTrigger>
@@ -119,56 +118,7 @@ export function TurnBlock({
   )
 }
 
-function WorkingLabel() {
-  const [verb, setVerb] = useState(
-    () => WORKING_VERBS[Math.floor(Math.random() * WORKING_VERBS.length)]
-  )
-
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setVerb(prev => {
-        let next = prev
-        while (next === prev) {
-          next = WORKING_VERBS[Math.floor(Math.random() * WORKING_VERBS.length)]
-        }
-        return next
-      })
-    }, 2200)
-    return () => window.clearInterval(id)
-  }, [])
-
-  return (
-    <span className="inline-flex items-center gap-0.5 text-[0.62rem] font-medium tracking-[0.14em] text-foreground uppercase">
-      <span className="animate-pulse">{verb}</span>
-      <span className="inline-flex gap-px" aria-hidden="true">
-        <span
-          className="animate-pulse text-foreground"
-          style={{ animationDelay: '0ms', animationDuration: '1.2s' }}
-        >
-          .
-        </span>
-        <span
-          className="animate-pulse text-foreground"
-          style={{ animationDelay: '200ms', animationDuration: '1.2s' }}
-        >
-          .
-        </span>
-        <span
-          className="animate-pulse text-foreground"
-          style={{ animationDelay: '400ms', animationDuration: '1.2s' }}
-        >
-          .
-        </span>
-      </span>
-    </span>
-  )
-}
-
-function ThinkingDots({
-  agentIcon: AgentIcon,
-}: {
-  agentIcon: ComponentType<{ size?: number }>
-}) {
+function ThinkingDots({ agentIcon: AgentIcon }: { agentIcon: ComponentType<{ size?: number }> }) {
   return (
     <div className="flex gap-2">
       <span className="flex size-6 shrink-0 items-center justify-center border border-border bg-card text-foreground">

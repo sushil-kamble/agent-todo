@@ -13,6 +13,7 @@ export type LiveMessage = {
   kind: string
   body: string
   at: string
+  createdAt?: string
   streaming?: boolean
   phase?: AgentPhase
   itemId?: string
@@ -24,4 +25,6 @@ export type TurnGroup = {
   user: LiveMessage | null
   thinking: LiveMessage[]
   final: LiveMessage | null
+  startedAt?: string
+  endedAt?: string
 }

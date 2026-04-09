@@ -37,7 +37,9 @@ export function groupByTurn(messages: LiveMessage[], completedTurns: number): Tu
       if (i === finalIdx) final = m
       else thinking.push(m)
     })
-    return { user, thinking, final }
+    const startedAt = user?.createdAt ?? items.find(m => !!m.createdAt)?.createdAt
+    const endedAt = [...items].reverse().find(m => !!m.createdAt)?.createdAt ?? user?.createdAt
+    return { user, thinking, final, startedAt, endedAt }
   })
 }
 
@@ -48,4 +50,23 @@ export function formatTime(iso: string) {
   } catch {
     return ''
   }
+}
+
+export function formatWorkedFor(startedAt?: string, endedAt?: string, nowMs?: number) {
+  if (!startedAt) return null
+  const startMs = Date.parse(startedAt)
+  if (Number.isNaN(startMs)) return null
+  const endMs = endedAt ? Date.parse(endedAt) : (nowMs ?? Date.now())
+  if (Number.isNaN(endMs)) return null
+  const totalSeconds = Math.max(0, Math.floor((endMs - startMs) / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const parts =
+    hours > 0
+      ? [`${hours}h`, `${minutes}m`]
+      : minutes > 0
+        ? [`${minutes}m`, `${seconds}s`]
+        : [`${seconds}s`]
+  return `Worked for ${parts.join(' ')}`
 }

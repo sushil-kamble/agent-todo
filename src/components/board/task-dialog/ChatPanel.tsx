@@ -62,6 +62,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
               kind: m.kind,
               body: m.content,
               at: formatTime(m.created_at),
+              createdAt: m.created_at,
               phase: meta?.phase,
             }
           })
@@ -156,6 +157,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
                         body: ev.content,
                         commandRunning: false,
                         at: formatTime(ev.createdAt),
+                        createdAt: ev.createdAt,
                       }
                     : p
                 )
@@ -170,6 +172,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
                 kind: ev.kind,
                 body: ev.content,
                 at: formatTime(ev.createdAt),
+                createdAt: ev.createdAt,
                 phase: ev.phase,
                 itemId: ev.itemId,
               },
@@ -198,6 +201,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
                   kind: 'text',
                   body: ev.delta,
                   at: '',
+                  createdAt: new Date().toISOString(),
                   streaming: true,
                   phase,
                   itemId: ev.itemId,
@@ -265,8 +269,12 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
       return
 
     setDraft('')
+    const nowIso = new Date().toISOString()
     const localId = `u-local-${Date.now()}`
-    setMessages(prev => [...prev, { id: localId, role: 'user', kind: 'text', body, at: '' }])
+    setMessages(prev => [
+      ...prev,
+      { id: localId, role: 'user', kind: 'text', body, at: '', createdAt: nowIso },
+    ])
     setThinking(true)
     try {
       await api.sendFollowUp(runId, body)
