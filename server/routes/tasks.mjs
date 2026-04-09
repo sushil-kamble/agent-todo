@@ -10,7 +10,7 @@
 import { randomUUID } from 'node:crypto'
 import { json, readBody } from '../lib/http.mjs'
 import { listTasks, getTask, createTask, updateTaskFields, deleteTask } from '../db/tasks.mjs'
-import { getActiveRunForTask } from '../db/runs.mjs'
+import { getActiveRunForTask, getLatestRunForTask } from '../db/runs.mjs'
 import { listMessages } from '../db/messages.mjs'
 import { ensureRunForTask } from '../services/run-manager.mjs'
 
@@ -52,10 +52,14 @@ export async function handleTaskRoutes(req, res, pathname) {
       position: body.position ?? prev.position,
     })
 
-    // If this move brought the task into in_progress and it's a codex task,
-    // kick off a run.
+    // If this task is being placed in the in-progress column and it's a Codex
+    // task, ensure a live run exists. This covers both the initial move from
+    // todo -> in_progress and retries while the task is already in_progress
+    // but its previous run has failed.
     let runId = null
-    if (prev.column_id !== 'in_progress' && t.column_id === 'in_progress' && t.agent === 'codex') {
+    const shouldEnsureRun =
+      body.column_id === 'in_progress' && t.column_id === 'in_progress' && t.agent === 'codex'
+    if (shouldEnsureRun) {
       try {
         const run = await ensureRunForTask(t)
         runId = run?.id ?? null
@@ -75,7 +79,18 @@ export async function handleTaskRoutes(req, res, pathname) {
   // GET /api/tasks/:id/run
   m = pathname.match(/^\/api\/tasks\/([^/]+)\/run$/)
   if (req.method === 'GET' && m) {
-    const run = getActiveRunForTask(m[1])
+    const task = getTask(m[1])
+    if (!task) return json(res, 404, { error: 'not found' })
+
+    let run = getActiveRunForTask(task.id)
+    if (!run && task.agent === 'codex' && task.column_id === 'in_progress') {
+      try {
+        run = await ensureRunForTask(task)
+      } catch (e) {
+        console.error('[tasks] failed to ensure run during fetch', e)
+      }
+    }
+    if (!run) run = getLatestRunForTask(task.id)
     if (!run) return json(res, 200, { run: null, messages: [] })
     return json(res, 200, { run, messages: listMessages(run.id) })
   }

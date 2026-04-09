@@ -158,7 +158,7 @@ export class CodexClient extends EventEmitter {
       model: 'gpt-5.4',
       cwd: this.cwd,
       approvalPolicy: 'never',
-      sandbox: 'workspaceWrite',
+      sandbox: 'danger-full-access',
       experimentalRawEvents: false,
       persistExtendedHistory: false,
     })

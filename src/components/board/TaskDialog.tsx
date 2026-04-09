@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowUp,
   CaretRight,
@@ -187,17 +187,20 @@ export function TaskDialog() {
   const isOpen = dialogOpen || isEdit
   const close = isEdit ? closeEditTask : closeNewTask
 
-  // Esc to close + lock scroll
+  // Esc to close + lock scroll (compensate scrollbar width to prevent layout shift)
   useEffect(() => {
     if (!isOpen) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close()
     }
     window.addEventListener('keydown', handler)
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
     document.body.style.overflow = 'hidden'
+    document.body.style.paddingRight = `${scrollbarWidth}px`
     return () => {
       window.removeEventListener('keydown', handler)
       document.body.style.overflow = ''
+      document.body.style.paddingRight = ''
     }
   }, [isOpen, close])
 
@@ -221,7 +224,7 @@ export function TaskDialog() {
         type="button"
         aria-label="Close"
         onClick={close}
-        className="absolute inset-0 bg-foreground/30 backdrop-blur-[2px]"
+        className="animate-in fade-in absolute inset-0 bg-foreground/30 backdrop-blur-[2px] duration-200"
       />
 
       {mode === 'form' && (
@@ -299,17 +302,17 @@ function FormPanel({
   const [agent, setAgent] = useState<Agent>(editingTask?.agent ?? 'claude')
   const titleRef = useRef<HTMLTextAreaElement>(null)
 
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      const el = titleRef.current
-      if (!el) return
-      el.focus()
-      if (isEdit) {
-        el.setSelectionRange(el.value.length, el.value.length)
-        el.style.height = 'auto'
-        el.style.height = `${el.scrollHeight}px`
-      }
-    })
+  useLayoutEffect(() => {
+    const el = titleRef.current
+    if (!el) return
+    if (isEdit) {
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight}px`
+    }
+    el.focus()
+    if (isEdit) {
+      el.setSelectionRange(el.value.length, el.value.length)
+    }
   }, [isEdit])
 
   async function pickFolder() {
@@ -341,7 +344,7 @@ function FormPanel({
   return (
     <form
       onSubmit={handleSubmit}
-      className="relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] sm:max-h-[calc(100vh-3rem)]"
+      className="animate-in fade-in slide-in-from-bottom-3 relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:max-h-[calc(100vh-3rem)]"
     >
       <PanelHeader label={title.trim() || (isEdit ? 'Edit task' : 'New task')} onClose={close} />
 
@@ -449,6 +452,7 @@ type LiveMessage = {
   kind: string
   body: string
   at: string
+  createdAt?: string
   streaming?: boolean
   /** Agent-message phase: "commentary" → thinking; "final" → actual reply. */
   phase?: AgentPhase
@@ -472,7 +476,13 @@ type TurnGroup = {
   thinking: LiveMessage[]
   /** The final answer the agent wants the user to read. */
   final: LiveMessage | null
+  /** Approximate wall-clock start time for this turn. */
+  startedAt?: string
+  /** Approximate wall-clock end time for this turn. */
+  endedAt?: string
 }
+
+const ACTIVE_RUN_STATUSES = new Set(['starting', 'running', 'active'])
 
 function groupByTurn(messages: LiveMessage[], completedTurns: number): TurnGroup[] {
   // First pass: split into raw per-turn buckets preserving arrival order so
@@ -521,7 +531,9 @@ function groupByTurn(messages: LiveMessage[], completedTurns: number): TurnGroup
       if (i === finalIdx) final = m
       else thinking.push(m)
     })
-    return { user, thinking, final }
+    const startedAt = user?.createdAt ?? items.find(m => !!m.createdAt)?.createdAt
+    const endedAt = [...items].reverse().find(m => !!m.createdAt)?.createdAt ?? user?.createdAt
+    return { user, thinking, final, startedAt, endedAt }
   })
 }
 
@@ -532,6 +544,25 @@ function formatTime(iso: string) {
   } catch {
     return ''
   }
+}
+
+function formatWorkedFor(startedAt?: string, endedAt?: string, nowMs?: number) {
+  if (!startedAt) return null
+  const startMs = Date.parse(startedAt)
+  if (Number.isNaN(startMs)) return null
+  const endMs = endedAt ? Date.parse(endedAt) : (nowMs ?? Date.now())
+  if (Number.isNaN(endMs)) return null
+  const totalSeconds = Math.max(0, Math.floor((endMs - startMs) / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const parts =
+    hours > 0
+      ? [`${hours}h`, `${minutes}m`]
+      : minutes > 0
+        ? [`${minutes}m`, `${seconds}s`]
+        : [`${seconds}s`]
+  return `Worked for ${parts.join(' ')}`
 }
 
 function ProjectPathChip({ path }: { path: string }) {
@@ -620,7 +651,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
       // the final (latest) user message's turn is still in flight.
       {
         const userCount = persisted.filter(m => m.role === 'user').length
-        const active = run.status === 'active' || run.status === 'running'
+        const active = ACTIVE_RUN_STATUSES.has(run.status)
         setCompletedTurns(active ? Math.max(0, userCount - 1) : userCount)
       }
       setMessages(
@@ -636,6 +667,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
               kind: m.kind,
               body: m.content,
               at: formatTime(m.created_at),
+              createdAt: m.created_at,
               phase: meta?.phase,
             }
           })
@@ -737,6 +769,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
                         body: ev.content,
                         commandRunning: false,
                         at: formatTime(ev.createdAt),
+                        createdAt: ev.createdAt,
                       }
                     : p
                 )
@@ -750,6 +783,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
                 kind: ev.kind,
                 body: ev.content,
                 at: formatTime(ev.createdAt),
+                createdAt: ev.createdAt,
                 phase: ev.phase,
                 itemId: ev.itemId,
               },
@@ -781,6 +815,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
                   kind: 'text',
                   body: ev.delta,
                   at: '',
+                  createdAt: new Date().toISOString(),
                   streaming: true,
                   phase,
                   itemId: ev.itemId,
@@ -841,13 +876,22 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
 
   async function send() {
     const body = draft.trim()
-    if (!body || !runId) return
+    if (
+      !body ||
+      !runId ||
+      (runStatus != null && !ACTIVE_RUN_STATUSES.has(runStatus) && runStatus !== 'idle')
+    )
+      return
     setDraft('')
     // Optimistic feedback: show the user's bubble *and* mark a fresh in-flight
     // turn immediately, so the working indicator flips on the instant they
     // press send — no waiting for the server round-trip or Codex handshake.
+    const nowIso = new Date().toISOString()
     const localId = `u-local-${Date.now()}`
-    setMessages(prev => [...prev, { id: localId, role: 'user', kind: 'text', body, at: '' }])
+    setMessages(prev => [
+      ...prev,
+      { id: localId, role: 'user', kind: 'text', body, at: '', createdAt: nowIso },
+    ])
     setThinking(true)
     try {
       await api.sendFollowUp(runId, body)
@@ -862,9 +906,11 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
   // Group the flat message list into turn blocks. Memoized so we don't
   // re-walk the list on every render while deltas stream.
   const turns = useMemo(() => groupByTurn(messages, completedTurns), [messages, completedTurns])
+  const hasInteractiveRun =
+    !!runId && !!runStatus && (ACTIVE_RUN_STATUSES.has(runStatus) || runStatus === 'idle')
 
   return (
-    <section className="relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] sm:h-[calc(100vh-3rem)]">
+    <section className="animate-in fade-in slide-in-from-bottom-3 relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:h-[calc(100vh-3rem)]">
       {/* Header: agent icon + truncated prompt, project on next line */}
       <div className="flex items-start justify-between gap-3 border-b border-border bg-card px-5 py-3">
         <div className="min-w-0 flex-1">
@@ -910,7 +956,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
           // the number of completed turns hasn't caught up to it yet. While
           // in-flight, the collapsible header shows a live spinner so the
           // user can see the agent is actively working.
-          const inFlight = isLast && idx >= completedTurns
+          const inFlight = isLast && hasInteractiveRun && idx >= completedTurns
           const showThinkingDots = isLast && thinking
           return (
             <TurnBlock
@@ -944,7 +990,7 @@ function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
           <button
             type="button"
             onClick={send}
-            disabled={!draft.trim() || !runId}
+            disabled={!draft.trim() || !hasInteractiveRun}
             className="flex size-7 items-center justify-center border border-foreground bg-foreground text-background transition-opacity disabled:opacity-30"
             aria-label="Send"
           >
@@ -973,11 +1019,18 @@ function TurnBlock({
   showThinkingDots: boolean
   inFlight: boolean
 }) {
-  // Always render the collapsible for an in-flight turn so the animated
-  // working label is visible the instant the user sends — even before any
-  // trace items or the thinking-dots bubble have landed.
+  // Always render the collapsible for an in-flight turn so the label and
+  // elapsed timer appear the instant the user sends — even before any trace
+  // items or thinking dots have landed.
   const hasThinking = group.thinking.length > 0 || showThinkingDots || inFlight
-  const thinkingCount = group.thinking.length
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    if (!inFlight) return
+    setNowMs(Date.now())
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [inFlight])
+  const workedFor = formatWorkedFor(group.startedAt, inFlight ? undefined : group.endedAt, nowMs)
   return (
     <div className="space-y-3">
       {group.user && <LiveChatBubble message={group.user} agentIcon={AgentIcon} />}
@@ -990,16 +1043,12 @@ function TurnBlock({
               weight="bold"
               className="shrink-0 text-muted-foreground transition-transform duration-150 group-aria-expanded/th:rotate-90"
             />
-            {inFlight ? (
-              <WorkingLabel />
-            ) : (
-              <span className="text-[0.6rem] font-medium tracking-[0.14em] text-muted-foreground uppercase">
-                Trace
-              </span>
-            )}
-            {thinkingCount > 0 && (
-              <span className="ml-auto border border-border bg-background px-1.5 text-[0.55rem] font-medium tabular-nums text-muted-foreground">
-                {thinkingCount}
+            <span className="text-[0.6rem] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+              Reasoning
+            </span>
+            {workedFor && (
+              <span className="ml-auto text-[0.55rem] font-medium tabular-nums text-muted-foreground">
+                {workedFor}
               </span>
             )}
           </CollapsibleTrigger>
@@ -1016,153 +1065,6 @@ function TurnBlock({
 
       {group.final && <LiveChatBubble message={group.final} agentIcon={AgentIcon} />}
     </div>
-  )
-}
-
-/**
- * Claude-Code-style "working" label: a verb that rotates every couple of
- * seconds, followed by three dots where each dot pulses on a staggered
- * interval. Tells the user "we're on it" without a hard spinner.
- */
-// Claude-Code-style loading vocabulary. Sourced from the leaked CLI
-// vocabulary — intentionally whimsical verbs so the loading state feels
-// alive rather than mechanical. Kept alphabetical for easy additions.
-const WORKING_VERBS = [
-  'Accomplishing',
-  'Actioning',
-  'Actualizing',
-  'Baking',
-  'Brainstorming',
-  'Brewing',
-  'Calculating',
-  'Cerebrating',
-  'Channelling',
-  'Churning',
-  'Clauding',
-  'Coalescing',
-  'Cogitating',
-  'Computing',
-  'Concocting',
-  'Conjuring',
-  'Considering',
-  'Constructing',
-  'Contemplating',
-  'Cooking',
-  'Crafting',
-  'Creating',
-  'Crunching',
-  'Deciphering',
-  'Deliberating',
-  'Determining',
-  'Digesting',
-  'Divining',
-  'Doing',
-  'Effecting',
-  'Envisioning',
-  'Excavating',
-  'Exploring',
-  'Finagling',
-  'Finessing',
-  'Forging',
-  'Forming',
-  'Frobnicating',
-  'Galumphing',
-  'Generating',
-  'Germinating',
-  'Grokking',
-  'Hacking',
-  'Hatching',
-  'Herding',
-  'Honking',
-  'Hustling',
-  'Ideating',
-  'Imagining',
-  'Incubating',
-  'Inferring',
-  'Investigating',
-  'Manifesting',
-  'Marinating',
-  'Meandering',
-  'Moseying',
-  'Mulling',
-  'Musing',
-  'Noodling',
-  'Orchestrating',
-  'Percolating',
-  'Philosophizing',
-  'Plotting',
-  'Pondering',
-  'Processing',
-  'Puttering',
-  'Puzzling',
-  'Reasoning',
-  'Reticulating',
-  'Riffing',
-  'Ruminating',
-  'Scheming',
-  'Schlepping',
-  'Shimmying',
-  'Shucking',
-  'Simmering',
-  'Smooshing',
-  'Spinning',
-  'Stewing',
-  'Summoning',
-  'Synthesizing',
-  'Thinking',
-  'Tinkering',
-  'Transmuting',
-  'Unfurling',
-  'Unravelling',
-  'Untangling',
-  'Vibing',
-  'Wibbling',
-  'Wizarding',
-  'Working',
-  'Wrangling',
-]
-
-function WorkingLabel() {
-  const [verb, setVerb] = useState(
-    () => WORKING_VERBS[Math.floor(Math.random() * WORKING_VERBS.length)]
-  )
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setVerb(prev => {
-        // Pick a different verb each cycle so it's never stuck on the same word.
-        let next = prev
-        while (next === prev) {
-          next = WORKING_VERBS[Math.floor(Math.random() * WORKING_VERBS.length)]
-        }
-        return next
-      })
-    }, 2200)
-    return () => window.clearInterval(id)
-  }, [])
-  return (
-    <span className="inline-flex items-center gap-0.5 text-[0.62rem] font-medium tracking-[0.14em] text-foreground uppercase">
-      <span className="animate-pulse">{verb}</span>
-      <span className="inline-flex gap-px" aria-hidden="true">
-        <span
-          className="animate-pulse text-foreground"
-          style={{ animationDelay: '0ms', animationDuration: '1.2s' }}
-        >
-          .
-        </span>
-        <span
-          className="animate-pulse text-foreground"
-          style={{ animationDelay: '200ms', animationDuration: '1.2s' }}
-        >
-          .
-        </span>
-        <span
-          className="animate-pulse text-foreground"
-          style={{ animationDelay: '400ms', animationDuration: '1.2s' }}
-        >
-          .
-        </span>
-      </span>
-    </span>
   )
 }
 
@@ -1361,7 +1263,7 @@ function ReadonlyPanel({ task, close }: { task: TaskCard; close: () => void }) {
   const transcript = useMemo(() => MOCK_DONE_CHAT, [])
 
   return (
-    <section className="relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] sm:max-h-[calc(100vh-3rem)]">
+    <section className="animate-in fade-in slide-in-from-bottom-3 relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:max-h-[calc(100vh-3rem)]">
       {/* Header: agent icon + truncated prompt, project on next line */}
       <div className="flex items-start justify-between gap-3 border-b border-border bg-card px-5 py-3">
         <div className="min-w-0 flex-1">
