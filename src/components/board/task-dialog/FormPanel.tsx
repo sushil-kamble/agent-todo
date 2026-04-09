@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { FolderOpen } from '@phosphor-icons/react'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
 import { Button } from '#/components/ui/button'
+import * as api from '#/lib/api'
 import type { Agent, ColumnId, TaskCard } from '../types'
 import { PanelHeader } from './shared'
 
@@ -49,7 +50,8 @@ export function FormPanel({
           showDirectoryPicker?: () => Promise<{ name: string }>
         }
       ).showDirectoryPicker?.()
-      if (handle) setProject(handle.name)
+      if (!handle) return
+      setProject(await api.resolveDirectoryPath(handle.name))
     } catch {
       // user cancelled
     }
@@ -71,7 +73,7 @@ export function FormPanel({
   return (
     <form
       onSubmit={handleSubmit}
-      className="relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] sm:max-h-[calc(100vh-3rem)]"
+      className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:max-h-[calc(100vh-3rem)]"
     >
       <PanelHeader label={title.trim() || (isEdit ? 'Edit task' : 'New task')} onClose={close} />
 

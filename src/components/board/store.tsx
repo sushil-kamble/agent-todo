@@ -14,6 +14,20 @@ type TasksByColumn = Record<ColumnId, TaskCard[]>
 
 const EMPTY: TasksByColumn = { todo: [], in_progress: [], done: [] }
 const ACTIVE_RUN_STATUSES = new Set(['starting', 'running', 'active'])
+const TASK_QUERY_PARAM = 'task'
+
+function readTaskIdFromUrl() {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get(TASK_QUERY_PARAM)
+}
+
+function writeTaskIdToUrl(taskId: string | null) {
+  if (typeof window === 'undefined') return
+  const url = new URL(window.location.href)
+  if (taskId) url.searchParams.set(TASK_QUERY_PARAM, taskId)
+  else url.searchParams.delete(TASK_QUERY_PARAM)
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+}
 
 type StoreValue = {
   tasks: TasksByColumn
@@ -66,6 +80,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const [editingTask, setEditingTask] = useState<TaskCard | null>(null)
   const [editingColumn, setEditingColumn] = useState<ColumnId | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [urlTaskId, setUrlTaskId] = useState<string | null>(() => readTaskIdFromUrl())
 
   const refresh = useCallback(async () => {
     try {
@@ -158,14 +173,68 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const closeNewTask = useCallback(() => setDialogOpen(false), [])
 
   const openEditTask = useCallback((task: TaskCard, column: ColumnId) => {
+    writeTaskIdToUrl(task.id)
+    setUrlTaskId(task.id)
     setEditingTask(task)
     setEditingColumn(column)
   }, [])
   const closeEditTask = useCallback(() => {
+    writeTaskIdToUrl(null)
+    setUrlTaskId(null)
     setEditingTask(null)
     setEditingColumn(null)
     refresh()
   }, [refresh])
+
+  useEffect(() => {
+    if (isLoading || dialogOpen) return
+
+    if (!urlTaskId) {
+      if (editingTask) {
+        setEditingTask(null)
+        setEditingColumn(null)
+      }
+      return
+    }
+
+    let matchedTask: TaskCard | null = null
+    let matchedColumn: ColumnId | null = null
+    for (const column of Object.keys(tasks) as ColumnId[]) {
+      const task = tasks[column].find(entry => entry.id === urlTaskId)
+      if (task) {
+        matchedTask = task
+        matchedColumn = column
+        break
+      }
+    }
+
+    if (!matchedTask || !matchedColumn) {
+      writeTaskIdToUrl(null)
+      setUrlTaskId(null)
+      if (editingTask) {
+        setEditingTask(null)
+        setEditingColumn(null)
+      }
+      return
+    }
+
+    if (
+      editingTask?.id !== matchedTask.id ||
+      editingColumn !== matchedColumn ||
+      editingTask !== matchedTask
+    ) {
+      setEditingTask(matchedTask)
+      setEditingColumn(matchedColumn)
+    }
+  }, [tasks, isLoading, dialogOpen, urlTaskId, editingTask, editingColumn])
+
+  useEffect(() => {
+    const syncFromLocation = () => {
+      setUrlTaskId(readTaskIdFromUrl())
+    }
+    window.addEventListener('popstate', syncFromLocation)
+    return () => window.removeEventListener('popstate', syncFromLocation)
+  }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

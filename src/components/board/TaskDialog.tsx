@@ -51,7 +51,7 @@ export function TaskDialog() {
         type="button"
         aria-label="Close"
         onClick={close}
-        className="absolute inset-0 bg-foreground/30 backdrop-blur-[2px]"
+        className="animate-in fade-in absolute inset-0 bg-foreground/30 backdrop-blur-[2px] duration-200"
       />
 
       {mode === 'form' && (

@@ -10,7 +10,7 @@ export function ReadonlyPanel({ task, close }: { task: TaskCard; close: () => vo
   const agentLabel = task.agent === 'claude' ? 'Claude' : 'Codex'
 
   return (
-    <section className="relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] sm:max-h-[calc(100vh-3rem)]">
+    <section className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:max-h-[calc(100vh-3rem)]">
       <div className="flex items-start justify-between gap-3 border-b border-border bg-card px-5 py-3">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">

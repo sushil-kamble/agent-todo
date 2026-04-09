@@ -96,6 +96,16 @@ export async function createTask(input: {
   return { task: toCard(task), column: task.column_id }
 }
 
+export async function resolveDirectoryPath(path: string): Promise<string> {
+  const r = await fetch('/api/paths/resolve-directory', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ path }),
+  })
+  const { path: resolved } = (await r.json()) as { path: string }
+  return resolved
+}
+
 export async function patchTask(
   id: string,
   updates: Partial<{

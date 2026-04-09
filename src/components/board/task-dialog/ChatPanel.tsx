@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUp, X } from '@phosphor-icons/react'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
 import * as api from '#/lib/api'
@@ -18,6 +18,8 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
   const [draft, setDraft] = useState('')
   const [thinking, setThinking] = useState(false)
   const [completedTurns, setCompletedTurns] = useState(0)
+  const [scrollReady, setScrollReady] = useState(false)
+  const didInitialScrollRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(true)
@@ -237,19 +239,27 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
     }
   }, [task.id, task.agent])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (messages.length === 0 && !thinking) return
+    const el = scrollRef.current
+    if (!el) return
+
+    // First paint: jump to bottom synchronously before the browser paints,
+    // so the user never sees the scroll start at the top and snap down.
+    if (!didInitialScrollRef.current) {
+      el.scrollTop = el.scrollHeight
+      didInitialScrollRef.current = true
+      setScrollReady(true)
+      return
+    }
+
     if (!stickyRef.current) return
-    const raf = requestAnimationFrame(() => {
-      const bottom = bottomRef.current
-      if (bottom) {
-        bottom.scrollIntoView({ block: 'end' })
-        return
-      }
-      const el = scrollRef.current
-      if (el) el.scrollTop = el.scrollHeight
-    })
-    return () => cancelAnimationFrame(raf)
+    const bottom = bottomRef.current
+    if (bottom) {
+      bottom.scrollIntoView({ block: 'end', behavior: 'smooth' })
+      return
+    }
+    el.scrollTop = el.scrollHeight
   }, [messages, thinking])
 
   function handleScroll() {
@@ -290,7 +300,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
     !!runId && !!runStatus && (ACTIVE_RUN_STATUSES.has(runStatus) || runStatus === 'idle')
 
   return (
-    <section className="relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] sm:h-[calc(100vh-3rem)]">
+    <section className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:h-[calc(100vh-3rem)]">
       <div className="flex items-start justify-between gap-3 border-b border-border bg-card px-5 py-3">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
@@ -326,7 +336,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 space-y-5 overflow-x-hidden overflow-y-auto bg-background px-5 py-4"
+        className={`flex-1 space-y-5 overflow-x-hidden overflow-y-auto bg-background px-5 py-4 transition-opacity duration-150 ${scrollReady ? 'opacity-100' : 'opacity-0'}`}
       >
         {turns.map((group, idx) => {
           const isLast = idx === turns.length - 1
