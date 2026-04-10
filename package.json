@@ -13,6 +13,9 @@
     "server/",
     "shared/"
   ],
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "imports": {
     "#/*": "./src/*"
   },
