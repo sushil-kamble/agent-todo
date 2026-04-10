@@ -2,12 +2,16 @@
  * Run API routes.
  *
  * POST /api/runs/:id/messages  — send a follow-up message to an active run
+ * POST /api/runs/:id/stop      — interrupt an active run
  * GET  /api/runs/:id/events    — SSE stream of run events
  */
 
 import { appendMessage, listMessages } from '../db/messages.mjs'
+import { getRun } from '../db/runs.mjs'
 import { json, readBody, sseHeaders, sseSend } from '../lib/http.mjs'
-import { emit, getLiveRun } from '../services/run-manager.mjs'
+import { emit, getLiveRun, stopRun } from '../services/run-manager.mjs'
+
+const USER_CANCELLED_EXECUTION = '--- User cancelled execution ---'
 
 export async function handleRunRoutes(req, res, pathname) {
   // POST /api/runs/:id/messages
@@ -37,6 +41,29 @@ export async function handleRunRoutes(req, res, pathname) {
     return json(res, 200, { ok: true })
   }
 
+  // POST /api/runs/:id/stop
+  m = pathname.match(/^\/api\/runs\/([^/]+)\/stop$/)
+  if (req.method === 'POST' && m) {
+    const runId = m[1]
+    const run = getRun(runId)
+    if (!run) return json(res, 404, { error: 'run not found' })
+    const entry = getLiveRun(runId)
+    if (!entry) return json(res, 404, { error: 'run not active' })
+    const seq = appendMessage(runId, 'system', 'error', USER_CANCELLED_EXECUTION, {
+      interruptedByUser: true,
+    })
+    emit(runId, {
+      type: 'message',
+      seq,
+      role: 'system',
+      kind: 'error',
+      content: USER_CANCELLED_EXECUTION,
+      interruptedByUser: true,
+      createdAt: new Date().toISOString(),
+    })
+    return json(res, 200, { run: await stopRun(runId) })
+  }
+
   // GET /api/runs/:id/events (SSE)
   m = pathname.match(/^\/api\/runs\/([^/]+)\/events$/)
   if (req.method === 'GET' && m) {
@@ -52,12 +79,13 @@ export async function handleRunRoutes(req, res, pathname) {
         kind: msg.kind,
         content: msg.content,
         phase: meta?.phase,
+        interruptedByUser: meta?.interruptedByUser === true,
         createdAt: msg.created_at,
       })
     }
     const entry = getLiveRun(runId)
     if (!entry) {
-      sseSend(res, { type: 'end' })
+      sseSend(res, { type: 'end', status: getRun(runId)?.status })
       res.end()
       return true
     }

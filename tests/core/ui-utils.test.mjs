@@ -54,10 +54,12 @@ describe('task dialog utils', () => {
     expect(groups[0].user?.id).toBe('u-1')
     expect(groups[0].final?.id).toBe('a-2')
     expect(groups[0].thinking.map(message => message.id)).toEqual(['a-1'])
+    expect(groups[0].tail).toEqual([])
 
     expect(groups[1].user?.id).toBe('u-2')
     expect(groups[1].final).toBeNull()
     expect(groups[1].thinking.map(message => message.id)).toEqual(['a-3'])
+    expect(groups[1].tail).toEqual([])
   })
 
   it('keeps non-user prefixed runs in a safe synthetic group', () => {
@@ -78,6 +80,93 @@ describe('task dialog utils', () => {
     expect(groups).toHaveLength(1)
     expect(groups[0].user).toBeNull()
     expect(groups[0].thinking[0].id).toBe('s-1')
+    expect(groups[0].tail).toEqual([])
+  })
+
+  it('renders explicit user interruption markers after the final response', () => {
+    const groups = groupByTurn(
+      [
+        {
+          id: 'u-1',
+          role: 'user',
+          kind: 'text',
+          body: 'ship it',
+          at: '10:00',
+          createdAt: '2026-01-01T10:00:00.000Z',
+        },
+        {
+          id: 'a-1',
+          role: 'agent',
+          kind: 'text',
+          body: 'working',
+          at: '10:00',
+          createdAt: '2026-01-01T10:00:01.000Z',
+          phase: 'commentary',
+        },
+        {
+          id: 'a-2',
+          role: 'agent',
+          kind: 'text',
+          body: 'done',
+          at: '10:01',
+          createdAt: '2026-01-01T10:01:00.000Z',
+        },
+        {
+          id: 's-2',
+          role: 'system',
+          kind: 'error',
+          body: '--- User cancelled execution ---',
+          at: '10:01',
+          createdAt: '2026-01-01T10:01:05.000Z',
+          interruptedByUser: true,
+        },
+      ],
+      1
+    )
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0].final?.id).toBe('a-2')
+    expect(groups[0].thinking.map(message => message.id)).toEqual(['a-1'])
+    expect(groups[0].tail.map(message => message.id)).toEqual(['s-2'])
+  })
+
+  it('renders explicit user interruption markers even when no final answer exists yet', () => {
+    const groups = groupByTurn(
+      [
+        {
+          id: 'u-1',
+          role: 'user',
+          kind: 'text',
+          body: 'inspect repo',
+          at: '10:00',
+          createdAt: '2026-01-01T10:00:00.000Z',
+        },
+        {
+          id: 'a-1',
+          role: 'agent',
+          kind: 'text',
+          body: 'Looking through the project now',
+          at: '10:00',
+          createdAt: '2026-01-01T10:00:01.000Z',
+          phase: 'commentary',
+        },
+        {
+          id: 's-2',
+          role: 'system',
+          kind: 'error',
+          body: '--- User cancelled execution ---',
+          at: '10:01',
+          createdAt: '2026-01-01T10:01:05.000Z',
+          interruptedByUser: true,
+        },
+      ],
+      0
+    )
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0].final).toBeNull()
+    expect(groups[0].thinking.map(message => message.id)).toEqual(['a-1'])
+    expect(groups[0].tail.map(message => message.id)).toEqual(['s-2'])
   })
 
   it('formats worked-for durations for seconds, minutes, and hours', () => {

@@ -1,4 +1,4 @@
-import { ArrowDownIcon, ArrowUp, X } from '@phosphor-icons/react'
+import { ArrowDownIcon, ArrowUpIcon, StopIcon, XIcon } from '@phosphor-icons/react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
 import type { AgentPhase } from '#/lib/api'
@@ -9,7 +9,81 @@ import { ProjectPathChip, TurnBlock } from './shared'
 import type { LiveMessage } from './types'
 import { formatTime, groupByTurn } from './utils'
 
-export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }) {
+const USER_CANCELLED_EXECUTION = '--- User cancelled execution ---'
+
+function getHeaderRunState(status: string | null) {
+  if (!status) return null
+  if (ACTIVE_RUN_STATUSES.has(status)) {
+    return {
+      label: 'Working',
+      className:
+        'border-amber-700/35 bg-amber-100 text-amber-950 dark:border-amber-300/30 dark:bg-amber-400/15 dark:text-amber-100',
+    }
+  }
+  if (status === 'idle' || status === 'interrupted') {
+    return {
+      label: 'Idle',
+      className:
+        'border-emerald-700/30 bg-emerald-100 text-emerald-950 dark:border-emerald-300/30 dark:bg-emerald-400/15 dark:text-emerald-100',
+    }
+  }
+  if (status === 'failed') {
+    return {
+      label: 'Failed',
+      className:
+        'border-red-700/30 bg-red-100 text-red-900 dark:border-red-300/30 dark:bg-red-400/15 dark:text-red-100',
+    }
+  }
+  if (status === 'completed') {
+    return {
+      label: 'Complete',
+      className:
+        'border-sky-700/30 bg-sky-100 text-sky-950 dark:border-sky-300/30 dark:bg-sky-400/15 dark:text-sky-100',
+    }
+  }
+  return {
+    label: status,
+    className:
+      'border-border bg-muted text-foreground dark:border-border dark:bg-muted dark:text-foreground',
+  }
+}
+
+function getModeBadge(mode: TaskCard['mode']) {
+  if (mode === 'ask') {
+    return {
+      label: 'Ask',
+      className:
+        'border-sky-700/30 bg-sky-100 text-sky-950 dark:border-sky-300/30 dark:bg-sky-400/15 dark:text-sky-100',
+    }
+  }
+  return {
+    label: 'Code',
+    className:
+      'border-stone-700/20 bg-stone-100 text-stone-900 dark:border-stone-300/20 dark:bg-stone-400/10 dark:text-stone-100',
+  }
+}
+
+function getHeaderMetaBadge(
+  status: ReturnType<typeof getHeaderRunState>,
+  mode: ReturnType<typeof getModeBadge>
+) {
+  if (!status) return null
+  return {
+    className: status.className,
+    statusLabel: status.label,
+    modeLabel: mode.label,
+  }
+}
+
+export function ChatPanel({
+  task,
+  close,
+  readOnly = false,
+}: {
+  task: TaskCard
+  close: () => void
+  readOnly?: boolean
+}) {
   const AgentIcon = task.agent === 'claude' ? ClaudeIcon : OpenAIIcon
   const agentLabel = task.agent === 'claude' ? 'Claude' : 'Codex'
   const [runId, setRunId] = useState<string | null>(null)
@@ -17,6 +91,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
   const [messages, setMessages] = useState<LiveMessage[]>([])
   const [draft, setDraft] = useState('')
   const [thinking, setThinking] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const [completedTurns, setCompletedTurns] = useState(0)
   const [scrollReady, setScrollReady] = useState(false)
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
@@ -41,7 +116,10 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
     let unsubscribe: (() => void) | null = null
 
     ;(async () => {
-      const { run, messages: persisted } = await api.fetchRun(task.id)
+      const { run, messages: persisted } = await api.fetchRun(
+        task.id,
+        readOnly ? { autostart: false } : undefined
+      )
       if (cancelled) return
       if (!run) {
         setMessages([
@@ -49,7 +127,9 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
             id: 'bootstrap',
             role: 'system',
             kind: 'status',
-            body: `No active ${task.agent === 'claude' ? 'Claude' : 'Codex'} run for this task yet.`,
+            body: readOnly
+              ? 'No saved history for this task yet.'
+              : `No active ${task.agent === 'claude' ? 'Claude' : 'Codex'} run for this task yet.`,
             at: '',
           },
         ])
@@ -67,7 +147,10 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
         persisted
           .filter(m => m.kind !== 'status')
           .map(m => {
-            const meta = (m.meta ?? null) as { phase?: AgentPhase } | null
+            const meta = (m.meta ?? null) as {
+              phase?: AgentPhase
+              interruptedByUser?: boolean
+            } | null
             return {
               id: `p-${m.seq}`,
               role: m.role,
@@ -76,9 +159,15 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
               at: formatTime(m.created_at),
               createdAt: m.created_at,
               phase: meta?.phase,
+              interruptedByUser:
+                m.role === 'system' &&
+                m.kind === 'error' &&
+                (meta?.interruptedByUser === true || m.content === USER_CANCELLED_EXECUTION),
             }
           })
       )
+
+      if (readOnly) return
 
       unsubscribe = api.subscribeRunEvents(run.id, ev => {
         if (ev.type === 'turnStarted') {
@@ -187,6 +276,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
                 createdAt: ev.createdAt,
                 phase: ev.phase,
                 itemId: ev.itemId,
+                interruptedByUser: ev.interruptedByUser === true,
               },
             ]
           })
@@ -227,7 +317,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
         }
 
         if (ev.type === 'turnCompleted') {
-          setRunStatus('idle')
+          setRunStatus(ev.status === 'interrupted' ? 'interrupted' : 'idle')
           setThinking(false)
           setCompletedTurns(n => n + 1)
           setMessages(prev =>
@@ -237,7 +327,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
         }
 
         if (ev.type === 'end') {
-          setRunStatus('completed')
+          setRunStatus(ev.status ?? 'completed')
           setThinking(false)
         }
       })
@@ -247,7 +337,13 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
       cancelled = true
       unsubscribe?.()
     }
-  }, [task.id, task.agent])
+  }, [task.id, task.agent, readOnly])
+
+  useEffect(() => {
+    if (!runStatus || !ACTIVE_RUN_STATUSES.has(runStatus)) {
+      setStopping(false)
+    }
+  }, [runStatus])
 
   useLayoutEffect(() => {
     if (messages.length === 0 && !thinking) return
@@ -304,6 +400,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
   async function send() {
     const body = draft.trim()
     if (
+      readOnly ||
       !body ||
       !runId ||
       (runStatus != null && !ACTIVE_RUN_STATUSES.has(runStatus) && runStatus !== 'idle')
@@ -327,32 +424,66 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
     }
   }
 
+  async function stop() {
+    if (readOnly || !runId || !runStatus || !ACTIVE_RUN_STATUSES.has(runStatus) || stopping) {
+      return
+    }
+
+    setStopping(true)
+    try {
+      await api.stopRun(runId)
+    } catch (e) {
+      console.error('[chat] stop failed', e)
+      setStopping(false)
+    }
+  }
+
   const turns = useMemo(() => groupByTurn(messages, completedTurns), [messages, completedTurns])
+  const isRunActive = !readOnly && !!runId && !!runStatus && ACTIVE_RUN_STATUSES.has(runStatus)
   const hasInteractiveRun =
-    !!runId && !!runStatus && (ACTIVE_RUN_STATUSES.has(runStatus) || runStatus === 'idle')
+    !readOnly &&
+    !!runId &&
+    !!runStatus &&
+    (ACTIVE_RUN_STATUSES.has(runStatus) || runStatus === 'idle')
+  const canSend = !readOnly && !!runId && runStatus === 'idle'
+  const headerRunState = getHeaderRunState(runStatus)
+  const modeBadge = getModeBadge(task.mode)
+  const headerMetaBadge = getHeaderMetaBadge(headerRunState, modeBadge)
 
   return (
     <section className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:h-[calc(100vh-3rem)]">
       <div className="flex items-start justify-between gap-3 border-b border-border bg-card px-5 py-3">
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <span
-              className="flex size-5 shrink-0 items-center justify-center border border-border bg-background text-foreground"
-              title={agentLabel}
-            >
-              <AgentIcon size={11} />
-            </span>
-            <p className="truncate text-sm font-medium leading-tight text-foreground">
-              {task.title}
-            </p>
-            {runStatus && (
-              <span className="ml-1 inline-flex shrink-0 items-center gap-1 border border-border bg-background px-1.5 py-0.5 text-[0.55rem] font-medium tracking-[0.12em] text-muted-foreground uppercase">
-                {runStatus}
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <span
+                className="flex size-5 shrink-0 items-center justify-center border border-border bg-background text-foreground"
+                title={agentLabel}
+              >
+                <AgentIcon size={11} />
+              </span>
+              <p className="truncate text-sm font-medium leading-tight text-foreground">
+                {task.title}
+              </p>
+            </div>
+            {headerMetaBadge && (
+              <span
+                className={`inline-flex shrink-0 items-center gap-2 border px-2 py-0.5 text-[0.62rem] font-semibold tracking-[0.12em] uppercase ${headerMetaBadge.className}`}
+                title={`${headerMetaBadge.statusLabel} • ${headerMetaBadge.modeLabel}`}
+              >
+                <span>{headerMetaBadge.statusLabel}</span>
+                <span
+                  className="size-1.5 shrink-0 rounded-full bg-current opacity-80"
+                  aria-hidden="true"
+                />
+                <span>{headerMetaBadge.modeLabel}</span>
               </span>
             )}
           </div>
           <div className="mt-1.5 flex items-center pl-7">
-            <ProjectPathChip path={task.project} />
+            <div className="min-w-0 flex-1">
+              <ProjectPathChip path={task.project} />
+            </div>
           </div>
         </div>
         <button
@@ -361,7 +492,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
           className="flex size-6 shrink-0 items-center justify-center border border-transparent text-muted-foreground hover:border-border hover:text-foreground"
           aria-label="Close"
         >
-          <X size={12} weight="bold" />
+          <XIcon size={12} weight="bold" />
         </button>
       </div>
 
@@ -398,32 +529,38 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
         </button>
       )}
 
-      <div className="border-t border-border bg-card px-3 py-3">
-        <div className="flex items-end gap-2 border border-border bg-background px-2 py-1.5 focus-within:border-foreground">
-          <textarea
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                send()
-              }
-            }}
-            rows={2}
-            placeholder="Send a follow-up to the agent…"
-            className="max-h-32 min-h-6 flex-1 resize-none bg-transparent px-1 text-sm leading-snug text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
-          />
-          <button
-            type="button"
-            onClick={send}
-            disabled={!draft.trim() || !hasInteractiveRun}
-            className="flex size-7 items-center justify-center border border-foreground bg-foreground text-background transition-opacity disabled:opacity-30"
-            aria-label="Send"
-          >
-            <ArrowUp size={13} weight="bold" />
-          </button>
+      {!readOnly && (
+        <div className="border-t border-border bg-card px-3 py-3">
+          <div className="flex items-end gap-2 border border-border bg-background px-2 py-1.5 focus-within:border-foreground">
+            <textarea
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey && canSend) {
+                  e.preventDefault()
+                  send()
+                }
+              }}
+              rows={2}
+              placeholder="Send a follow-up to the agent…"
+              className="max-h-32 min-h-6 flex-1 resize-none bg-transparent px-1 text-sm leading-snug text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={isRunActive ? stop : send}
+              disabled={isRunActive ? stopping : !draft.trim() || !canSend}
+              className="flex size-7 items-center justify-center border border-foreground bg-foreground text-background transition-opacity disabled:opacity-30"
+              aria-label={isRunActive ? 'Stop' : 'Send'}
+            >
+              {isRunActive ? (
+                <StopIcon size={13} weight="fill" />
+              ) : (
+                <ArrowUpIcon size={13} weight="bold" />
+              )}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </section>
   )
 }

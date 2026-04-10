@@ -14,6 +14,19 @@ import {
 import { startTestServer } from '../helpers/start-test-server.mjs'
 import { bootstrapTestDatabase } from '../helpers/test-db.mjs'
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function waitFor(check, timeoutMs = 1500) {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    if (check()) return
+    await sleep(10)
+  }
+  throw new Error('Timed out waiting for condition')
+}
+
 describe('task routes integration', () => {
   let harness
   let server
@@ -114,6 +127,37 @@ describe('task routes integration', () => {
     expect(getLiveRun(body.runId)).toBeTruthy()
   })
 
+  it('PATCH moving out of in_progress interrupts the active run immediately', async () => {
+    configureFakeAgentHarness({
+      defaultScript: createFakeRunScript({
+        turns: [[{ type: 'thread' }, { type: 'delay', ms: 500 }, { type: 'turnCompleted' }]],
+        emitExitOnStop: true,
+      }),
+    })
+
+    const task = harness.tasks.createTask(taskFactory({ id: 't-stop-now', column_id: 'todo' }))
+    const started = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ column_id: 'in_progress' }),
+    })
+
+    expect(started.status).toBe(200)
+    expect(started.body.runId).toBeTruthy()
+    expect(getLiveRun(started.body.runId)).toBeTruthy()
+
+    const stopped = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ column_id: 'todo' }),
+    })
+
+    expect(stopped.status).toBe(200)
+    expect(stopped.body.task.column_id).toBe('todo')
+    await waitFor(() => getLiveRun(started.body.runId) == null)
+    expect(harness.runs.getRun(started.body.runId)?.status).toBe('interrupted')
+  })
+
   it('PATCH invalid id returns 404', async () => {
     const { status } = await server.json('/api/tasks/missing-id', {
       method: 'PATCH',
@@ -185,15 +229,22 @@ describe('task routes integration', () => {
     expect(body.messages.map(message => message.content)).toEqual(['hello', 'world'])
   })
 
-  it('GET /api/tasks/:id/run auto-starts in-progress task when no active run exists', async () => {
+  it('GET /api/tasks/:id/run?autostart=false returns static history only', async () => {
+    const task = harness.tasks.createTask(taskFactory({ id: 't-static', column_id: 'in_progress' }))
+
+    const { status, body } = await server.json(`/api/tasks/${task.id}/run?autostart=false`)
+
+    expect(status).toBe(200)
+    expect(body).toEqual({ run: null, messages: [] })
+  })
+
+  it('GET /api/tasks/:id/run does not auto-start in-progress task when no active run exists', async () => {
     const task = harness.tasks.createTask(taskFactory({ id: 't-auto', column_id: 'in_progress' }))
 
     const { status, body } = await server.json(`/api/tasks/${task.id}/run`)
 
     expect(status).toBe(200)
-    expect(body.run).toBeTruthy()
-    expect(body.messages.length).toBeGreaterThanOrEqual(1)
-    expect(body.messages[0].role).toBe('user')
+    expect(body).toEqual({ run: null, messages: [] })
   })
 
   it('GET /api/tasks/:id/run returns run null/messages empty when no run exists', async () => {

@@ -110,6 +110,34 @@ describe('run routes integration', () => {
     expect(body.error).toBe('run not active')
   })
 
+  it('POST /api/runs/:id/stop rejects unknown runs', async () => {
+    const { status, body } = await server.json('/api/runs/r-missing/stop', {
+      method: 'POST',
+    })
+
+    expect(status).toBe(404)
+    expect(body.error).toBe('run not found')
+  })
+
+  it('POST /api/runs/:id/stop rejects inactive persisted runs', async () => {
+    const task = harness.tasks.createTask(taskFactory({ id: 't-stop-inactive', column_id: 'done' }))
+    const run = harness.runs.createRun({
+      id: 'r-stop-inactive',
+      task_id: task.id,
+      agent: task.agent,
+      thread_id: 'thread-stopped',
+      status: 'completed',
+      created_at: new Date().toISOString(),
+    })
+
+    const { status, body } = await server.json(`/api/runs/${run.id}/stop`, {
+      method: 'POST',
+    })
+
+    expect(status).toBe(404)
+    expect(body.error).toBe('run not active')
+  })
+
   it('persists follow-up user message before forwarding to agent', async () => {
     configureFakeAgentHarness({
       defaultScript: createFakeRunScript({
@@ -227,6 +255,39 @@ describe('run routes integration', () => {
     expect(agentReplyIndex).toBeGreaterThan(userFollowUpIndex)
   })
 
+  it('POST /api/runs/:id/stop interrupts the live run immediately', async () => {
+    configureFakeAgentHarness({
+      defaultScript: createFakeRunScript({
+        turns: [[{ type: 'thread' }, { type: 'delay', ms: 500 }, { type: 'turnCompleted' }]],
+        emitExitOnStop: true,
+      }),
+    })
+
+    const task = harness.tasks.createTask(taskFactory({ id: 't-stop-route' }))
+    const run = startRun(task)
+
+    const result = await server.json(`/api/runs/${run.id}/stop`, {
+      method: 'POST',
+    })
+
+    expect(result.status).toBe(200)
+    expect(result.body.run).toMatchObject({ id: run.id, status: 'interrupted' })
+    expect(
+      harness.messages
+        .listMessages(run.id)
+        .some(
+          row =>
+            row.role === 'system' &&
+            row.kind === 'error' &&
+            row.content === '--- User cancelled execution ---' &&
+            row.meta?.interruptedByUser === true
+        )
+    ).toBe(true)
+    await sleep(50)
+    expect(getLiveRun(run.id)).toBeFalsy()
+    expect(harness.runs.getRun(run.id)?.status).toBe('interrupted')
+  })
+
   it('GET /api/runs/:id/events emits end immediately for non-live runs', async () => {
     const task = harness.tasks.createTask(taskFactory({ id: 't-events-ended', column_id: 'done' }))
     const run = harness.runs.createRun({
@@ -249,6 +310,6 @@ describe('run routes integration', () => {
       type: 'message',
       content: 'persisted message',
     })
-    expect(events.at(-1)).toMatchObject({ type: 'end' })
+    expect(events.at(-1)).toMatchObject({ type: 'end', status: 'completed' })
   })
 })

@@ -9,7 +9,7 @@ export function listTasks() {
     SELECT t.*,
            (SELECT status FROM runs
             WHERE task_id = t.id
-              AND status NOT IN ('completed','failed')
+              AND status NOT IN ('completed','failed','interrupted')
             ORDER BY created_at DESC LIMIT 1) AS run_status
     FROM tasks t
     ORDER BY t.column_id, t.position ASC
@@ -25,7 +25,7 @@ export function listTaskStatuses(taskIds) {
       `SELECT t.id,
               (SELECT status FROM runs
                WHERE task_id = t.id
-                 AND status NOT IN ('completed','failed')
+                 AND status NOT IN ('completed','failed','interrupted')
                ORDER BY created_at DESC LIMIT 1) AS run_status
        FROM tasks t
        WHERE t.id IN (${placeholders})`

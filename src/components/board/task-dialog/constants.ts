@@ -1,27 +1,4 @@
-import type { ChatMessage } from './types'
-
 export const ACTIVE_RUN_STATUSES = new Set(['starting', 'running', 'active'])
-
-export const MOCK_DONE_CHAT: ChatMessage[] = [
-  {
-    id: 'd1',
-    role: 'agent',
-    body: 'Set up Biome with strict ruleset and wired the script in `package.json`.',
-    at: 'Apr 03 · 11:14',
-  },
-  {
-    id: 'd2',
-    role: 'user',
-    body: 'Looks good. Run a final type check.',
-    at: 'Apr 03 · 11:18',
-  },
-  {
-    id: 'd3',
-    role: 'agent',
-    body: 'tsc clean. All checks passing. Marking complete.',
-    at: 'Apr 03 · 11:19',
-  },
-]
 
 export const WORKING_VERBS = [
   'Accomplishing',

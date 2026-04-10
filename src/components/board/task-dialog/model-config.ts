@@ -77,7 +77,11 @@ export function getDefaultEffort(agent: Agent, slug: string | null): EffortLevel
   return getModelConfig(agent, slug).defaultEffort
 }
 
-export function sanitizeEffort(agent: Agent, slug: string | null, effort: EffortLevel): EffortLevel {
+export function sanitizeEffort(
+  agent: Agent,
+  slug: string | null,
+  effort: EffortLevel
+): EffortLevel {
   const options = getEffortOptions(agent, slug)
   return options.some(option => option.value === effort) ? effort : getDefaultEffort(agent, slug)
 }

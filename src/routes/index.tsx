@@ -1,4 +1,4 @@
-import { MagnifyingGlass, Plus, X } from '@phosphor-icons/react'
+import { MagnifyingGlassIcon, PlusIcon, XIcon } from '@phosphor-icons/react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import { Board } from '#/components/board/Board'
@@ -66,7 +66,7 @@ function BoardPage() {
 
           <div className="flex items-center gap-2">
             <div className="flex h-8 items-center gap-2 border border-border bg-card px-2.5 text-muted-foreground focus-within:border-foreground/60 focus-within:bg-background">
-              <MagnifyingGlass size={13} weight="regular" />
+              <MagnifyingGlassIcon size={13} weight="regular" />
               <input
                 ref={searchRef}
                 type="text"
@@ -82,7 +82,7 @@ function BoardPage() {
                   className="flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
                   aria-label="Clear search"
                 >
-                  <X size={12} weight="bold" />
+                  <XIcon size={12} weight="bold" />
                 </button>
               ) : (
                 <kbd className="border border-border bg-background px-1 text-[0.58rem] text-muted-foreground">
@@ -91,7 +91,7 @@ function BoardPage() {
               )}
             </div>
             <Button size="sm" variant="outline" onClick={() => openNewTask('todo')}>
-              <Plus size={13} />
+              <PlusIcon size={13} />
               <span className="text-xs">Add task</span>
             </Button>
           </div>

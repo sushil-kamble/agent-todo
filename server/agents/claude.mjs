@@ -100,11 +100,11 @@ export class ClaudeClient extends EventEmitter {
     this.activeTurnId = turnId
     this.emit('turnStarted', { turnId })
     this.promptQueue.push({
-        type: 'user',
-        message: {
-          role: 'user',
-          content: [{ type: 'text', text }],
-        },
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text }],
+      },
       parent_tool_use_id: null,
       session_id: this.threadId ?? '',
     })

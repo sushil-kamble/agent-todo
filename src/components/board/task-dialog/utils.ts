@@ -1,5 +1,9 @@
 import type { LiveMessage, TurnGroup } from './types'
 
+function isUserInterruptedMarker(message: LiveMessage) {
+  return message.role === 'system' && message.kind === 'error' && message.interruptedByUser === true
+}
+
 export function groupByTurn(messages: LiveMessage[], completedTurns: number): TurnGroup[] {
   type RawGroup = { user: LiveMessage | null; items: LiveMessage[] }
   const raw: RawGroup[] = []
@@ -33,13 +37,15 @@ export function groupByTurn(messages: LiveMessage[], completedTurns: number): Tu
 
     const thinking: LiveMessage[] = []
     let final: LiveMessage | null = null
+    const tail: LiveMessage[] = []
     items.forEach((m, i) => {
       if (i === finalIdx) final = m
+      else if (isUserInterruptedMarker(m)) tail.push(m)
       else thinking.push(m)
     })
     const startedAt = user?.createdAt ?? items.find(m => !!m.createdAt)?.createdAt
     const endedAt = [...items].reverse().find(m => !!m.createdAt)?.createdAt ?? user?.createdAt
-    return { user, thinking, final, startedAt, endedAt }
+    return { user, thinking, final, tail, startedAt, endedAt }
   })
 }
 

@@ -10,6 +10,7 @@
 import { randomUUID } from 'node:crypto'
 import { getDefaultEffort, getDefaultModel, sanitizeEffort } from '../agents/model-config.mjs'
 import { listMessages } from '../db/messages.mjs'
+import { createProject } from '../db/projects.mjs'
 import { getActiveRunForTask, getLatestRunForTask } from '../db/runs.mjs'
 import {
   createTask,
@@ -21,7 +22,7 @@ import {
 } from '../db/tasks.mjs'
 import { json, readBody } from '../lib/http.mjs'
 import { normalizeProjectPath } from '../lib/project-path.mjs'
-import { ensureRunForTask } from '../services/run-manager.mjs'
+import { ensureRunForTask, stopRunForTask } from '../services/run-manager.mjs'
 
 export async function handleTaskRoutes(req, res, pathname) {
   // GET /api/tasks
@@ -53,18 +54,27 @@ export async function handleTaskRoutes(req, res, pathname) {
     const id = `t-${randomUUID().slice(0, 5)}`
     const agent = body.agent === 'claude' ? 'claude' : 'codex'
     const model = body.model ? String(body.model) : null
+    const projectPath =
+      (await normalizeProjectPath(String(body.project || '').trim())) || 'untitled'
     const t = createTask({
       id,
       title: String(body.title || '').trim(),
-      project: (await normalizeProjectPath(String(body.project || '').trim())) || 'untitled',
+      project: projectPath,
       agent,
       tag: body.tag ? String(body.tag) : null,
       column_id: ['todo', 'in_progress', 'done'].includes(body.column_id) ? body.column_id : 'todo',
       created_at: new Date().toISOString().slice(0, 10),
       mode: ['code', 'ask'].includes(body.mode) ? body.mode : 'code',
       model,
-      effort: sanitizeEffort(agent, model ?? getDefaultModel(agent), body.effort ?? getDefaultEffort(agent, model)),
+      effort: sanitizeEffort(
+        agent,
+        model ?? getDefaultModel(agent),
+        body.effort ?? getDefaultEffort(agent, model)
+      ),
     })
+    if (projectPath && projectPath !== 'untitled') {
+      createProject(projectPath)
+    }
     return json(res, 201, { task: t })
   }
 
@@ -99,6 +109,11 @@ export async function handleTaskRoutes(req, res, pathname) {
       ),
     })
 
+    const leftInProgress = prev.column_id === 'in_progress' && t.column_id !== 'in_progress'
+    if (leftInProgress) {
+      await stopRunForTask(t.id)
+    }
+
     // If this task is being placed in the in-progress column and it has a
     // supported agent, ensure a live run exists. This covers both the initial
     // move from todo -> in_progress and retries while the task is already
@@ -121,6 +136,7 @@ export async function handleTaskRoutes(req, res, pathname) {
 
   // DELETE /api/tasks/:id
   if (req.method === 'DELETE' && taskMatch) {
+    await stopRunForTask(taskMatch[1])
     deleteTask(taskMatch[1])
     return json(res, 200, { ok: true })
   }
@@ -128,11 +144,14 @@ export async function handleTaskRoutes(req, res, pathname) {
   // GET /api/tasks/:id/run
   const runMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/run$/)
   if (req.method === 'GET' && runMatch) {
+    const url = new URL(req.url, 'http://localhost')
     const task = getTask(runMatch[1])
     if (!task) return json(res, 404, { error: 'not found' })
+    const autostart = url.searchParams.get('autostart') === 'true'
 
     let run = getActiveRunForTask(task.id)
     if (
+      autostart &&
       !run &&
       (task.agent === 'codex' || task.agent === 'claude') &&
       task.column_id === 'in_progress'

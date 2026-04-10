@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { ArrowDownIcon, Plus } from '@phosphor-icons/react'
+import { ArrowDownIcon, PlusIcon } from '@phosphor-icons/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useBoardDialogs, useBoardTasks } from '#/stores/board'
 import { TaskCardView } from './TaskCardView'
@@ -126,7 +126,7 @@ export function BoardColumn({ column, tasks, index }: Props) {
             className="flex size-6 items-center justify-center border border-border bg-background text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
             aria-label={`Add task to ${column.label}`}
           >
-            <Plus size={12} weight="bold" />
+            <PlusIcon size={12} weight="bold" />
           </button>
         ) : null}
       </header>
@@ -159,7 +159,7 @@ export function BoardColumn({ column, tasks, index }: Props) {
             onClick={() => openNewTask(column.id)}
             className="group/add mt-1 flex items-center justify-center gap-1.5 border border-dashed border-border bg-transparent py-2.5 text-[0.62rem] tracking-[0.16em] text-muted-foreground uppercase transition-colors hover:border-foreground hover:text-foreground"
           >
-            <Plus size={11} weight="bold" />
+            <PlusIcon size={11} weight="bold" />
             add task
           </button>
         ) : null}

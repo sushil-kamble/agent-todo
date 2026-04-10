@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { useBoardDialogs, useBoardTasks } from '#/stores/board'
 import { ChatPanel } from './task-dialog/ChatPanel'
 import { FormPanel } from './task-dialog/FormPanel'
-import { ReadonlyPanel } from './task-dialog/ReadonlyPanel'
 
 export function TaskDialog() {
   const { addTask, refresh, updateTask } = useBoardTasks()
@@ -32,12 +31,9 @@ export function TaskDialog() {
 
   if (!isOpen) return null
 
-  const mode: 'form' | 'chat' | 'readonly' =
-    isEdit && editingColumn === 'in_progress'
-      ? 'chat'
-      : isEdit && editingColumn === 'done'
-        ? 'readonly'
-        : 'form'
+  const mode: 'form' | 'chat' =
+    isEdit && (editingColumn === 'in_progress' || editingColumn === 'done') ? 'chat' : 'form'
+  const readOnly = editingColumn === 'done'
 
   return (
     <div
@@ -69,9 +65,9 @@ export function TaskDialog() {
         />
       )}
 
-      {mode === 'chat' && editingTask && <ChatPanel task={editingTask} close={close} />}
-
-      {mode === 'readonly' && editingTask && <ReadonlyPanel task={editingTask} close={close} />}
+      {mode === 'chat' && editingTask && (
+        <ChatPanel task={editingTask} close={close} readOnly={readOnly} />
+      )}
     </div>
   )
 }

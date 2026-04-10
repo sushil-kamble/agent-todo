@@ -37,11 +37,12 @@ describe('runs db', () => {
     })
   })
 
-  it('getActiveRunForTask ignores completed and failed runs', () => {
+  it('getActiveRunForTask ignores terminal runs', () => {
     const task = harness.tasks.createTask(taskFactory({ id: 't-run' }))
 
     harness.runs.createRun(runFactory(task.id, { id: 'r-completed', status: 'completed' }))
     harness.runs.createRun(runFactory(task.id, { id: 'r-failed', status: 'failed' }))
+    harness.runs.createRun(runFactory(task.id, { id: 'r-interrupted', status: 'interrupted' }))
     harness.runs.createRun(runFactory(task.id, { id: 'r-running', status: 'running' }))
 
     const active = harness.runs.getActiveRunForTask(task.id)

@@ -46,6 +46,7 @@ export type RunEvent =
       content: string
       phase?: AgentPhase
       itemId?: string
+      interruptedByUser?: boolean
       source?: string
       createdAt: string
     })
@@ -61,7 +62,7 @@ export type RunEvent =
     }
   | { type: 'commandDelta'; itemId: string; delta: string }
   | { type: 'turnCompleted'; status?: string }
-  | { type: 'end' }
+  | { type: 'end'; status?: string }
 
 function toCard(t: ServerTask): TaskCard {
   return {
@@ -151,9 +152,15 @@ export async function deleteTask(id: string): Promise<void> {
 }
 
 export async function fetchRun(
-  taskId: string
+  taskId: string,
+  options?: {
+    autostart?: boolean
+  }
 ): Promise<{ run: RunSummary | null; messages: RunMessage[] }> {
-  const r = await fetch(`/api/tasks/${taskId}/run`)
+  const query = new URLSearchParams()
+  if (options?.autostart === false) query.set('autostart', 'false')
+  const suffix = query.size > 0 ? `?${query.toString()}` : ''
+  const r = await fetch(`/api/tasks/${taskId}/run${suffix}`)
   return (await r.json()) as { run: RunSummary | null; messages: RunMessage[] }
 }
 
@@ -165,9 +172,29 @@ export async function sendFollowUp(runId: string, text: string): Promise<void> {
   })
 }
 
+export async function stopRun(runId: string): Promise<RunSummary | null> {
+  const r = await fetch(`/api/runs/${runId}/stop`, {
+    method: 'POST',
+  })
+  if (!r.ok) {
+    const body = (await r.json().catch(() => null)) as { error?: string } | null
+    throw new Error(body?.error ?? 'failed to stop run')
+  }
+  const { run } = (await r.json()) as { run: RunSummary | null }
+  return run
+}
+
 export type AgentSubscription = {
   installed: boolean
   plan: string | null
+  available: boolean
+  reason: string | null
+  usage: {
+    fiveHourUtilization: number | null
+    fiveHourResetsAt: string | null
+    sevenDayUtilization: number | null
+    sevenDayResetsAt: string | null
+  } | null
 }
 
 export type Subscriptions = {
@@ -178,6 +205,29 @@ export type Subscriptions = {
 export async function fetchSubscriptions(): Promise<Subscriptions> {
   const r = await fetch('/api/subscriptions')
   return (await r.json()) as Subscriptions
+}
+
+export type Project = {
+  id: string
+  path: string
+  name: string
+  created_at: string
+}
+
+export async function fetchProjects(): Promise<Project[]> {
+  const r = await fetch('/api/projects')
+  const { projects } = (await r.json()) as { projects: Project[] }
+  return projects
+}
+
+export async function addProject(path: string): Promise<Project> {
+  const r = await fetch('/api/projects', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ path }),
+  })
+  const { project } = (await r.json()) as { project: Project }
+  return project
 }
 
 export function subscribeRunEvents(runId: string, onEvent: (e: RunEvent) => void): () => void {

@@ -19,12 +19,14 @@ export type LiveMessage = {
   itemId?: string
   commandOutput?: string
   commandRunning?: boolean
+  interruptedByUser?: boolean
 }
 
 export type TurnGroup = {
   user: LiveMessage | null
   thinking: LiveMessage[]
   final: LiveMessage | null
+  tail: LiveMessage[]
   startedAt?: string
   endedAt?: string
 }

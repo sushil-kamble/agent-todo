@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { DotsSixVertical, Folder } from '@phosphor-icons/react'
+import { DotsSixVerticalIcon, FolderIcon } from '@phosphor-icons/react'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
 import { useBoardDialogs } from '#/stores/board'
 import type { ColumnId, TaskCard } from './types'
@@ -75,7 +75,7 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
           className="-ml-1 flex cursor-grab items-center gap-1 p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing"
           aria-label="Drag task"
         >
-          <DotsSixVertical size={14} weight="bold" />
+          <DotsSixVerticalIcon size={14} weight="bold" />
           <span className="text-[0.58rem] tracking-[0.14em] uppercase">
             {task.id.toUpperCase()}
           </span>
@@ -111,7 +111,7 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
         {/* Footer: project + date */}
         <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-border px-3 py-2">
           <span className="flex items-center gap-1.5 text-[0.62rem] text-muted-foreground">
-            <Folder size={11} weight="duotone" />
+            <FolderIcon size={11} weight="duotone" />
             <span className="truncate">{task.project}</span>
           </span>
           <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">

@@ -50,6 +50,13 @@ CREATE TABLE IF NOT EXISTS messages (
   FOREIGN KEY(run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS projects (
+  id TEXT PRIMARY KEY,
+  path TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_messages_run ON messages(run_id, seq);
 CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id);
 `
@@ -70,6 +77,20 @@ const MIGRATIONS = [
 function openDatabase(path) {
   mkdirSync(dirname(path), { recursive: true })
   const instance = new DatabaseSync(path)
+
+  // Migrate old projects table (had path/created_at/last_used_at, no id/name).
+  try {
+    const cols = instance
+      .prepare('PRAGMA table_info(projects)')
+      .all()
+      .map(c => c.name)
+    if (cols.length > 0 && !cols.includes('id')) {
+      instance.exec('DROP TABLE projects')
+    }
+  } catch {
+    // table doesn't exist yet — fine
+  }
+
   instance.exec(DB_SCHEMA)
   // Run safe migrations — skip if column already exists.
   for (const sql of MIGRATIONS) {
@@ -107,6 +128,7 @@ export function resetDatabase() {
     DELETE FROM messages;
     DELETE FROM runs;
     DELETE FROM tasks;
+    DELETE FROM projects;
   `)
 }
 

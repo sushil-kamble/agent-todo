@@ -1,24 +1,36 @@
-import { CaretDown, Code, FolderOpen, MagnifyingGlass } from '@phosphor-icons/react'
+import { CaretDownIcon, CodeIcon, FolderOpenIcon, MagnifyingGlassIcon } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
 import { Button } from '#/components/ui/button'
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from '#/components/ui/combobox'
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuPortal,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip'
-import type { Subscriptions } from '#/lib/api'
+import type { Project, Subscriptions } from '#/lib/api'
 import * as api from '#/lib/api'
 import type { Agent, ColumnId, EffortLevel, TaskCard, TaskMode } from '../types'
 import {
-  getModelConfig,
   getEffortOptions,
+  getModelConfig,
   getModelLabel,
   MODELS_BY_AGENT,
   sanitizeEffort,
@@ -59,6 +71,13 @@ export function FormPanel({
     column: ColumnId
   ) => void
 }) {
+  const [projects, setProjects] = useState<Project[]>([])
+  const projectOptions = projects.map(projectEntry => projectEntry.path)
+
+  useEffect(() => {
+    api.fetchProjects().then(setProjects)
+  }, [])
+
   const [title, setTitle] = useState(editingTask?.title ?? '')
   const [project, setProject] = useState(editingTask?.project ?? '')
   const [agent, setAgent] = useState<Agent>(editingTask?.agent ?? 'claude')
@@ -67,6 +86,7 @@ export function FormPanel({
   const [effort, setEffort] = useState<EffortLevel>(editingTask?.effort ?? 'medium')
   const [subs, setSubs] = useState<Subscriptions | null>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
+  const projectInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     api.fetchSubscriptions().then(setSubs)
@@ -75,9 +95,9 @@ export function FormPanel({
   // Auto-select the first available agent when subscription data arrives
   useEffect(() => {
     if (!subs) return
-    if (!subs[agent]?.installed) {
+    if (!subs[agent]?.available) {
       const other: Agent = agent === 'claude' ? 'codex' : 'claude'
-      if (subs[other]?.installed) {
+      if (subs[other]?.available) {
         setAgent(other)
         setModel(null)
       }
@@ -115,7 +135,11 @@ export function FormPanel({
         }
       ).showDirectoryPicker?.()
       if (!handle) return
-      setProject(await api.resolveDirectoryPath(handle.name))
+      const resolved = await api.resolveDirectoryPath(handle.name)
+      setProject(resolved)
+      // Register in DB and refresh the projects list
+      await api.addProject(resolved)
+      api.fetchProjects().then(setProjects)
     } catch {
       // user cancelled
     }
@@ -123,15 +147,21 @@ export function FormPanel({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    // Read from the input ref as fallback for free-typed text
+    const finalProject = projectInputRef.current?.value ?? project
     if (!title.trim()) {
       titleRef.current?.focus()
       return
     }
     if (isEdit && editingTask && editingColumn) {
-      onUpdate(editingTask.id, { title, project, agent, mode, model, effort }, editingColumn)
+      onUpdate(
+        editingTask.id,
+        { title, project: finalProject, agent, mode, model, effort },
+        editingColumn
+      )
       return
     }
-    onCreate({ title, project, agent, column: 'todo', mode, model, effort })
+    onCreate({ title, project: finalProject, agent, column: 'todo', mode, model, effort })
   }
 
   return (
@@ -177,21 +207,39 @@ export function FormPanel({
           >
             Project
           </label>
-          <div className="flex h-8 items-stretch border border-border bg-card focus-within:border-foreground">
-            <input
-              id="task-project"
-              value={project}
-              onChange={e => setProject(e.target.value)}
-              placeholder="Select or type a path…"
-              className="min-w-0 flex-1 bg-transparent px-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
-            />
+          <div className="flex items-stretch gap-0">
+            <Combobox
+              items={projectOptions}
+              inputValue={project}
+              value={projectOptions.includes(project) ? project : null}
+              onValueChange={val => setProject(String(val ?? ''))}
+              onInputValueChange={inputVal => setProject(inputVal)}
+            >
+              <ComboboxInput
+                ref={projectInputRef}
+                id="task-project"
+                placeholder="Select or type a path…"
+                className="flex-1 [&_input]:text-xs"
+              />
+              <ComboboxContent>
+                <ComboboxEmpty>No matching projects</ComboboxEmpty>
+                <ComboboxList>
+                  {item => (
+                    <ComboboxItem key={item} value={item}>
+                      <FolderOpenIcon size={13} className="shrink-0 text-muted-foreground" />
+                      <span className="truncate">{item}</span>
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
             <button
               type="button"
               title="Browse folder"
               onClick={pickFolder}
-              className="flex items-center border-l border-border px-2 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+              className="flex items-center border border-l-0 border-input bg-transparent px-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              <FolderOpen size={13} />
+              <FolderOpenIcon size={13} />
             </button>
           </div>
         </div>
@@ -206,16 +254,20 @@ export function FormPanel({
               current={agent}
               onSelect={handleAgentChange}
               label="Claude"
-              disabled={subs !== null && !subs.claude.installed}
+              disabled={subs !== null && !subs.claude.available}
               plan={subs?.claude.plan ?? undefined}
+              reason={subs?.claude.reason ?? undefined}
+              usage={subs?.claude.usage ?? null}
             />
             <AgentChoice
               value="codex"
               current={agent}
               onSelect={handleAgentChange}
               label="Codex"
-              disabled={subs !== null && !subs.codex.installed}
+              disabled={subs !== null && !subs.codex.available}
               plan={subs?.codex.plan ?? undefined}
+              reason={subs?.codex.reason ?? undefined}
+              usage={subs?.codex.usage ?? null}
             />
           </div>
         </div>
@@ -259,13 +311,13 @@ function ModePicker({ value, onChange }: { value: TaskMode; onChange: (m: TaskMo
       <DropdownMenuTrigger className="flex h-9 w-full items-center justify-between gap-2 border border-border bg-card px-3 text-xs text-foreground transition-colors hover:border-foreground focus:border-foreground focus:outline-none">
         <span className="flex items-center gap-2">
           {value === 'code' ? (
-            <Code size={14} weight="bold" />
+            <CodeIcon size={14} weight="bold" />
           ) : (
-            <MagnifyingGlass size={14} weight="bold" />
+            <MagnifyingGlassIcon size={14} weight="bold" />
           )}
           <span className="font-medium">{value === 'code' ? 'Code' : 'Ask'}</span>
         </span>
-        <CaretDown size={12} className="text-muted-foreground" />
+        <CaretDownIcon size={12} className="text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" sideOffset={4}>
         <DropdownMenuGroup>
@@ -309,53 +361,63 @@ function ModelEffortPicker({
 }) {
   const models = MODELS_BY_AGENT[agent]
   const currentModelSlug = getModelConfig(agent, model).slug
-  const effortOptions = getEffortOptions(agent, model)
   const summaryLabel = `${getModelLabel(agent, model)} (${effort})`
+
+  function selectModelAndEffort(modelSlug: string, effortLevel: EffortLevel) {
+    const nextModel = modelSlug === models.find(m => m.isDefault)?.slug ? null : modelSlug
+    onModelChange(nextModel)
+    onEffortChange(effortLevel)
+  }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex h-9 w-full items-center justify-between gap-1 border border-border bg-card px-3 text-xs text-foreground transition-colors hover:border-foreground focus:border-foreground focus:outline-none">
         <span className="min-w-0 truncate font-medium">{summaryLabel}</span>
-        <CaretDown size={12} className="shrink-0 text-muted-foreground" />
+        <CaretDownIcon size={12} className="shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" sideOffset={4} className="w-64">
+      <DropdownMenuContent align="start" sideOffset={4} className="w-52">
         <DropdownMenuGroup>
           <DropdownMenuLabel>Model</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={currentModelSlug}
-            onValueChange={v => {
-              const nextModel = v === models.find(m => m.isDefault)?.slug ? null : v
-              onModelChange(nextModel)
-              onEffortChange(sanitizeEffort(agent, nextModel, effort))
-            }}
-          >
-            {models.map(m => (
-              <DropdownMenuRadioItem key={m.slug} value={m.slug}>
-                {m.label}
-                {m.isDefault ? ' (default)' : ''}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Thinking Effort</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={sanitizeEffort(agent, model, effort)}
-            onValueChange={v => onEffortChange(sanitizeEffort(agent, model, v as EffortLevel))}
-          >
-            {effortOptions.map(e => (
-              <DropdownMenuRadioItem key={e.value} value={e.value}>
-                <span className="flex flex-col gap-0.5">
-                  <span className="font-medium">
-                    {e.label}
-                    {e.isDefault ? ' (default)' : ''}
-                  </span>
-                  <span className="text-[0.65rem] text-muted-foreground">{e.description}</span>
-                </span>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
+          {models.map(m => {
+            const isActiveModel = m.slug === currentModelSlug
+            const effortOptions = getEffortOptions(agent, m.slug)
+            return (
+              <DropdownMenuSub key={m.slug}>
+                <DropdownMenuSubTrigger className={isActiveModel ? 'font-semibold' : ''}>
+                  {m.label}
+                  {m.isDefault ? ' (default)' : ''}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>Thinking Effort</DropdownMenuLabel>
+                      {effortOptions.map(e => {
+                        const isActive = isActiveModel && e.value === effort
+                        return (
+                          <DropdownMenuItem
+                            key={e.value}
+                            onClick={() => selectModelAndEffort(m.slug, e.value)}
+                            className={isActive ? 'bg-foreground/10' : ''}
+                          >
+                            <span className="flex flex-col gap-0.5">
+                              <span className="font-medium">
+                                {e.label}
+                                {e.isDefault ? ' (default)' : ''}
+                                {isActive ? ' ✓' : ''}
+                              </span>
+                              <span className="text-[0.65rem] text-muted-foreground">
+                                {e.description}
+                              </span>
+                            </span>
+                          </DropdownMenuItem>
+                        )
+                      })}
+                    </DropdownMenuGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+            )
+          })}
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -381,6 +443,8 @@ function AgentChoice({
   label,
   disabled,
   plan,
+  reason,
+  usage,
 }: {
   value: Agent
   current: Agent
@@ -388,9 +452,17 @@ function AgentChoice({
   label: string
   disabled?: boolean
   plan?: string
+  reason?: string | null
+  usage?: {
+    fiveHourUtilization: number | null
+    fiveHourResetsAt: string | null
+    sevenDayUtilization: number | null
+    sevenDayResetsAt: string | null
+  } | null
 }) {
   const active = current === value
   const Icon = value === 'claude' ? ClaudeIcon : OpenAIIcon
+  const unavailableCopy = getUnavailableCopy(value, reason, usage)
 
   const buttonElem = (
     <button
@@ -422,9 +494,7 @@ function AgentChoice({
       <span className="flex flex-col gap-0.5">
         <span className="text-[0.78rem] font-medium leading-tight">{label}</span>
         {disabled && (
-          <span className="text-[0.6rem] leading-none text-muted-foreground/60">
-            Unavailable
-          </span>
+          <span className="text-[0.6rem] leading-none text-muted-foreground/60">Unavailable</span>
         )}
         {!disabled && plan && (
           <span className="text-[0.6rem] leading-none text-muted-foreground">
@@ -438,15 +508,11 @@ function AgentChoice({
   if (disabled) {
     return (
       <Tooltip>
-        <TooltipTrigger render={<span className="flex w-full" />}>
-          {buttonElem}
-        </TooltipTrigger>
+        <TooltipTrigger render={<span className="flex w-full" />}>{buttonElem}</TooltipTrigger>
         <TooltipContent side="top" sideOffset={8}>
           <div className="flex max-w-56 flex-col gap-1">
-            <p className="font-medium">Claude is unavailable</p>
-            <p className="text-xs text-background/80">
-              Configure Claude and make sure credits are available to assign tasks to it.
-            </p>
+            <p className="font-medium">{unavailableCopy.title}</p>
+            <p className="text-xs text-background/80">{unavailableCopy.body}</p>
           </div>
         </TooltipContent>
       </Tooltip>
@@ -454,4 +520,66 @@ function AgentChoice({
   }
 
   return buttonElem
+}
+
+function getUnavailableCopy(
+  agent: Agent,
+  reason?: string | null,
+  usage?: {
+    fiveHourUtilization: number | null
+    fiveHourResetsAt: string | null
+    sevenDayUtilization: number | null
+    sevenDayResetsAt: string | null
+  } | null
+) {
+  if (agent === 'codex') {
+    if (reason === 'login_required') {
+      return {
+        title: 'Codex needs sign-in',
+        body: 'Codex is installed, but no active login was found for this app.',
+      }
+    }
+    return {
+      title: 'Codex is unavailable',
+      body: 'Install or configure Codex so tasks can be assigned to it.',
+    }
+  }
+
+  if (reason === 'not_installed') {
+    return {
+      title: 'Claude is unavailable',
+      body: 'Claude Code is not installed or not available on PATH for this app.',
+    }
+  }
+
+  if (reason === 'login_required') {
+    return {
+      title: 'Claude needs sign-in',
+      body: 'Claude Code is installed, but no active Claude login was found.',
+    }
+  }
+
+  if (reason === 'usage_exhausted') {
+    const windowBits = [
+      typeof usage?.fiveHourUtilization === 'number'
+        ? `session ${Math.round(usage.fiveHourUtilization)}%`
+        : null,
+      typeof usage?.sevenDayUtilization === 'number'
+        ? `weekly ${Math.round(usage.sevenDayUtilization)}%`
+        : null,
+    ].filter(Boolean)
+
+    return {
+      title: 'Claude limits exhausted',
+      body:
+        windowBits.length > 0
+          ? `Claude is authenticated, but its current limits are exhausted (${windowBits.join(', ')}).`
+          : 'Claude is authenticated, but its current limits are exhausted.',
+    }
+  }
+
+  return {
+    title: 'Claude is unavailable',
+    body: 'Claude could not be verified for task assignment right now.',
+  }
 }

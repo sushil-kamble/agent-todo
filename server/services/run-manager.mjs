@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { getAgentClass } from '../agents/index.mjs'
 import { appendMessage } from '../db/messages.mjs'
-import { createRun, getActiveRunForTask, updateRun } from '../db/runs.mjs'
+import { createRun, getActiveRunForTask, getRun, updateRun } from '../db/runs.mjs'
 
 // In-memory registry of live runs keyed by runId
 // { client: AgentClient, bus: EventEmitter, partials: Map<itemId,string>, ready: Promise<void> }
@@ -17,6 +17,26 @@ const runs = new Map()
 const pendingBootstrap = new Map()
 const taskLocks = new Map()
 let resolveAgentClass = name => getAgentClass(name)
+const TERMINAL_RUN_STATUSES = new Set(['completed', 'failed', 'interrupted'])
+const INTERRUPT_GRACE_MS = 150
+
+function isTerminalRunStatus(status) {
+  return TERMINAL_RUN_STATUSES.has(status ?? '')
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function closeLiveRun(runId, status) {
+  const entry = runs.get(runId)
+  if (!entry) return
+  if (!entry.ended) {
+    entry.ended = true
+    entry.bus.emit('evt', { type: 'end', status })
+  }
+  runs.delete(runId)
+}
 
 function extractReasoningText(item) {
   const chunks = []
@@ -100,6 +120,15 @@ async function bootstrapRun(runId, task, client, bus) {
     await client.startThread()
     await client.sendUserText(prompt)
   } catch (e) {
+    const persisted = getRun(runId)
+    if (persisted && persisted.status === 'interrupted') {
+      try {
+        client.stop()
+      } catch {
+        // ignore cancellation cleanup failures
+      }
+      return
+    }
     const message = String(e.message || e)
     updateRun(runId, { status: 'failed' })
     const s = appendMessage(runId, 'system', 'error', message)
@@ -112,7 +141,7 @@ async function bootstrapRun(runId, task, client, bus) {
       createdAt: new Date().toISOString(),
     })
     client.stop()
-    runs.delete(runId)
+    closeLiveRun(runId, 'failed')
     throw e instanceof Error ? e : new Error(message)
   }
 }
@@ -145,7 +174,7 @@ export function startRun(task) {
   })
   // Avoid unhandled rejection warnings for callers that only observe DB state.
   ready.catch(() => {})
-  runs.set(runId, { client, bus, partials, ready })
+  runs.set(runId, { client, bus, partials, ready, ended: false, terminalStatus: null })
   pendingBootstrap.set(runId, ready)
 
   // Persist the initial user instruction
@@ -162,18 +191,23 @@ export function startRun(task) {
   // ---- Wire agent events to persistence + SSE ----
 
   client.on('thread', ({ threadId }) => {
+    const live = runs.get(runId)
+    if (!live || live.terminalStatus) return
     // Thread/turn lifecycle is internal plumbing — we track it in run status
     // but never surface it in the chat transcript (no persistence, no SSE).
     updateRun(runId, { thread_id: threadId, status: 'running' })
   })
 
   client.on('turnStarted', ({ turnId }) => {
+    const live = runs.get(runId)
+    if (!live || live.terminalStatus) return
     updateRun(runId, { status: 'active' })
     bus.emit('evt', { type: 'turnStarted', turnId })
   })
 
   client.on('itemStarted', ({ item }) => {
-    if (!item) return
+    const live = runs.get(runId)
+    if (!live || live.terminalStatus || !item) return
     const phase =
       item.type === 'agentMessage'
         ? item.phase === 'commentary'
@@ -191,17 +225,22 @@ export function startRun(task) {
   })
 
   client.on('commandDelta', ({ itemId, delta }) => {
+    const live = runs.get(runId)
+    if (!live || live.terminalStatus) return
     bus.emit('evt', { type: 'commandDelta', itemId, delta })
   })
 
   client.on('agentDelta', ({ itemId, delta }) => {
+    const live = runs.get(runId)
+    if (!live || live.terminalStatus) return
     const cur = partials.get(itemId) ?? ''
     partials.set(itemId, cur + delta)
     bus.emit('evt', { type: 'delta', itemId, delta })
   })
 
   client.on('item', ({ item }) => {
-    if (!item) return
+    const live = runs.get(runId)
+    if (!live || live.terminalStatus || !item) return
     if (item.type === 'agentMessage') {
       partials.delete(item.id)
       // Codex exposes a phase on agentMessage items: "commentary" (preamble /
@@ -261,11 +300,24 @@ export function startRun(task) {
   })
 
   client.on('turnCompleted', ({ turn }) => {
+    const live = runs.get(runId)
+    if (!live) return
+    const turnStatus = turn?.status
+    if (turnStatus === 'interrupted') {
+      live.terminalStatus = 'interrupted'
+      updateRun(runId, { status: 'interrupted' })
+      bus.emit('evt', { type: 'turnCompleted', status: turnStatus })
+      closeLiveRun(runId, 'interrupted')
+      return
+    }
+    if (live.terminalStatus) return
     updateRun(runId, { status: 'idle' })
     bus.emit('evt', { type: 'turnCompleted', status: turn?.status })
   })
 
   client.on('error', ({ message }) => {
+    const live = runs.get(runId)
+    if (!live || live.terminalStatus) return
     const s = appendMessage(runId, 'system', 'error', message)
     bus.emit('evt', {
       type: 'message',
@@ -278,10 +330,20 @@ export function startRun(task) {
   })
 
   client.on('exit', ({ code }) => {
+    const live = runs.get(runId)
+    const persisted = getRun(runId)
+    const status =
+      live?.terminalStatus ??
+      (isTerminalRunStatus(persisted?.status)
+        ? persisted.status
+        : code === 0
+          ? 'completed'
+          : 'failed')
     // Exit is plumbing — reflect it in run status, but don't pollute the chat.
-    updateRun(runId, { status: code === 0 ? 'completed' : 'failed' })
-    bus.emit('evt', { type: 'end' })
-    runs.delete(runId)
+    if (persisted && persisted.status !== status) {
+      updateRun(runId, { status })
+    }
+    closeLiveRun(runId, status)
   })
 
   bootstrapRun(runId, task, client, bus)
@@ -322,4 +384,41 @@ export async function ensureRunForTask(task) {
   } finally {
     taskLocks.delete(task.id)
   }
+}
+
+export async function stopRun(runId, status = 'interrupted') {
+  const persisted = getRun(runId)
+  if (!persisted || isTerminalRunStatus(persisted.status)) return persisted
+
+  updateRun(runId, { status })
+
+  const entry = runs.get(runId)
+  if (!entry) return getRun(runId)
+
+  if (entry.terminalStatus === status && entry.ended) {
+    return getRun(runId)
+  }
+
+  entry.terminalStatus = status
+  closeLiveRun(runId, status)
+
+  try {
+    await Promise.race([Promise.resolve(entry.client.interrupt?.()), sleep(INTERRUPT_GRACE_MS)])
+  } catch {
+    // ignore interrupt errors and fall back to hard stop below
+  }
+
+  try {
+    entry.client.stop?.()
+  } catch {
+    // ignore hard-stop failures
+  }
+
+  return getRun(runId)
+}
+
+export async function stopRunForTask(taskId, status = 'interrupted') {
+  const active = getActiveRunForTask(taskId)
+  if (!active) return null
+  return stopRun(active.id, status)
 }

@@ -17,7 +17,7 @@ export function getRun(id) {
 export function getActiveRunForTask(taskId) {
   return db
     .prepare(
-      `SELECT * FROM runs WHERE task_id = ? AND status NOT IN ('completed','failed')
+      `SELECT * FROM runs WHERE task_id = ? AND status NOT IN ('completed','failed','interrupted')
        ORDER BY created_at DESC LIMIT 1`
     )
     .get(taskId)

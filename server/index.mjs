@@ -6,6 +6,7 @@
 
 import { createApp } from './app.mjs'
 import { closeDatabase } from './db/index.mjs'
+import { seedProjectsFromTasks } from './db/projects.mjs'
 import { seedIfEmpty } from './db/tasks.mjs'
 import { resetRunManagerState } from './services/run-manager.mjs'
 
@@ -14,6 +15,7 @@ if (process.env.AGENT_TODO_FAKE_AGENT_MODE === '1') {
   await enableFakeE2EMode()
 } else {
   seedIfEmpty()
+  seedProjectsFromTasks()
 }
 
 const app = createApp()

@@ -64,15 +64,20 @@ describe('tasks db', () => {
   it('listTasks returns run_status for active runs only', () => {
     const tActive = harness.tasks.createTask(taskFactory({ id: 't-active' }))
     const tFinished = harness.tasks.createTask(taskFactory({ id: 't-finished' }))
+    const tInterrupted = harness.tasks.createTask(taskFactory({ id: 't-interrupted' }))
 
     harness.runs.createRun(runFactory(tActive.id, { id: 'r-active', status: 'running' }))
     harness.runs.createRun(runFactory(tFinished.id, { id: 'r-finished', status: 'completed' }))
+    harness.runs.createRun(
+      runFactory(tInterrupted.id, { id: 'r-interrupted', status: 'interrupted' })
+    )
 
     const rows = harness.tasks.listTasks()
     const byId = Object.fromEntries(rows.map(row => [row.id, row]))
 
     expect(byId['t-active'].run_status).toBe('running')
     expect(byId['t-finished'].run_status).toBeNull()
+    expect(byId['t-interrupted'].run_status).toBeNull()
   })
 
   it('listTaskStatuses returns only requested ids with null for no active run', () => {
@@ -82,13 +87,14 @@ describe('tasks db', () => {
 
     harness.runs.createRun(runFactory(a.id, { id: 'r-a', status: 'active' }))
     harness.runs.createRun(runFactory(b.id, { id: 'r-b', status: 'failed' }))
+    harness.runs.createRun(runFactory(c.id, { id: 'r-c', status: 'interrupted' }))
 
-    const rows = harness.tasks.listTaskStatuses([a.id, b.id])
+    const rows = harness.tasks.listTaskStatuses([a.id, b.id, c.id])
     const byId = Object.fromEntries(rows.map(row => [row.id, row.run_status]))
 
-    expect(Object.keys(byId).sort()).toEqual(['t-a', 't-b'])
+    expect(Object.keys(byId).sort()).toEqual(['t-a', 't-b', 't-c'])
     expect(byId[a.id]).toBe('active')
     expect(byId[b.id]).toBeNull()
-    expect(byId[c.id]).toBeUndefined()
+    expect(byId[c.id]).toBeNull()
   })
 })

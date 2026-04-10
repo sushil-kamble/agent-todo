@@ -1,4 +1,4 @@
-import { CaretRight, Check, CopySimple, Folder, X } from '@phosphor-icons/react'
+import { CaretRightIcon, CheckIcon, CopySimpleIcon, FolderIcon, XIcon } from '@phosphor-icons/react'
 import { type ComponentType, memo, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -21,7 +21,7 @@ export function PanelHeader({ label, onClose }: { label: string; onClose: () => 
         className="flex size-6 shrink-0 items-center justify-center border border-transparent text-muted-foreground hover:border-border hover:text-foreground"
         aria-label="Close"
       >
-        <X size={12} weight="bold" />
+        <XIcon size={12} weight="bold" />
       </button>
     </div>
   )
@@ -43,7 +43,7 @@ export function ProjectPathChip({ path }: { path: string }) {
   return (
     <span className="inline-flex max-w-full items-center border border-border bg-muted text-[0.78rem] font-medium text-foreground">
       <span className="flex min-w-0 items-center gap-1.5 px-2 py-0.5">
-        <Folder size={13} weight="duotone" />
+        <FolderIcon size={13} weight="duotone" />
         <span className="truncate">{path}</span>
       </span>
       <button
@@ -53,7 +53,11 @@ export function ProjectPathChip({ path }: { path: string }) {
         aria-label={`Copy directory path ${path}`}
         title={copied ? 'Copied' : 'Copy path'}
       >
-        {copied ? <Check size={12} weight="bold" /> : <CopySimple size={12} weight="bold" />}
+        {copied ? (
+          <CheckIcon size={12} weight="bold" />
+        ) : (
+          <CopySimpleIcon size={12} weight="bold" />
+        )}
       </button>
     </span>
   )
@@ -79,7 +83,7 @@ function TurnBlockImpl({
       {hasThinking && (
         <Collapsible defaultOpen={false}>
           <CollapsibleTrigger className="group/th flex w-full items-center gap-2 border border-dashed border-border bg-muted/40 px-3 py-1.5 text-left transition-colors hover:border-foreground/40 hover:bg-muted aria-expanded:border-foreground/30">
-            <CaretRight
+            <CaretRightIcon
               size={11}
               weight="bold"
               className="shrink-0 text-muted-foreground transition-transform duration-150 group-aria-expanded/th:rotate-90"
@@ -103,6 +107,9 @@ function TurnBlockImpl({
       )}
 
       {group.final && <LiveChatBubbleMemo message={group.final} agentIcon={AgentIcon} />}
+      {group.tail.map(message => (
+        <LiveChatBubbleMemo key={message.id} message={message} agentIcon={AgentIcon} />
+      ))}
     </div>
   )
 }
@@ -113,9 +120,11 @@ export const TurnBlock = memo(TurnBlockImpl, (prev, next) => {
   if (prev.inFlight !== next.inFlight) return false
   if (prev.group.user !== next.group.user) return false
   if (prev.group.final !== next.group.final) return false
+  if (prev.group.tail.length !== next.group.tail.length) return false
   if (prev.group.startedAt !== next.group.startedAt || prev.group.endedAt !== next.group.endedAt)
     return false
   if (prev.group.thinking.length !== next.group.thinking.length) return false
+  if (prev.group.tail.some((message, index) => message !== next.group.tail[index])) return false
   return prev.group.thinking.every((message, index) => message === next.group.thinking[index])
 })
 
@@ -233,6 +242,7 @@ function LiveChatBubble({
   if (message.role === 'system') {
     const isError = message.kind === 'error'
     const isCommand = message.kind === 'command'
+    const isInterrupted = message.interruptedByUser === true
 
     if (isCommand) {
       return (
@@ -258,6 +268,14 @@ function LiveChatBubble({
               {message.commandOutput}
             </pre>
           )}
+        </div>
+      )
+    }
+
+    if (isInterrupted) {
+      return (
+        <div className="px-1 py-1 text-center font-mono text-[0.68rem] leading-snug text-red-600/80">
+          {message.body}
         </div>
       )
     }

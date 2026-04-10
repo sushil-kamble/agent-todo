@@ -6,6 +6,8 @@ import { type BoardSearchStoreApi, createBoardSearchStore } from './search-store
 import { type BoardTasksStoreApi, createBoardTasksStore } from './tasks-store'
 import { ACTIVE_RUN_STATUSES, readTaskIdFromUrl, type TasksByColumn } from './types'
 
+const ACTIVE_STATUS_POLL_MS = 4000
+
 type BoardStores = {
   tasksStore: BoardTasksStoreApi
   searchStore: BoardSearchStoreApi
@@ -53,7 +55,7 @@ function BoardStoreEffects() {
 
     const intervalId = window.setInterval(() => {
       void syncActiveTaskStatuses(activeTaskIds)
-    }, 2500)
+    }, ACTIVE_STATUS_POLL_MS)
 
     return () => window.clearInterval(intervalId)
   }, [tasks.in_progress, syncActiveTaskStatuses])
