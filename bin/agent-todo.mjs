@@ -7,10 +7,10 @@
  *   npx agent-todo [--port 3737] [--no-open]
  */
 
-import { existsSync } from 'node:fs'
-import { resolve, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
@@ -66,9 +66,7 @@ const args = parseArgs(process.argv)
 // Verify the build exists
 const clientDir = resolve(ROOT, 'dist', 'client')
 if (!existsSync(clientDir)) {
-  console.error(
-    '\n  Build not found. Run `npm run build` first, then try again.\n'
-  )
+  console.error('\n  Build not found. Run `npm run build` first, then try again.\n')
   process.exit(1)
 }
 

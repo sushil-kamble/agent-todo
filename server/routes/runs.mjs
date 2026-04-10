@@ -4,9 +4,10 @@
  * POST /api/runs/:id/messages  — send a follow-up message to an active run
  * GET  /api/runs/:id/events    — SSE stream of run events
  */
-import { json, readBody, sseHeaders, sseSend } from '../lib/http.mjs'
+
 import { appendMessage, listMessages } from '../db/messages.mjs'
-import { getLiveRun, emit } from '../services/run-manager.mjs'
+import { json, readBody, sseHeaders, sseSend } from '../lib/http.mjs'
+import { emit, getLiveRun } from '../services/run-manager.mjs'
 
 export async function handleRunRoutes(req, res, pathname) {
   // POST /api/runs/:id/messages

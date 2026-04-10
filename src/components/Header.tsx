@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
-import { useBoardDialogs } from '#/components/board/store'
 import { Button } from '#/components/ui/button'
+import { useBoardDialogs } from '#/stores/board'
 
 /**
  * Stylized "A" mark — two angled strokes with a crossbar, framed in a square.

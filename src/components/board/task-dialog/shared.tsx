@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useRef, useState, type ComponentType } from 'react'
 import { CaretRight, Check, CopySimple, Folder, X } from '@phosphor-icons/react'
+import { type ComponentType, memo, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '#/components/ui/collapsible'
@@ -85,7 +85,11 @@ function TurnBlockImpl({
               className="shrink-0 text-muted-foreground transition-transform duration-150 group-aria-expanded/th:rotate-90"
             />
             <CyclingVerb active={inFlight || showThinkingDots} />
-            <WorkedForBadge startedAt={group.startedAt} endedAt={group.endedAt} inFlight={inFlight} />
+            <WorkedForBadge
+              startedAt={group.startedAt}
+              endedAt={group.endedAt}
+              inFlight={inFlight}
+            />
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 border-l-2 border-dashed border-border pl-3">
             <div className="space-y-2.5">
@@ -184,7 +188,8 @@ function CyclingVerb({ active }: { active: boolean }) {
         transition: 'opacity 400ms ease',
       }}
     >
-      {label}{active ? '...' : ''}
+      {label}
+      {active ? '...' : ''}
     </span>
   )
 }
@@ -326,7 +331,9 @@ function LiveChatBubble({
 }
 
 const LiveChatBubbleMemo = memo(LiveChatBubble, (prev, next) => {
-  return prev.agentIcon === next.agentIcon && prev.muted === next.muted && prev.message === next.message
+  return (
+    prev.agentIcon === next.agentIcon && prev.muted === next.muted && prev.message === next.message
+  )
 })
 
 export function ChatBubble({

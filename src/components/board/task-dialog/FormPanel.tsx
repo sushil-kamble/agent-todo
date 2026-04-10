@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
 import { FolderOpen } from '@phosphor-icons/react'
+import { useEffect, useRef, useState } from 'react'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
 import { Button } from '#/components/ui/button'
+import type { Subscriptions } from '#/lib/api'
 import * as api from '#/lib/api'
 import type { Agent, ColumnId, TaskCard } from '../types'
 import { PanelHeader } from './shared'
@@ -28,7 +29,21 @@ export function FormPanel({
   const [title, setTitle] = useState(editingTask?.title ?? '')
   const [project, setProject] = useState(editingTask?.project ?? '')
   const [agent, setAgent] = useState<Agent>(editingTask?.agent ?? 'claude')
+  const [subs, setSubs] = useState<Subscriptions | null>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    api.fetchSubscriptions().then(setSubs)
+  }, [])
+
+  // Auto-select the first available agent when subscription data arrives
+  useEffect(() => {
+    if (!subs) return
+    if (!subs[agent]?.installed) {
+      const other: Agent = agent === 'claude' ? 'codex' : 'claude'
+      if (subs[other]?.installed) setAgent(other)
+    }
+  }, [subs, agent])
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -137,8 +152,22 @@ export function FormPanel({
             Assign to
           </span>
           <div className="grid grid-cols-2 gap-2">
-            <AgentChoice value="claude" current={agent} onSelect={setAgent} label="Claude" />
-            <AgentChoice value="codex" current={agent} onSelect={setAgent} label="Codex" />
+            <AgentChoice
+              value="claude"
+              current={agent}
+              onSelect={setAgent}
+              label="Claude"
+              disabled={subs !== null && !subs.claude.installed}
+              plan={subs?.claude.plan ?? undefined}
+            />
+            <AgentChoice
+              value="codex"
+              current={agent}
+              onSelect={setAgent}
+              label="Codex"
+              disabled={subs !== null && !subs.codex.installed}
+              plan={subs?.codex.plan ?? undefined}
+            />
           </div>
         </div>
       </div>
@@ -159,42 +188,75 @@ export function FormPanel({
   )
 }
 
+function planLabel(plan: string): string {
+  const labels: Record<string, string> = {
+    pro: 'Pro',
+    max: 'Max',
+    plus: 'Plus',
+    free: 'Free',
+  }
+  const base = plan.split('_')[0]
+  const suffix = plan.includes('_') ? ` ${plan.split('_')[1]}` : ''
+  return (labels[base] ?? plan) + suffix
+}
+
 function AgentChoice({
   value,
   current,
   onSelect,
   label,
+  disabled,
+  plan,
 }: {
   value: Agent
   current: Agent
   onSelect: (a: Agent) => void
   label: string
+  disabled?: boolean
+  plan?: string
 }) {
   const active = current === value
   const Icon = value === 'claude' ? ClaudeIcon : OpenAIIcon
   return (
     <button
       type="button"
-      onClick={() => onSelect(value)}
+      onClick={() => !disabled && onSelect(value)}
       aria-pressed={active}
+      disabled={disabled}
       className={[
         'flex items-center gap-2 border px-3 py-2 text-left transition-colors',
-        active
-          ? 'border-foreground bg-foreground text-background'
-          : 'border-border bg-card text-foreground hover:border-foreground',
+        disabled
+          ? 'cursor-not-allowed border-border bg-card text-muted-foreground/40'
+          : active
+            ? 'border-foreground bg-foreground text-background'
+            : 'border-border bg-card text-foreground hover:border-foreground',
       ].join(' ')}
     >
       <span
         className={[
           'flex size-6 items-center justify-center border',
-          active
-            ? 'border-background bg-background text-foreground'
-            : 'border-border bg-background text-foreground',
+          disabled
+            ? 'border-border/50 bg-background text-muted-foreground/40'
+            : active
+              ? 'border-background bg-background text-foreground'
+              : 'border-border bg-background text-foreground',
         ].join(' ')}
       >
         <Icon size={12} />
       </span>
-      <span className="text-[0.78rem] font-medium leading-tight">{label}</span>
+      <span className="flex flex-col gap-0.5">
+        <span className="text-[0.78rem] font-medium leading-tight">{label}</span>
+        {disabled && (
+          <span className="text-[0.6rem] leading-none text-muted-foreground/60">
+            Not configured
+          </span>
+        )}
+        {!disabled && plan && (
+          <span className="text-[0.6rem] leading-none text-muted-foreground">
+            {planLabel(plan)}
+          </span>
+        )}
+      </span>
     </button>
   )
 }

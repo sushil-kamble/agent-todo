@@ -68,7 +68,7 @@ export function seedIfEmpty() {
   const now = new Date().toISOString().slice(0, 10)
   createTask({
     id: 't-1cc',
-    title: 'DO not edit the code, analyse the tell me the features of this project',
+    title: 'Analyse the codebase and summarise the key features of this project',
     project: '/Users/sushil/Projects/one-percent/1cc',
     agent: 'codex',
     tag: 'analysis',

@@ -1,5 +1,5 @@
-import { EventEmitter } from 'node:events'
 import { randomUUID } from 'node:crypto'
+import { EventEmitter } from 'node:events'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { CLAUDE_EFFORT, CLAUDE_MODEL } from './config.mjs'
 

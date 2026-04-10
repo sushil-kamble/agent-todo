@@ -1,7 +1,7 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
 import { TaskDialog } from '../components/board/TaskDialog'
-import { BoardProvider } from '../components/board/store'
 import { Footer } from '../components/Footer'
+import { BoardProvider } from '../stores/board'
 import appCss from '../styles.css?url'
 
 export const Route = createRootRoute({

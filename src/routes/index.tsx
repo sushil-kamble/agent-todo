@@ -1,9 +1,9 @@
 import { MagnifyingGlass, Plus, X } from '@phosphor-icons/react'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import { Board } from '#/components/board/Board'
 import { Button } from '#/components/ui/button'
-import { useBoardDialogs, useBoardSearch } from '#/components/board/store'
+import { useBoardDialogs, useBoardSearch } from '#/stores/board'
 
 export const Route = createFileRoute('/')({ component: BoardPage })
 

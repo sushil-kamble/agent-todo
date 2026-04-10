@@ -9,14 +9,15 @@
  */
 import http from 'node:http'
 import { json } from './lib/http.mjs'
-import { handleTaskRoutes } from './routes/tasks.mjs'
+import { handleSSR, hasProductionBuild, serveStaticFile } from './lib/static.mjs'
 import { handleRunRoutes } from './routes/runs.mjs'
-import { hasProductionBuild, serveStaticFile, handleSSR } from './lib/static.mjs'
+import { handleSubscriptionRoutes } from './routes/subscriptions.mjs'
+import { handleTaskRoutes } from './routes/tasks.mjs'
 
 // Ordered list of route handlers. Each receives (req, res, pathname) and
 // returns `true` (or a truthy value) if it handled the request, or `false`
 // to pass to the next handler.
-const routeHandlers = [handleTaskRoutes, handleRunRoutes]
+const routeHandlers = [handleTaskRoutes, handleRunRoutes, handleSubscriptionRoutes]
 
 export function createApp() {
   const isProduction = hasProductionBuild()

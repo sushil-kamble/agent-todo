@@ -2,7 +2,7 @@ import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { ArrowDownIcon, Plus } from '@phosphor-icons/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useBoardDialogs, useBoardTasks } from './store'
+import { useBoardDialogs, useBoardTasks } from '#/stores/board'
 import { TaskCardView } from './TaskCardView'
 import type { Column, TaskCard } from './types'
 
@@ -129,7 +129,10 @@ export function BoardColumn({ column, tasks, index }: Props) {
       </header>
 
       {/* Cards */}
-      <div ref={combinedRef} className="relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+      <div
+        ref={combinedRef}
+        className="relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3"
+      >
         {isLoading ? (
           <TaskCardSkeleton />
         ) : (

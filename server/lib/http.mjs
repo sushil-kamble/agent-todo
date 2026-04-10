@@ -14,14 +14,24 @@ export function json(res, status, body) {
   res.end(JSON.stringify(body))
 }
 
+const MAX_BODY_BYTES = 1024 * 1024 // 1 MB
+
 /**
  * Read and parse the JSON body from a request.
- * Returns `{}` for empty bodies.
+ * Returns `{}` for empty bodies. Rejects if the body exceeds 1 MB.
  */
 export function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = []
-    req.on('data', c => chunks.push(c))
+    let bytes = 0
+    req.on('data', c => {
+      bytes += c.length
+      if (bytes > MAX_BODY_BYTES) {
+        req.destroy()
+        return reject(new Error('request body too large'))
+      }
+      chunks.push(c)
+    })
     req.on('end', () => {
       const raw = Buffer.concat(chunks).toString('utf8')
       if (!raw) return resolve({})

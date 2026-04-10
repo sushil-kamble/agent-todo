@@ -7,8 +7,8 @@
 
 import { createReadStream, existsSync } from 'node:fs'
 import { extname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { Readable } from 'node:stream'
+import { fileURLToPath } from 'node:url'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const DIST_DIR = resolve(__dirname, '../../dist')
@@ -44,11 +44,8 @@ export function hasProductionBuild() {
  * Returns true if handled, false otherwise.
  */
 export function serveStaticFile(_req, res, pathname) {
-  // Prevent directory traversal
-  const safePath = pathname.replace(/\.\./g, '')
-  const filePath = join(CLIENT_DIR, safePath)
-
-  // Must be within CLIENT_DIR
+  // Prevent directory traversal — normalize first, then verify containment.
+  const filePath = resolve(CLIENT_DIR, pathname.slice(1))
   if (!filePath.startsWith(CLIENT_DIR)) return false
   if (!existsSync(filePath)) return false
 
@@ -57,7 +54,7 @@ export function serveStaticFile(_req, res, pathname) {
   if (!ext) return false
 
   const mime = MIME_TYPES[ext] || 'application/octet-stream'
-  const cacheControl = safePath.startsWith('/assets/')
+  const cacheControl = pathname.startsWith('/assets/')
     ? 'public, max-age=31536000, immutable' // hashed filenames
     : 'public, max-age=3600'
 
@@ -96,9 +93,7 @@ export async function handleSSR(req, res) {
 
   const webRequest = new Request(url.href, {
     method: req.method,
-    headers: Object.fromEntries(
-      Object.entries(req.headers).filter(([, v]) => v != null)
-    ),
+    headers: Object.fromEntries(Object.entries(req.headers).filter(([, v]) => v != null)),
     body: req.method !== 'GET' && req.method !== 'HEAD' ? Readable.toWeb(req) : undefined,
     duplex: 'half',
   })

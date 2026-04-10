@@ -15,6 +15,7 @@ import { createRun, getActiveRunForTask, updateRun } from '../db/runs.mjs'
 // { client: AgentClient, bus: EventEmitter, partials: Map<itemId,string>, ready: Promise<void> }
 const runs = new Map()
 const pendingBootstrap = new Map()
+const taskLocks = new Map()
 let resolveAgentClass = name => getAgentClass(name)
 
 function extractReasoningText(item) {
@@ -65,6 +66,7 @@ export function setAgentClassResolver(resolver) {
 export function resetRunManagerState() {
   resolveAgentClass = name => getAgentClass(name)
   pendingBootstrap.clear()
+  taskLocks.clear()
   for (const [, entry] of runs) {
     try {
       entry.client?.stop?.()
@@ -291,18 +293,32 @@ export function startRun(task) {
 
 /**
  * Ensure a run exists for a task. Idempotent — returns existing run if one
- * is already active, otherwise starts a new one.
+ * is already active, otherwise starts a new one. Serialized per task to
+ * prevent duplicate agent spawns from concurrent requests.
  */
 export async function ensureRunForTask(task) {
   if (task.agent !== 'codex' && task.agent !== 'claude') return null
-  const existing = getActiveRunForTask(task.id)
-  if (existing && runs.has(existing.id)) return existing
-  if (existing) {
-    // row exists but process is gone — mark failed and start fresh
-    updateRun(existing.id, { status: 'failed' })
+
+  // If another caller is already ensuring a run for this task, wait for it.
+  if (taskLocks.has(task.id)) return taskLocks.get(task.id)
+
+  const promise = (async () => {
+    const existing = getActiveRunForTask(task.id)
+    if (existing && runs.has(existing.id)) return existing
+    if (existing) {
+      // row exists but process is gone — mark failed and start fresh
+      updateRun(existing.id, { status: 'failed' })
+    }
+    const run = startRun(task)
+    const ready = pendingBootstrap.get(run.id)
+    if (ready) await ready
+    return run
+  })()
+
+  taskLocks.set(task.id, promise)
+  try {
+    return await promise
+  } finally {
+    taskLocks.delete(task.id)
   }
-  const run = startRun(task)
-  const ready = pendingBootstrap.get(run.id)
-  if (ready) await ready
-  return run
 }

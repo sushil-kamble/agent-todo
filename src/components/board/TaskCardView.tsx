@@ -2,7 +2,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { DotsSixVertical, Folder } from '@phosphor-icons/react'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
-import { useBoardDialogs } from './store'
+import { useBoardDialogs } from '#/stores/board'
 import type { ColumnId, TaskCard } from './types'
 
 type Props = {
@@ -122,10 +122,10 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
 
       {/* Agent status — left-edge indicator (sits inside the 1px border). */}
       {isAgentWorking && (
-        <span className="pointer-events-none absolute inset-y-px left-px w-[4px] animate-pulse bg-primary" />
+        <span className="pointer-events-none absolute inset-y-px left-px w-1 animate-pulse bg-primary" />
       )}
       {isAwaitingFollowUp && (
-        <span className="pointer-events-none absolute inset-y-px left-px w-[4px] bg-emerald-500" />
+        <span className="pointer-events-none absolute inset-y-px left-px w-1 bg-emerald-500" />
       )}
 
       {/* Decorative corner */}

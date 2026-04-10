@@ -12,8 +12,8 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useMemo, useState } from 'react'
+import { useBoardSearch, useBoardTasks } from '#/stores/board'
 import { BoardColumn } from './Column'
-import { useBoardSearch, useBoardTasks } from './store'
 import { TaskCardView } from './TaskCardView'
 import { COLUMNS, type ColumnId, type TaskCard } from './types'
 

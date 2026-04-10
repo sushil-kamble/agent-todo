@@ -17,7 +17,7 @@ import { CODEX_EFFORT, CODEX_MODEL } from './config.mjs'
  *   'exit'          { code, signal }
  */
 export class CodexClient extends EventEmitter {
-  constructor({ cwd, model }) {
+  constructor({ cwd }) {
     super()
     this.cwd = cwd
     this.model = CODEX_MODEL
@@ -48,7 +48,7 @@ export class CodexClient extends EventEmitter {
       let msg
       try {
         msg = JSON.parse(line)
-      } catch (e) {
+      } catch {
         this.emit('error', { message: `bad json: ${line}` })
         return
       }

@@ -1,22 +1,21 @@
 import { useEffect } from 'react'
-import { useBoardDialogs, useBoardTasks } from './store'
+import { useBoardDialogs, useBoardTasks } from '#/stores/board'
 import { ChatPanel } from './task-dialog/ChatPanel'
 import { FormPanel } from './task-dialog/FormPanel'
 import { ReadonlyPanel } from './task-dialog/ReadonlyPanel'
 
 export function TaskDialog() {
-  const { addTask, updateTask } = useBoardTasks()
-  const {
-    dialogOpen,
-    closeNewTask,
-    editingTask,
-    editingColumn,
-    closeEditTask,
-  } = useBoardDialogs()
+  const { addTask, refresh, updateTask } = useBoardTasks()
+  const { dialogOpen, closeNewTask, editingTask, editingColumn, closeEditTask } = useBoardDialogs()
 
   const isEdit = !!editingTask
   const isOpen = dialogOpen || isEdit
-  const close = isEdit ? closeEditTask : closeNewTask
+  const close = isEdit
+    ? () => {
+        closeEditTask()
+        void refresh()
+      }
+    : closeNewTask
 
   useEffect(() => {
     if (!isOpen) return
@@ -65,7 +64,7 @@ export function TaskDialog() {
           }}
           onUpdate={(id, updates, col) => {
             updateTask(id, updates, col, col)
-            closeEditTask()
+            close()
           }}
         />
       )}

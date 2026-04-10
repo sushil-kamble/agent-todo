@@ -153,6 +153,21 @@ export async function sendFollowUp(runId: string, text: string): Promise<void> {
   })
 }
 
+export type AgentSubscription = {
+  installed: boolean
+  plan: string | null
+}
+
+export type Subscriptions = {
+  claude: AgentSubscription
+  codex: AgentSubscription
+}
+
+export async function fetchSubscriptions(): Promise<Subscriptions> {
+  const r = await fetch('/api/subscriptions')
+  return (await r.json()) as Subscriptions
+}
+
 export function subscribeRunEvents(runId: string, onEvent: (e: RunEvent) => void): () => void {
   const es = new EventSource(`/api/runs/${runId}/events`)
   es.onmessage = ev => {

@@ -1,340 +1,328 @@
-import { randomUUID } from "node:crypto";
-import { EventEmitter } from "node:events";
+import { randomUUID } from 'node:crypto'
+import { EventEmitter } from 'node:events'
 
-const DEFAULT_TURN_STATUS = "completed";
+const DEFAULT_TURN_STATUS = 'completed'
 
-let queuedScripts = [];
-let scriptsByTaskId = new Map();
-let defaultScriptFactory = () => createFakeRunScript();
-const sendLog = [];
+let queuedScripts = []
+let scriptsByTaskId = new Map()
+let defaultScriptFactory = () => createFakeRunScript()
+const sendLog = []
 
 function cloneStep(step) {
-  if (!step || typeof step !== "object") return step;
-  if (Array.isArray(step)) return step.map(cloneStep);
+  if (!step || typeof step !== 'object') return step
+  if (Array.isArray(step)) return step.map(cloneStep)
   return {
     ...step,
     item: step.item ? cloneStep(step.item) : step.item,
-    outputDeltas: Array.isArray(step.outputDeltas)
-      ? [...step.outputDeltas]
-      : step.outputDeltas,
-  };
+    outputDeltas: Array.isArray(step.outputDeltas) ? [...step.outputDeltas] : step.outputDeltas,
+  }
 }
 
 function cloneScript(script) {
-  if (!script || typeof script !== "object") return createFakeRunScript();
+  if (!script || typeof script !== 'object') return createFakeRunScript()
   return {
     ...script,
-    turns: Array.isArray(script.turns)
-      ? script.turns.map((turn) => turn.map(cloneStep))
-      : [],
+    turns: Array.isArray(script.turns) ? script.turns.map(turn => turn.map(cloneStep)) : [],
     sendErrors: Array.isArray(script.sendErrors) ? [...script.sendErrors] : [],
-  };
+  }
 }
 
 function createId(prefix) {
-  return `${prefix}-${randomUUID().slice(0, 8)}`;
+  return `${prefix}-${randomUUID().slice(0, 8)}`
 }
 
 function selectScript(taskId) {
   if (taskId && scriptsByTaskId.has(taskId)) {
-    const configured = scriptsByTaskId.get(taskId);
+    const configured = scriptsByTaskId.get(taskId)
     if (Array.isArray(configured)) {
       if (configured.length > 1) {
-        const next = configured.shift();
-        scriptsByTaskId.set(taskId, configured);
-        return cloneScript(next);
+        const next = configured.shift()
+        scriptsByTaskId.set(taskId, configured)
+        return cloneScript(next)
       }
-      return cloneScript(configured[0]);
+      return cloneScript(configured[0])
     }
-    return cloneScript(configured);
+    return cloneScript(configured)
   }
 
   if (queuedScripts.length > 0) {
-    return cloneScript(queuedScripts.shift());
+    return cloneScript(queuedScripts.shift())
   }
 
-  return cloneScript(defaultScriptFactory(taskId));
+  return cloneScript(defaultScriptFactory(taskId))
 }
 
 function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, Math.max(0, Number(ms) || 0));
-  });
+  return new Promise(resolve => {
+    setTimeout(resolve, Math.max(0, Number(ms) || 0))
+  })
 }
 
 async function playStep(client, step) {
-  if (!step || typeof step !== "object") return;
+  if (!step || typeof step !== 'object') return
 
   switch (step.type) {
-    case "delay": {
-      await sleep(step.ms);
-      return;
+    case 'delay': {
+      await sleep(step.ms)
+      return
     }
 
-    case "thread": {
-      const threadId = step.threadId || client.threadId;
-      client.threadId = threadId;
-      client.emit("thread", { threadId });
-      return;
+    case 'thread': {
+      const threadId = step.threadId || client.threadId
+      client.threadId = threadId
+      client.emit('thread', { threadId })
+      return
     }
 
-    case "turnStarted": {
-      client.emit("turnStarted", { turnId: step.turnId || createId("turn") });
-      return;
+    case 'turnStarted': {
+      client.emit('turnStarted', { turnId: step.turnId || createId('turn') })
+      return
     }
 
-    case "itemStarted": {
-      if (step.item) client.emit("itemStarted", { item: step.item });
-      return;
+    case 'itemStarted': {
+      if (step.item) client.emit('itemStarted', { item: step.item })
+      return
     }
 
-    case "delta": {
-      client.emit("agentDelta", {
-        itemId: step.itemId || createId("msg"),
-        delta: step.delta ?? "",
-      });
-      return;
+    case 'delta': {
+      client.emit('agentDelta', {
+        itemId: step.itemId || createId('msg'),
+        delta: step.delta ?? '',
+      })
+      return
     }
 
-    case "commandDelta": {
-      client.emit("commandDelta", {
-        itemId: step.itemId || createId("cmd"),
-        delta: step.delta ?? "",
-      });
-      return;
+    case 'commandDelta': {
+      client.emit('commandDelta', {
+        itemId: step.itemId || createId('cmd'),
+        delta: step.delta ?? '',
+      })
+      return
     }
 
-    case "agentMessage": {
-      const itemId = step.itemId || createId("agent");
-      const phase = step.phase === "commentary" ? "commentary" : "final";
-      const text = step.text ?? step.delta ?? "";
+    case 'agentMessage': {
+      const itemId = step.itemId || createId('agent')
+      const phase = step.phase === 'commentary' ? 'commentary' : 'final'
+      const text = step.text ?? step.delta ?? ''
       if (step.emitItemStarted !== false) {
-        client.emit("itemStarted", {
-          item: { type: "agentMessage", id: itemId, phase },
-        });
+        client.emit('itemStarted', {
+          item: { type: 'agentMessage', id: itemId, phase },
+        })
       }
       if (step.delta) {
-        client.emit("agentDelta", { itemId, delta: step.delta });
+        client.emit('agentDelta', { itemId, delta: step.delta })
       }
-      client.emit("item", {
-        item: { type: "agentMessage", id: itemId, text, phase },
-      });
-      return;
+      client.emit('item', {
+        item: { type: 'agentMessage', id: itemId, text, phase },
+      })
+      return
     }
 
-    case "reasoning": {
-      const itemId = step.itemId || createId("reasoning");
-      const text = step.text ?? step.content ?? "";
-      client.emit("item", {
-        item: { type: "reasoning", id: itemId, content: text },
-      });
-      return;
+    case 'reasoning': {
+      const itemId = step.itemId || createId('reasoning')
+      const text = step.text ?? step.content ?? ''
+      client.emit('item', {
+        item: { type: 'reasoning', id: itemId, content: text },
+      })
+      return
     }
 
-    case "command": {
-      const itemId = step.itemId || createId("cmd");
-      const command = step.command || "echo ok";
-      const cwd = step.cwd || client.cwd;
-      const status = step.status || "completed";
-      const outputDeltas = Array.isArray(step.outputDeltas)
-        ? step.outputDeltas
-        : [];
+    case 'command': {
+      const itemId = step.itemId || createId('cmd')
+      const command = step.command || 'echo ok'
+      const cwd = step.cwd || client.cwd
+      const status = step.status || 'completed'
+      const outputDeltas = Array.isArray(step.outputDeltas) ? step.outputDeltas : []
       if (step.emitItemStarted !== false) {
-        client.emit("itemStarted", {
+        client.emit('itemStarted', {
           item: {
-            type: "commandExecution",
+            type: 'commandExecution',
             id: itemId,
             command,
             cwd,
           },
-        });
+        })
       }
       for (const delta of outputDeltas) {
-        client.emit("commandDelta", { itemId, delta });
+        client.emit('commandDelta', { itemId, delta })
       }
-      client.emit("item", {
+      client.emit('item', {
         item: {
-          type: "commandExecution",
+          type: 'commandExecution',
           id: itemId,
           command,
           cwd,
           status,
-          exitCode: step.exitCode ?? (status === "completed" ? 0 : 1),
+          exitCode: step.exitCode ?? (status === 'completed' ? 0 : 1),
         },
-      });
-      return;
+      })
+      return
     }
 
-    case "turnCompleted": {
-      client.emit("turnCompleted", {
+    case 'turnCompleted': {
+      client.emit('turnCompleted', {
         turn: { status: step.status || DEFAULT_TURN_STATUS },
-      });
-      return;
+      })
+      return
     }
 
-    case "error": {
-      client.emit("error", { message: step.message || "fake agent error" });
-      return;
+    case 'error': {
+      client.emit('error', { message: step.message || 'fake agent error' })
+      return
     }
 
-    case "exit": {
-      client.emit("exit", { code: step.code ?? 0, signal: null });
-      return;
+    case 'exit': {
+      client.emit('exit', { code: step.code ?? 0, signal: null })
+      return
     }
 
-    case "throw": {
-      throw new Error(step.message || "fake agent throw");
+    case 'throw': {
+      throw new Error(step.message || 'fake agent throw')
     }
 
     default:
-      return;
+      return
   }
 }
 
 async function playTurn(client, steps) {
   for (const step of steps) {
-    if (client.stopped) return;
-    await playStep(client, step);
+    if (client.stopped) return
+    await playStep(client, step)
   }
 }
 
 export function createFakeRunScript(options = {}) {
-  const commentaryId = createId("commentary");
-  const finalId = createId("final");
-  const commandId = createId("command");
+  const commentaryId = createId('commentary')
+  const finalId = createId('final')
+  const commandId = createId('command')
   const defaultTurn = [
-    { type: "thread" },
-    { type: "turnStarted" },
+    { type: 'thread' },
+    { type: 'turnStarted' },
     {
-      type: "agentMessage",
+      type: 'agentMessage',
       itemId: commentaryId,
-      phase: "commentary",
-      delta: "Reviewing context...",
-      text: "Reviewing context...",
+      phase: 'commentary',
+      delta: 'Reviewing context...',
+      text: 'Reviewing context...',
     },
     {
-      type: "reasoning",
-      text: "Gathered relevant files and constraints before producing the final answer.",
+      type: 'reasoning',
+      text: 'Gathered relevant files and constraints before producing the final answer.',
     },
     {
-      type: "command",
+      type: 'command',
       itemId: commandId,
-      command: "rg --files",
-      outputDeltas: ["src/index.tsx\nserver/index.mjs\n"],
-      status: "completed",
+      command: 'rg --files',
+      outputDeltas: ['src/index.tsx\nserver/index.mjs\n'],
+      status: 'completed',
       exitCode: 0,
     },
     {
-      type: "agentMessage",
+      type: 'agentMessage',
       itemId: finalId,
-      phase: "final",
-      delta: "Completed requested change.",
-      text: "Completed requested change.",
+      phase: 'final',
+      delta: 'Completed requested change.',
+      text: 'Completed requested change.',
     },
-    { type: "turnCompleted", status: "completed" },
-  ];
+    { type: 'turnCompleted', status: 'completed' },
+  ]
 
   return {
     turns: Array.isArray(options.turns)
-      ? options.turns.map((turn) => turn.map(cloneStep))
+      ? options.turns.map(turn => turn.map(cloneStep))
       : [defaultTurn],
     startError: options.startError,
     initializeError: options.initializeError,
     startThreadError: options.startThreadError,
-    sendErrors: Array.isArray(options.sendErrors)
-      ? [...options.sendErrors]
-      : [],
+    sendErrors: Array.isArray(options.sendErrors) ? [...options.sendErrors] : [],
     emitExitOnStop: options.emitExitOnStop === true,
-  };
+  }
 }
 
 export function configureFakeAgentHarness(options = {}) {
-  queuedScripts = Array.isArray(options.scripts)
-    ? options.scripts.map(cloneScript)
-    : [];
+  queuedScripts = Array.isArray(options.scripts) ? options.scripts.map(cloneScript) : []
 
-  scriptsByTaskId = new Map();
-  const byTask = options.scriptsByTaskId || {};
+  scriptsByTaskId = new Map()
+  const byTask = options.scriptsByTaskId || {}
   for (const [taskId, scriptOrScripts] of Object.entries(byTask)) {
     if (Array.isArray(scriptOrScripts)) {
-      scriptsByTaskId.set(taskId, scriptOrScripts.map(cloneScript));
+      scriptsByTaskId.set(taskId, scriptOrScripts.map(cloneScript))
     } else {
-      scriptsByTaskId.set(taskId, cloneScript(scriptOrScripts));
+      scriptsByTaskId.set(taskId, cloneScript(scriptOrScripts))
     }
   }
 
-  if (typeof options.defaultScriptFactory === "function") {
-    defaultScriptFactory = options.defaultScriptFactory;
+  if (typeof options.defaultScriptFactory === 'function') {
+    defaultScriptFactory = options.defaultScriptFactory
   } else if (options.defaultScript) {
-    const script = cloneScript(options.defaultScript);
-    defaultScriptFactory = () => cloneScript(script);
+    const script = cloneScript(options.defaultScript)
+    defaultScriptFactory = () => cloneScript(script)
   }
 
-  sendLog.length = 0;
+  sendLog.length = 0
 }
 
 export function enqueueFakeRunScript(script) {
-  queuedScripts.push(cloneScript(script));
+  queuedScripts.push(cloneScript(script))
 }
 
 export function setFakeRunScriptForTask(taskId, script) {
-  scriptsByTaskId.set(taskId, cloneScript(script));
+  scriptsByTaskId.set(taskId, cloneScript(script))
 }
 
 export function getFakeAgentSendLog() {
-  return [...sendLog];
+  return [...sendLog]
 }
 
 export function resetFakeAgentHarness() {
-  queuedScripts = [];
-  scriptsByTaskId = new Map();
-  defaultScriptFactory = () => createFakeRunScript();
-  sendLog.length = 0;
+  queuedScripts = []
+  scriptsByTaskId = new Map()
+  defaultScriptFactory = () => createFakeRunScript()
+  sendLog.length = 0
 }
 
 export class FakeAgentClient extends EventEmitter {
   constructor({ cwd, task } = {}) {
-    super();
-    this.cwd = cwd;
-    this.task = task ?? null;
-    this.stopped = false;
-    this.sendIndex = 0;
-    this.threadId = createId("thread");
-    this.script = selectScript(task?.id);
+    super()
+    this.cwd = cwd
+    this.task = task ?? null
+    this.stopped = false
+    this.sendIndex = 0
+    this.threadId = createId('thread')
+    this.script = selectScript(task?.id)
   }
 
   start() {
-    if (this.script.startError) throw new Error(this.script.startError);
+    if (this.script.startError) throw new Error(this.script.startError)
   }
 
   async initialize() {
-    if (this.script.initializeError)
-      throw new Error(this.script.initializeError);
+    if (this.script.initializeError) throw new Error(this.script.initializeError)
   }
 
   async startThread() {
-    if (this.script.startThreadError)
-      throw new Error(this.script.startThreadError);
-    return this.threadId;
+    if (this.script.startThreadError) throw new Error(this.script.startThreadError)
+    return this.threadId
   }
 
   async sendUserText(text) {
-    if (this.stopped) throw new Error("fake agent stopped");
-    const currentIndex = this.sendIndex;
-    this.sendIndex += 1;
+    if (this.stopped) throw new Error('fake agent stopped')
+    const currentIndex = this.sendIndex
+    this.sendIndex += 1
 
     sendLog.push({
       index: currentIndex,
       taskId: this.task?.id ?? null,
       cwd: this.cwd,
       text,
-    });
+    })
 
-    const sendError = this.script.sendErrors?.[currentIndex];
-    if (sendError) throw new Error(sendError);
+    const sendError = this.script.sendErrors?.[currentIndex]
+    if (sendError) throw new Error(sendError)
 
-    const turnSteps = this.script.turns?.[currentIndex] ?? [];
-    await playTurn(this, turnSteps);
+    const turnSteps = this.script.turns?.[currentIndex] ?? []
+    await playTurn(this, turnSteps)
   }
 
   async interrupt() {
@@ -342,9 +330,9 @@ export class FakeAgentClient extends EventEmitter {
   }
 
   stop() {
-    this.stopped = true;
+    this.stopped = true
     if (this.script.emitExitOnStop) {
-      this.emit("exit", { code: 0, signal: null });
+      this.emit('exit', { code: 0, signal: null })
     }
   }
 }

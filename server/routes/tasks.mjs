@@ -8,18 +8,18 @@
  * GET    /api/tasks/:id/run  — get the active run for a task
  */
 import { randomUUID } from 'node:crypto'
+import { listMessages } from '../db/messages.mjs'
+import { getActiveRunForTask, getLatestRunForTask } from '../db/runs.mjs'
+import {
+  createTask,
+  deleteTask,
+  getTask,
+  listTaskStatuses,
+  listTasks,
+  updateTaskFields,
+} from '../db/tasks.mjs'
 import { json, readBody } from '../lib/http.mjs'
 import { normalizeProjectPath } from '../lib/project-path.mjs'
-import {
-  listTasks,
-  listTaskStatuses,
-  getTask,
-  createTask,
-  updateTaskFields,
-  deleteTask,
-} from '../db/tasks.mjs'
-import { getActiveRunForTask, getLatestRunForTask } from '../db/runs.mjs'
-import { listMessages } from '../db/messages.mjs'
 import { ensureRunForTask } from '../services/run-manager.mjs'
 
 export async function handleTaskRoutes(req, res, pathname) {
@@ -63,9 +63,9 @@ export async function handleTaskRoutes(req, res, pathname) {
   }
 
   // PATCH /api/tasks/:id
-  let m = pathname.match(/^\/api\/tasks\/([^/]+)$/)
-  if (req.method === 'PATCH' && m) {
-    const id = m[1]
+  const taskMatch = pathname.match(/^\/api\/tasks\/([^/]+)$/)
+  if (req.method === 'PATCH' && taskMatch) {
+    const id = taskMatch[1]
     const body = await readBody(req)
     const prev = getTask(id)
     if (!prev) return json(res, 404, { error: 'not found' })
@@ -103,15 +103,15 @@ export async function handleTaskRoutes(req, res, pathname) {
   }
 
   // DELETE /api/tasks/:id
-  if (req.method === 'DELETE' && m) {
-    deleteTask(m[1])
+  if (req.method === 'DELETE' && taskMatch) {
+    deleteTask(taskMatch[1])
     return json(res, 200, { ok: true })
   }
 
   // GET /api/tasks/:id/run
-  m = pathname.match(/^\/api\/tasks\/([^/]+)\/run$/)
-  if (req.method === 'GET' && m) {
-    const task = getTask(m[1])
+  const runMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/run$/)
+  if (req.method === 'GET' && runMatch) {
+    const task = getTask(runMatch[1])
     if (!task) return json(res, 404, { error: 'not found' })
 
     let run = getActiveRunForTask(task.id)
