@@ -4,15 +4,18 @@
  * Owns the in-memory `runs` Map and all event wiring between agent clients
  * and the SSE event buses. Has zero knowledge of HTTP.
  */
-import { EventEmitter } from 'node:events'
+
 import { randomUUID } from 'node:crypto'
-import { createRun, getActiveRunForTask, updateRun } from '../db/runs.mjs'
-import { appendMessage } from '../db/messages.mjs'
+import { EventEmitter } from 'node:events'
 import { getAgentClass } from '../agents/index.mjs'
+import { appendMessage } from '../db/messages.mjs'
+import { createRun, getActiveRunForTask, updateRun } from '../db/runs.mjs'
 
 // In-memory registry of live runs keyed by runId
 // { client: AgentClient, bus: EventEmitter, partials: Map<itemId,string>, ready: Promise<void> }
 const runs = new Map()
+const pendingBootstrap = new Map()
+let resolveAgentClass = name => getAgentClass(name)
 
 function extractReasoningText(item) {
   const chunks = []
@@ -49,6 +52,30 @@ export function getLiveRun(runId) {
 }
 
 /**
+ * Replace agent lookup at runtime (used by integration/e2e tests).
+ */
+export function setAgentClassResolver(resolver) {
+  if (typeof resolver !== 'function') throw new Error('resolver must be a function')
+  resolveAgentClass = resolver
+}
+
+/**
+ * Reset custom resolver and clear live runs. Useful between test files.
+ */
+export function resetRunManagerState() {
+  resolveAgentClass = name => getAgentClass(name)
+  pendingBootstrap.clear()
+  for (const [, entry] of runs) {
+    try {
+      entry.client?.stop?.()
+    } catch {
+      // ignore cleanup failures
+    }
+  }
+  runs.clear()
+}
+
+/**
  * Broadcast an event to all SSE subscribers of a run.
  */
 export function emit(runId, event) {
@@ -63,29 +90,27 @@ export function emit(runId, event) {
 async function bootstrapRun(runId, task, client, bus) {
   // Build a richer first message so the agent always knows its working context,
   // even if the SDK's own cwd handling misbehaves.
-  const prompt = [
-    `Working directory: ${task.project}`,
-    '',
-    task.title,
-  ].join('\n')
+  const prompt = [`Working directory: ${task.project}`, '', task.title].join('\n')
   try {
     client.start()
     await client.initialize()
     await client.startThread()
     await client.sendUserText(prompt)
   } catch (e) {
+    const message = String(e.message || e)
     updateRun(runId, { status: 'failed' })
-    const s = appendMessage(runId, 'system', 'error', String(e.message || e))
+    const s = appendMessage(runId, 'system', 'error', message)
     bus.emit('evt', {
       type: 'message',
       seq: s,
       role: 'system',
       kind: 'error',
-      content: String(e.message || e),
+      content: message,
       createdAt: new Date().toISOString(),
     })
     client.stop()
     runs.delete(runId)
+    throw e instanceof Error ? e : new Error(message)
   }
 }
 
@@ -100,8 +125,8 @@ export function startRun(task) {
     created_at: new Date().toISOString(),
   })
 
-  const AgentClass = getAgentClass(task.agent)
-  const client = new AgentClass({ cwd: task.project })
+  const AgentClass = resolveAgentClass(task.agent)
+  const client = new AgentClass({ cwd: task.project, task })
   const bus = new EventEmitter()
   bus.setMaxListeners(0)
   const partials = new Map()
@@ -110,8 +135,15 @@ export function startRun(task) {
   // `runs.set()` — eliminates the race where a caller could await a stale
   // `Promise.resolve()` before bootstrap actually finishes.
   let resolveReady
-  const ready = new Promise((resolve) => { resolveReady = resolve })
+  let rejectReady
+  const ready = new Promise((resolve, reject) => {
+    resolveReady = resolve
+    rejectReady = reject
+  })
+  // Avoid unhandled rejection warnings for callers that only observe DB state.
+  ready.catch(() => {})
   runs.set(runId, { client, bus, partials, ready })
+  pendingBootstrap.set(runId, ready)
 
   // Persist the initial user instruction
   const seq = appendMessage(runId, 'user', 'text', task.title)
@@ -249,7 +281,10 @@ export function startRun(task) {
     runs.delete(runId)
   })
 
-  bootstrapRun(runId, task, client, bus).then(resolveReady)
+  bootstrapRun(runId, task, client, bus)
+    .then(resolveReady)
+    .catch(rejectReady)
+    .finally(() => pendingBootstrap.delete(runId))
 
   return run
 }
@@ -266,5 +301,8 @@ export async function ensureRunForTask(task) {
     // row exists but process is gone — mark failed and start fresh
     updateRun(existing.id, { status: 'failed' })
   }
-  return startRun(task)
+  const run = startRun(task)
+  const ready = pendingBootstrap.get(run.id)
+  if (ready) await ready
+  return run
 }

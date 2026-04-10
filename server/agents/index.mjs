@@ -6,13 +6,16 @@
  *      EventEmitter interface as CodexClient.
  *   2. Import it here and add to the `agents` map.
  */
-import { CodexClient } from './codex.mjs'
-import { ClaudeClient } from './claude.mjs'
 
-const agents = {
+import { ClaudeClient } from './claude.mjs'
+import { CodexClient } from './codex.mjs'
+
+const defaultAgents = {
   codex: CodexClient,
   claude: ClaudeClient,
 }
+
+let agents = { ...defaultAgents }
 
 /**
  * Get the agent client class for a given agent name.
@@ -22,6 +25,23 @@ export function getAgentClass(name) {
   const Cls = agents[name]
   if (!Cls) throw new Error(`Unknown agent: ${name}`)
   return Cls
+}
+
+/**
+ * Replace the runtime registry (used by tests/e2e fake harnesses).
+ */
+export function setAgentRegistry(nextRegistry) {
+  if (!nextRegistry || typeof nextRegistry !== 'object') {
+    throw new Error('setAgentRegistry expects a plain object map')
+  }
+  agents = { ...nextRegistry }
+}
+
+/**
+ * Restore the built-in codex/claude registry.
+ */
+export function resetAgentRegistry() {
+  agents = { ...defaultAgents }
 }
 
 /**

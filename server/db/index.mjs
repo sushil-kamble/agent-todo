@@ -2,18 +2,15 @@
  * Database connection and schema.
  * All other db/ modules import `db` from here.
  */
-import { DatabaseSync } from 'node:sqlite'
+
 import { mkdirSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { homedir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const dbPath = resolve(__dirname, '../../data/agent-todo.db')
-mkdirSync(dirname(dbPath), { recursive: true })
+const DEFAULT_DB_PATH = join(homedir(), '.agent-todo', 'agent-todo.db')
 
-export const db = new DatabaseSync(dbPath)
-
-db.exec(`
+const DB_SCHEMA = `
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
@@ -52,4 +49,53 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_run ON messages(run_id, seq);
 CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id);
-`)
+`
+
+function resolveDbPath(pathOverride) {
+  const fromEnv = process.env.AGENT_TODO_DB_PATH?.trim()
+  const chosen = pathOverride || fromEnv || DEFAULT_DB_PATH
+  return resolve(chosen)
+}
+
+function openDatabase(path) {
+  mkdirSync(dirname(path), { recursive: true })
+  const instance = new DatabaseSync(path)
+  instance.exec(DB_SCHEMA)
+  return instance
+}
+
+function closeDatabaseSilently(instance) {
+  try {
+    instance?.close?.()
+  } catch {
+    // ignore close errors during test reconfiguration
+  }
+}
+
+export let dbPath = resolveDbPath()
+export let db = openDatabase(dbPath)
+
+export function configureDatabase({ path } = {}) {
+  const nextPath = resolveDbPath(path)
+  if (nextPath === dbPath) return db
+  closeDatabaseSilently(db)
+  dbPath = nextPath
+  db = openDatabase(dbPath)
+  return db
+}
+
+export function resetDatabase() {
+  db.exec(`
+    DELETE FROM messages;
+    DELETE FROM runs;
+    DELETE FROM tasks;
+  `)
+}
+
+export function getDatabasePath() {
+  return dbPath
+}
+
+export function closeDatabase() {
+  closeDatabaseSilently(db)
+}

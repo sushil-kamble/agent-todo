@@ -3,11 +3,15 @@
  *
  * Composes route modules and handles CORS / error wrapping.
  * To add a new route group, import its handler and add to `routeHandlers`.
+ *
+ * In production mode (when a dist/ build exists), also serves static
+ * assets and SSR — everything on a single port.
  */
 import http from 'node:http'
 import { json } from './lib/http.mjs'
 import { handleTaskRoutes } from './routes/tasks.mjs'
 import { handleRunRoutes } from './routes/runs.mjs'
+import { hasProductionBuild, serveStaticFile, handleSSR } from './lib/static.mjs'
 
 // Ordered list of route handlers. Each receives (req, res, pathname) and
 // returns `true` (or a truthy value) if it handled the request, or `false`
@@ -15,6 +19,8 @@ import { handleRunRoutes } from './routes/runs.mjs'
 const routeHandlers = [handleTaskRoutes, handleRunRoutes]
 
 export function createApp() {
+  const isProduction = hasProductionBuild()
+
   return http.createServer(async (req, res) => {
     // CORS preflight
     if (req.method === 'OPTIONS') {
@@ -30,11 +36,18 @@ export function createApp() {
     const { pathname } = url
 
     try {
+      // API routes first
       for (const handler of routeHandlers) {
         const handled = await handler(req, res, pathname)
         if (handled !== false) return
       }
-      // No handler matched
+
+      // In production, serve static assets then fall through to SSR
+      if (isProduction) {
+        if (serveStaticFile(req, res, pathname)) return
+        return await handleSSR(req, res)
+      }
+
       json(res, 404, { error: 'not found' })
     } catch (e) {
       console.error(e)

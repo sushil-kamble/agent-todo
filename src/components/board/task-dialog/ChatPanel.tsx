@@ -296,6 +296,7 @@ export function ChatPanel({ task, close }: { task: TaskCard; close: () => void }
     if (!el) return
     stickyRef.current = true
     setShowScrollToBottom(false)
+    el.scrollTop = el.scrollHeight
     bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
     requestAnimationFrame(syncScrollState)
   }
