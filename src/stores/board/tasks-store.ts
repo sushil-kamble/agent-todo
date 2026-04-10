@@ -80,6 +80,9 @@ export function createBoardTasksStore() {
         agent: input.agent,
         tag: input.tag?.trim() || undefined,
         column_id: input.column,
+        mode: input.mode,
+        model: input.model,
+        effort: input.effort,
       })
 
       set(state => ({
@@ -96,6 +99,9 @@ export function createBoardTasksStore() {
         agent: updates.agent,
         tag: updates.tag?.trim() || null,
         column_id: toColumn,
+        mode: updates.mode,
+        model: updates.model,
+        effort: updates.effort,
       })
 
       set(state => {

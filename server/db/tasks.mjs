@@ -42,9 +42,21 @@ export function createTask(t) {
     .prepare('SELECT COALESCE(MAX(position), -1) AS m FROM tasks WHERE column_id = ?')
     .get(t.column_id).m
   db.prepare(
-    `INSERT INTO tasks (id, title, project, agent, tag, column_id, position, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(t.id, t.title, t.project, t.agent, t.tag ?? null, t.column_id, max + 1, t.created_at)
+    `INSERT INTO tasks (id, title, project, agent, tag, column_id, position, created_at, mode, model, effort)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    t.id,
+    t.title,
+    t.project,
+    t.agent,
+    t.tag ?? null,
+    t.column_id,
+    max + 1,
+    t.created_at,
+    t.mode ?? 'code',
+    t.model ?? null,
+    t.effort ?? 'medium'
+  )
   return getTask(t.id)
 }
 
@@ -53,8 +65,19 @@ export function updateTaskFields(id, updates) {
   if (!cur) return null
   const next = { ...cur, ...updates }
   db.prepare(
-    `UPDATE tasks SET title=?, project=?, agent=?, tag=?, column_id=?, position=? WHERE id = ?`
-  ).run(next.title, next.project, next.agent, next.tag ?? null, next.column_id, next.position, id)
+    `UPDATE tasks SET title=?, project=?, agent=?, tag=?, column_id=?, position=?, mode=?, model=?, effort=? WHERE id = ?`
+  ).run(
+    next.title,
+    next.project,
+    next.agent,
+    next.tag ?? null,
+    next.column_id,
+    next.position,
+    next.mode ?? 'code',
+    next.model ?? null,
+    next.effort ?? 'medium',
+    id
+  )
   return getTask(id)
 }
 

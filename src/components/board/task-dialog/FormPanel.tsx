@@ -1,10 +1,28 @@
-import { FolderOpen } from '@phosphor-icons/react'
+import { CaretDown, Code, FolderOpen, MagnifyingGlass } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
 import { Button } from '#/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '#/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip'
 import type { Subscriptions } from '#/lib/api'
 import * as api from '#/lib/api'
-import type { Agent, ColumnId, TaskCard } from '../types'
+import type { Agent, ColumnId, EffortLevel, TaskCard, TaskMode } from '../types'
+import {
+  getModelConfig,
+  getEffortOptions,
+  getModelLabel,
+  MODELS_BY_AGENT,
+  sanitizeEffort,
+} from './model-config'
 import { PanelHeader } from './shared'
 
 export function FormPanel({
@@ -19,16 +37,34 @@ export function FormPanel({
   editingTask: TaskCard | null
   editingColumn: ColumnId | null
   close: () => void
-  onCreate: (input: { title: string; project: string; agent: Agent; column: ColumnId }) => void
+  onCreate: (input: {
+    title: string
+    project: string
+    agent: Agent
+    column: ColumnId
+    mode: TaskMode
+    model: string | null
+    effort: EffortLevel
+  }) => void
   onUpdate: (
     id: string,
-    updates: { title: string; project: string; agent: Agent },
+    updates: {
+      title: string
+      project: string
+      agent: Agent
+      mode: TaskMode
+      model: string | null
+      effort: EffortLevel
+    },
     column: ColumnId
   ) => void
 }) {
   const [title, setTitle] = useState(editingTask?.title ?? '')
   const [project, setProject] = useState(editingTask?.project ?? '')
   const [agent, setAgent] = useState<Agent>(editingTask?.agent ?? 'claude')
+  const [mode, setMode] = useState<TaskMode>(editingTask?.mode ?? 'code')
+  const [model, setModel] = useState<string | null>(editingTask?.model ?? null)
+  const [effort, setEffort] = useState<EffortLevel>(editingTask?.effort ?? 'medium')
   const [subs, setSubs] = useState<Subscriptions | null>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
 
@@ -41,9 +77,22 @@ export function FormPanel({
     if (!subs) return
     if (!subs[agent]?.installed) {
       const other: Agent = agent === 'claude' ? 'codex' : 'claude'
-      if (subs[other]?.installed) setAgent(other)
+      if (subs[other]?.installed) {
+        setAgent(other)
+        setModel(null)
+      }
     }
   }, [subs, agent])
+
+  useEffect(() => {
+    setEffort(current => sanitizeEffort(agent, model, current))
+  }, [agent, model])
+
+  function handleAgentChange(next: Agent) {
+    setAgent(next)
+    // Reset model when switching agents — models are agent-specific
+    setModel(null)
+  }
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -79,10 +128,10 @@ export function FormPanel({
       return
     }
     if (isEdit && editingTask && editingColumn) {
-      onUpdate(editingTask.id, { title, project, agent }, editingColumn)
+      onUpdate(editingTask.id, { title, project, agent, mode, model, effort }, editingColumn)
       return
     }
-    onCreate({ title, project, agent, column: 'todo' })
+    onCreate({ title, project, agent, column: 'todo', mode, model, effort })
   }
 
   return (
@@ -155,7 +204,7 @@ export function FormPanel({
             <AgentChoice
               value="claude"
               current={agent}
-              onSelect={setAgent}
+              onSelect={handleAgentChange}
               label="Claude"
               disabled={subs !== null && !subs.claude.installed}
               plan={subs?.claude.plan ?? undefined}
@@ -163,10 +212,26 @@ export function FormPanel({
             <AgentChoice
               value="codex"
               current={agent}
-              onSelect={setAgent}
+              onSelect={handleAgentChange}
               label="Codex"
               disabled={subs !== null && !subs.codex.installed}
               plan={subs?.codex.plan ?? undefined}
+            />
+          </div>
+        </div>
+
+        <div>
+          <span className="mb-1.5 block text-[0.6rem] font-medium tracking-[0.16em] text-muted-foreground uppercase">
+            Configuration
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            <ModePicker value={mode} onChange={setMode} />
+            <ModelEffortPicker
+              agent={agent}
+              model={model}
+              effort={effort}
+              onModelChange={setModel}
+              onEffortChange={setEffort}
             />
           </div>
         </div>
@@ -185,6 +250,115 @@ export function FormPanel({
         </div>
       </div>
     </form>
+  )
+}
+
+function ModePicker({ value, onChange }: { value: TaskMode; onChange: (m: TaskMode) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className="flex h-9 w-full items-center justify-between gap-2 border border-border bg-card px-3 text-xs text-foreground transition-colors hover:border-foreground focus:border-foreground focus:outline-none">
+        <span className="flex items-center gap-2">
+          {value === 'code' ? (
+            <Code size={14} weight="bold" />
+          ) : (
+            <MagnifyingGlass size={14} weight="bold" />
+          )}
+          <span className="font-medium">{value === 'code' ? 'Code' : 'Ask'}</span>
+        </span>
+        <CaretDown size={12} className="text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" sideOffset={4}>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Mode</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={value} onValueChange={v => onChange(v as TaskMode)}>
+            <DropdownMenuRadioItem value="code">
+              <span className="flex flex-col gap-0.5">
+                <span className="font-medium">Code</span>
+                <span className="text-[0.65rem] text-muted-foreground">
+                  Edits files with full permissions
+                </span>
+              </span>
+            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="ask">
+              <span className="flex flex-col gap-0.5">
+                <span className="font-medium">Ask</span>
+                <span className="text-[0.65rem] text-muted-foreground">
+                  Read-only analysis, no file edits
+                </span>
+              </span>
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function ModelEffortPicker({
+  agent,
+  model,
+  effort,
+  onModelChange,
+  onEffortChange,
+}: {
+  agent: Agent
+  model: string | null
+  effort: EffortLevel
+  onModelChange: (m: string | null) => void
+  onEffortChange: (e: EffortLevel) => void
+}) {
+  const models = MODELS_BY_AGENT[agent]
+  const currentModelSlug = getModelConfig(agent, model).slug
+  const effortOptions = getEffortOptions(agent, model)
+  const summaryLabel = `${getModelLabel(agent, model)} (${effort})`
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className="flex h-9 w-full items-center justify-between gap-1 border border-border bg-card px-3 text-xs text-foreground transition-colors hover:border-foreground focus:border-foreground focus:outline-none">
+        <span className="min-w-0 truncate font-medium">{summaryLabel}</span>
+        <CaretDown size={12} className="shrink-0 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" sideOffset={4} className="w-64">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Model</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={currentModelSlug}
+            onValueChange={v => {
+              const nextModel = v === models.find(m => m.isDefault)?.slug ? null : v
+              onModelChange(nextModel)
+              onEffortChange(sanitizeEffort(agent, nextModel, effort))
+            }}
+          >
+            {models.map(m => (
+              <DropdownMenuRadioItem key={m.slug} value={m.slug}>
+                {m.label}
+                {m.isDefault ? ' (default)' : ''}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Thinking Effort</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={sanitizeEffort(agent, model, effort)}
+            onValueChange={v => onEffortChange(sanitizeEffort(agent, model, v as EffortLevel))}
+          >
+            {effortOptions.map(e => (
+              <DropdownMenuRadioItem key={e.value} value={e.value}>
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-medium">
+                    {e.label}
+                    {e.isDefault ? ' (default)' : ''}
+                  </span>
+                  <span className="text-[0.65rem] text-muted-foreground">{e.description}</span>
+                </span>
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -217,14 +391,15 @@ function AgentChoice({
 }) {
   const active = current === value
   const Icon = value === 'claude' ? ClaudeIcon : OpenAIIcon
-  return (
+
+  const buttonElem = (
     <button
       type="button"
       onClick={() => !disabled && onSelect(value)}
       aria-pressed={active}
       disabled={disabled}
       className={[
-        'flex items-center gap-2 border px-3 py-2 text-left transition-colors',
+        'flex w-full items-center gap-2 border px-3 py-2 text-left transition-colors',
         disabled
           ? 'cursor-not-allowed border-border bg-card text-muted-foreground/40'
           : active
@@ -248,7 +423,7 @@ function AgentChoice({
         <span className="text-[0.78rem] font-medium leading-tight">{label}</span>
         {disabled && (
           <span className="text-[0.6rem] leading-none text-muted-foreground/60">
-            Not configured
+            Unavailable
           </span>
         )}
         {!disabled && plan && (
@@ -259,4 +434,24 @@ function AgentChoice({
       </span>
     </button>
   )
+
+  if (disabled) {
+    return (
+      <Tooltip>
+        <TooltipTrigger render={<span className="flex w-full" />}>
+          {buttonElem}
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={8}>
+          <div className="flex max-w-56 flex-col gap-1">
+            <p className="font-medium">Claude is unavailable</p>
+            <p className="text-xs text-background/80">
+              Configure Claude and make sure credits are available to assign tasks to it.
+            </p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return buttonElem
 }

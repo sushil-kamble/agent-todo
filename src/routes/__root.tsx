@@ -19,23 +19,28 @@ export const Route = createRootRoute({
         href: 'https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&display=swap',
       },
       { rel: 'stylesheet', href: appCss },
+      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
     ],
   }),
   shellComponent: RootDocument,
   component: RootLayout,
 })
 
+import { TooltipProvider } from '../components/ui/tooltip'
+
 function RootLayout() {
   return (
-    <BoardProvider>
-      <div className="flex h-dvh flex-col">
-        <main className="min-h-0 flex-1">
-          <Outlet />
-        </main>
-        <Footer />
-      </div>
-      <TaskDialog />
-    </BoardProvider>
+    <TooltipProvider>
+      <BoardProvider>
+        <div className="flex h-dvh flex-col">
+          <main className="min-h-0 flex-1">
+            <Outlet />
+          </main>
+          <Footer />
+        </div>
+        <TaskDialog />
+      </BoardProvider>
+    </TooltipProvider>
   )
 }
 

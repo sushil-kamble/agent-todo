@@ -8,6 +8,7 @@
  * GET    /api/tasks/:id/run  — get the active run for a task
  */
 import { randomUUID } from 'node:crypto'
+import { getDefaultEffort, getDefaultModel, sanitizeEffort } from '../agents/model-config.mjs'
 import { listMessages } from '../db/messages.mjs'
 import { getActiveRunForTask, getLatestRunForTask } from '../db/runs.mjs'
 import {
@@ -50,14 +51,19 @@ export async function handleTaskRoutes(req, res, pathname) {
   if (req.method === 'POST' && pathname === '/api/tasks') {
     const body = await readBody(req)
     const id = `t-${randomUUID().slice(0, 5)}`
+    const agent = body.agent === 'claude' ? 'claude' : 'codex'
+    const model = body.model ? String(body.model) : null
     const t = createTask({
       id,
       title: String(body.title || '').trim(),
       project: (await normalizeProjectPath(String(body.project || '').trim())) || 'untitled',
-      agent: body.agent === 'claude' ? 'claude' : 'codex',
+      agent,
       tag: body.tag ? String(body.tag) : null,
       column_id: ['todo', 'in_progress', 'done'].includes(body.column_id) ? body.column_id : 'todo',
       created_at: new Date().toISOString().slice(0, 10),
+      mode: ['code', 'ask'].includes(body.mode) ? body.mode : 'code',
+      model,
+      effort: sanitizeEffort(agent, model ?? getDefaultModel(agent), body.effort ?? getDefaultEffort(agent, model)),
     })
     return json(res, 201, { task: t })
   }
@@ -73,13 +79,24 @@ export async function handleTaskRoutes(req, res, pathname) {
       body.project === undefined
         ? prev.project
         : (await normalizeProjectPath(String(body.project).trim())) || 'untitled'
+    const nextAgent =
+      body.agent === undefined ? prev.agent : body.agent === 'claude' ? 'claude' : 'codex'
+    const nextModel =
+      body.model === undefined ? (prev.model ?? null) : body.model ? String(body.model) : null
     const t = updateTaskFields(id, {
       title: body.title ?? prev.title,
       project: normalizedProject,
-      agent: body.agent ?? prev.agent,
+      agent: nextAgent,
       tag: body.tag === undefined ? prev.tag : body.tag,
       column_id: body.column_id ?? prev.column_id,
       position: body.position ?? prev.position,
+      mode: body.mode ?? prev.mode ?? 'code',
+      model: nextModel,
+      effort: sanitizeEffort(
+        nextAgent,
+        nextModel ?? getDefaultModel(nextAgent),
+        body.effort ?? prev.effort ?? getDefaultEffort(nextAgent, nextModel)
+      ),
     })
 
     // If this task is being placed in the in-progress column and it has a

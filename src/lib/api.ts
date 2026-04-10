@@ -1,4 +1,4 @@
-import type { Agent, ColumnId, TaskCard } from '#/components/board/types'
+import type { Agent, ColumnId, EffortLevel, TaskCard, TaskMode } from '#/components/board/types'
 
 type ServerTask = {
   id: string
@@ -10,6 +10,9 @@ type ServerTask = {
   position: number
   created_at: string
   run_status: string | null
+  mode: TaskMode
+  model: string | null
+  effort: EffortLevel
 }
 
 export type RunSummary = {
@@ -69,6 +72,9 @@ function toCard(t: ServerTask): TaskCard {
     tag: t.tag ?? undefined,
     createdAt: t.created_at,
     runStatus: t.run_status ?? undefined,
+    mode: t.mode ?? 'code',
+    model: t.model ?? null,
+    effort: t.effort ?? 'medium',
   }
 }
 
@@ -94,6 +100,9 @@ export async function createTask(input: {
   agent: Agent
   tag?: string
   column_id: ColumnId
+  mode?: TaskMode
+  model?: string | null
+  effort?: EffortLevel
 }): Promise<{ task: TaskCard; column: ColumnId }> {
   const r = await fetch('/api/tasks', {
     method: 'POST',
@@ -123,6 +132,9 @@ export async function patchTask(
     tag: string | null
     column_id: ColumnId
     position: number
+    mode: TaskMode
+    model: string | null
+    effort: EffortLevel
   }>
 ): Promise<{ task: TaskCard; column: ColumnId; runId: string | null }> {
   const r = await fetch(`/api/tasks/${id}`, {

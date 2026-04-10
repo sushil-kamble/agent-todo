@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import readline from 'node:readline'
-import { CODEX_EFFORT, CODEX_MODEL } from './config.mjs'
+import { ASK_MODE_PROMPT, CODEX_EFFORT, CODEX_MODEL } from './config.mjs'
 
 /**
  * CodexClient: one instance per run. Spawns `codex app-server`, speaks JSON-RPC
@@ -17,10 +17,12 @@ import { CODEX_EFFORT, CODEX_MODEL } from './config.mjs'
  *   'exit'          { code, signal }
  */
 export class CodexClient extends EventEmitter {
-  constructor({ cwd }) {
+  constructor({ cwd, task }) {
     super()
     this.cwd = cwd
-    this.model = CODEX_MODEL
+    this.taskMode = task?.mode ?? 'code'
+    this.model = task?.model || CODEX_MODEL
+    this.effort = task?.effort || CODEX_EFFORT
     this.nextId = 1
     this.pending = new Map() // id -> { resolve, reject }
     this.threadId = null
@@ -170,19 +172,20 @@ export class CodexClient extends EventEmitter {
 
   async sendUserText(text) {
     if (!this.threadId) throw new Error('thread not started')
+    const effectiveText = this.taskMode === 'ask' ? `${ASK_MODE_PROMPT}\n\n---\n\n${text}` : text
     if (this.activeTurnId) {
       // Append to in-flight turn
       return this._request('turn/steer', {
         threadId: this.threadId,
         expectedTurnId: this.activeTurnId,
-        input: [{ type: 'text', text, text_elements: [] }],
+        input: [{ type: 'text', text: effectiveText, text_elements: [] }],
       })
     }
     return this._request('turn/start', {
       threadId: this.threadId,
-      input: [{ type: 'text', text, text_elements: [] }],
+      input: [{ type: 'text', text: effectiveText, text_elements: [] }],
       model: this.model,
-      effort: CODEX_EFFORT,
+      effort: this.effort,
     })
   }
 

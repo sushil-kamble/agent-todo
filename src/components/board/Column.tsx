@@ -57,6 +57,7 @@ export function BoardColumn({ column, tasks, index }: Props) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const isInProgress = column.id === 'in_progress'
+  const canAddTask = column.id === 'todo'
 
   const combinedRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -118,14 +119,16 @@ export function BoardColumn({ column, tasks, index }: Props) {
             {isLoading ? '–' : tasks.length}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => openNewTask(column.id)}
-          className="flex size-6 items-center justify-center border border-border bg-background text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
-          aria-label={`Add task to ${column.label}`}
-        >
-          <Plus size={12} weight="bold" />
-        </button>
+        {canAddTask ? (
+          <button
+            type="button"
+            onClick={() => openNewTask(column.id)}
+            className="flex size-6 items-center justify-center border border-border bg-background text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+            aria-label={`Add task to ${column.label}`}
+          >
+            <Plus size={12} weight="bold" />
+          </button>
+        ) : null}
       </header>
 
       {/* Cards */}
@@ -150,14 +153,16 @@ export function BoardColumn({ column, tasks, index }: Props) {
         )}
 
         {/* Ghost add affordance */}
-        <button
-          type="button"
-          onClick={() => openNewTask(column.id)}
-          className="group/add mt-1 flex items-center justify-center gap-1.5 border border-dashed border-border bg-transparent py-2.5 text-[0.62rem] tracking-[0.16em] text-muted-foreground uppercase transition-colors hover:border-foreground hover:text-foreground"
-        >
-          <Plus size={11} weight="bold" />
-          add task
-        </button>
+        {canAddTask ? (
+          <button
+            type="button"
+            onClick={() => openNewTask(column.id)}
+            className="group/add mt-1 flex items-center justify-center gap-1.5 border border-dashed border-border bg-transparent py-2.5 text-[0.62rem] tracking-[0.16em] text-muted-foreground uppercase transition-colors hover:border-foreground hover:text-foreground"
+          >
+            <Plus size={11} weight="bold" />
+            add task
+          </button>
+        ) : null}
 
         {/* Scroll-to-bottom button — visible only when content is above the fold */}
         {showScrollBtn && (

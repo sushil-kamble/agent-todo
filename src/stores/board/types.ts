@@ -1,4 +1,4 @@
-import type { Agent, ColumnId, TaskCard } from '#/components/board/types'
+import type { Agent, ColumnId, EffortLevel, TaskCard, TaskMode } from '#/components/board/types'
 
 export type TasksByColumn = Record<ColumnId, TaskCard[]>
 export type TasksUpdater = TasksByColumn | ((current: TasksByColumn) => TasksByColumn)
@@ -9,6 +9,9 @@ export type CreateTaskInput = {
   agent: Agent
   tag?: string
   column: ColumnId
+  mode?: TaskMode
+  model?: string | null
+  effort?: EffortLevel
 }
 
 export type UpdateTaskInput = {
@@ -16,6 +19,9 @@ export type UpdateTaskInput = {
   project: string
   agent: Agent
   tag?: string
+  mode?: TaskMode
+  model?: string | null
+  effort?: EffortLevel
 }
 
 export const ACTIVE_RUN_STATUSES = new Set(['starting', 'running', 'active'])

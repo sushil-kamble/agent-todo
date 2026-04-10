@@ -92,7 +92,8 @@ export function emit(runId, event) {
 async function bootstrapRun(runId, task, client, bus) {
   // Build a richer first message so the agent always knows its working context,
   // even if the SDK's own cwd handling misbehaves.
-  const prompt = [`Working directory: ${task.project}`, '', task.title].join('\n')
+  const modeLabel = task.mode === 'ask' ? '[ASK MODE — read-only analysis] ' : ''
+  const prompt = [`${modeLabel}Working directory: ${task.project}`, '', task.title].join('\n')
   try {
     client.start()
     await client.initialize()

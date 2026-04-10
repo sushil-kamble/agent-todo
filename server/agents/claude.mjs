@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { query } from '@anthropic-ai/claude-agent-sdk'
-import { CLAUDE_EFFORT, CLAUDE_MODEL } from './config.mjs'
+import { ASK_MODE_PROMPT, CLAUDE_EFFORT, CLAUDE_MODEL } from './config.mjs'
 
 /**
  * ClaudeClient: one instance per run. Wraps `@anthropic-ai/claude-agent-sdk`
@@ -20,9 +20,12 @@ import { CLAUDE_EFFORT, CLAUDE_MODEL } from './config.mjs'
  *   'exit'          { code, signal }
  */
 export class ClaudeClient extends EventEmitter {
-  constructor({ cwd }) {
+  constructor({ cwd, task }) {
     super()
     this.cwd = cwd
+    this.taskMode = task?.mode ?? 'code'
+    this.taskModel = task?.model || CLAUDE_MODEL
+    this.taskEffort = task?.effort || CLAUDE_EFFORT
     this.promptQueue = new PromptQueue()
     this.query = null
     this.stopped = false
@@ -42,18 +45,20 @@ export class ClaudeClient extends EventEmitter {
   }
 
   start() {
+    const isAskMode = this.taskMode === 'ask'
     try {
       this.query = query({
         prompt: this.promptQueue,
         options: {
           cwd: this.cwd,
-          model: CLAUDE_MODEL,
-          effort: CLAUDE_EFFORT,
-          permissionMode: 'bypassPermissions',
-          allowDangerouslySkipPermissions: true,
+          model: this.taskModel,
+          effort: this.taskEffort,
+          permissionMode: isAskMode ? 'default' : 'bypassPermissions',
+          allowDangerouslySkipPermissions: !isAskMode,
           includePartialMessages: true,
           env: process.env,
           settingSources: ['user', 'project', 'local'],
+          ...(isAskMode ? { systemPrompt: ASK_MODE_PROMPT } : {}),
           // Disable sandboxing so tools can access the host filesystem at the
           // project's cwd. Without this, user/project settings picked up via
           // settingSources can enable the sandbox, which containerises tool
@@ -95,11 +100,11 @@ export class ClaudeClient extends EventEmitter {
     this.activeTurnId = turnId
     this.emit('turnStarted', { turnId })
     this.promptQueue.push({
-      type: 'user',
-      message: {
-        role: 'user',
-        content: [{ type: 'text', text }],
-      },
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text }],
+        },
       parent_tool_use_id: null,
       session_id: this.threadId ?? '',
     })

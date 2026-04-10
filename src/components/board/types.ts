@@ -1,5 +1,7 @@
 export type Agent = 'claude' | 'codex'
 export type ColumnId = 'todo' | 'in_progress' | 'done'
+export type TaskMode = 'code' | 'ask'
+export type EffortLevel = 'low' | 'medium' | 'high' | 'max' | 'xhigh'
 
 export type TaskCard = {
   id: string
@@ -9,6 +11,9 @@ export type TaskCard = {
   createdAt: string
   tag?: string
   runStatus?: string
+  mode: TaskMode
+  model: string | null
+  effort: EffortLevel
 }
 
 export type Column = {
@@ -32,6 +37,9 @@ export const SEED: Record<ColumnId, TaskCard[]> = {
       agent: 'claude',
       tag: 'copy',
       createdAt: '2026-04-08',
+      mode: 'code',
+      model: null,
+      effort: 'medium',
     },
     {
       id: 't-2',
@@ -40,6 +48,9 @@ export const SEED: Record<ColumnId, TaskCard[]> = {
       agent: 'codex',
       tag: 'backend',
       createdAt: '2026-04-08',
+      mode: 'code',
+      model: null,
+      effort: 'medium',
     },
     {
       id: 't-3',
@@ -48,6 +59,9 @@ export const SEED: Record<ColumnId, TaskCard[]> = {
       agent: 'claude',
       tag: 'a11y',
       createdAt: '2026-04-07',
+      mode: 'ask',
+      model: null,
+      effort: 'high',
     },
   ],
   in_progress: [
@@ -58,6 +72,9 @@ export const SEED: Record<ColumnId, TaskCard[]> = {
       agent: 'codex',
       tag: 'refactor',
       createdAt: '2026-04-06',
+      mode: 'code',
+      model: null,
+      effort: 'medium',
     },
     {
       id: 't-5',
@@ -66,6 +83,9 @@ export const SEED: Record<ColumnId, TaskCard[]> = {
       agent: 'claude',
       tag: 'tests',
       createdAt: '2026-04-05',
+      mode: 'code',
+      model: null,
+      effort: 'medium',
     },
   ],
   done: [
@@ -76,6 +96,9 @@ export const SEED: Record<ColumnId, TaskCard[]> = {
       agent: 'codex',
       tag: 'tooling',
       createdAt: '2026-04-03',
+      mode: 'code',
+      model: null,
+      effort: 'medium',
     },
     {
       id: 't-7',
@@ -84,6 +107,9 @@ export const SEED: Record<ColumnId, TaskCard[]> = {
       agent: 'claude',
       tag: 'design',
       createdAt: '2026-04-02',
+      mode: 'ask',
+      model: null,
+      effort: 'low',
     },
   ],
 }

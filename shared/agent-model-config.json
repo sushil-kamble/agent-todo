@@ -1,0 +1,68 @@
+{
+  "efforts": {
+    "low": {
+      "label": "Low",
+      "description": "Faster responses with less reasoning"
+    },
+    "medium": {
+      "label": "Medium",
+      "description": "Balanced reasoning and speed"
+    },
+    "high": {
+      "label": "High",
+      "description": "Greater reasoning depth but slower"
+    },
+    "max": {
+      "label": "Max",
+      "description": "Maximum Claude effort for the hardest tasks"
+    },
+    "xhigh": {
+      "label": "Extra High",
+      "description": "Maximum reasoning depth for complex Codex tasks"
+    }
+  },
+  "agents": {
+    "claude": {
+      "defaultModel": "claude-sonnet-4-6",
+      "models": [
+        {
+          "slug": "claude-sonnet-4-6",
+          "label": "Claude Sonnet 4.6",
+          "isDefault": true,
+          "defaultEffort": "medium",
+          "efforts": ["low", "medium", "high"]
+        },
+        {
+          "slug": "claude-opus-4-6",
+          "label": "Claude Opus 4.6",
+          "defaultEffort": "medium",
+          "efforts": ["low", "medium", "high", "max"]
+        },
+        {
+          "slug": "claude-haiku-4-5",
+          "label": "Claude Haiku 4.5",
+          "defaultEffort": "medium",
+          "efforts": ["low", "medium", "high"]
+        }
+      ]
+    },
+    "codex": {
+      "defaultModel": "gpt-5.4",
+      "models": [
+        {
+          "slug": "gpt-5.4",
+          "label": "GPT-5.4",
+          "isDefault": true,
+          "defaultEffort": "medium",
+          "efforts": ["low", "medium", "high", "xhigh"]
+        },
+        {
+          "slug": "gpt-5.3-codex",
+          "label": "GPT-5.3 Codex",
+          "defaultEffort": "medium",
+          "efforts": ["low", "medium", "high", "xhigh"]
+        }
+      ]
+    }
+  }
+}

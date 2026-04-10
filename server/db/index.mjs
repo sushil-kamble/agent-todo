@@ -22,7 +22,10 @@ CREATE TABLE IF NOT EXISTS tasks (
   tag TEXT,
   column_id TEXT NOT NULL,
   position INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  mode TEXT NOT NULL DEFAULT 'code',
+  model TEXT,
+  effort TEXT NOT NULL DEFAULT 'medium'
 );
 
 CREATE TABLE IF NOT EXISTS runs (
@@ -57,10 +60,25 @@ function resolveDbPath(pathOverride) {
   return resolve(chosen)
 }
 
+const MIGRATIONS = [
+  // Add mode, model, effort columns to tasks (introduced after initial schema).
+  `ALTER TABLE tasks ADD COLUMN mode TEXT NOT NULL DEFAULT 'code'`,
+  `ALTER TABLE tasks ADD COLUMN model TEXT`,
+  `ALTER TABLE tasks ADD COLUMN effort TEXT NOT NULL DEFAULT 'medium'`,
+]
+
 function openDatabase(path) {
   mkdirSync(dirname(path), { recursive: true })
   const instance = new DatabaseSync(path)
   instance.exec(DB_SCHEMA)
+  // Run safe migrations — skip if column already exists.
+  for (const sql of MIGRATIONS) {
+    try {
+      instance.exec(sql)
+    } catch (e) {
+      if (!String(e?.message).includes('duplicate column')) throw e
+    }
+  }
   return instance
 }
 
