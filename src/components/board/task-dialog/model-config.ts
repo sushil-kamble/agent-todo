@@ -20,11 +20,15 @@ type AgentConfig = {
 }
 
 type SharedConfig = {
+  defaultAgent: Agent
   efforts: Record<EffortLevel, EffortConfig>
   agents: Record<Agent, AgentConfig>
 }
 
 const config = sharedConfig as SharedConfig
+
+export const DEFAULT_AGENT = config.defaultAgent
+export const AGENT_IDS = Object.keys(config.agents) as Agent[]
 
 function getAgentConfig(agent: Agent): AgentConfig {
   return config.agents[agent]
@@ -41,6 +45,10 @@ export type EffortOption = EffortConfig & {
   isDefault?: boolean
 }
 
+export function isAgent(value: unknown): value is Agent {
+  return typeof value === 'string' && AGENT_IDS.includes(value as Agent)
+}
+
 export const MODELS_BY_AGENT: Record<Agent, ModelOption[]> = Object.fromEntries(
   Object.entries(config.agents).map(([agent, agentConfig]) => [agent, agentConfig.models])
 ) as Record<Agent, ModelOption[]>
@@ -49,9 +57,14 @@ export function getDefaultModel(agent: Agent): string {
   return getAgentConfig(agent).defaultModel
 }
 
+export function sanitizeModel(agent: Agent, slug: string | null): string | null {
+  if (typeof slug !== 'string' || !slug.trim()) return null
+  return MODELS_BY_AGENT[agent].some(candidate => candidate.slug === slug) ? slug : null
+}
+
 export function getModelConfig(agent: Agent, slug: string | null): ModelOption {
   const models = MODELS_BY_AGENT[agent]
-  const effectiveSlug = slug ?? getDefaultModel(agent)
+  const effectiveSlug = sanitizeModel(agent, slug) ?? getDefaultModel(agent)
   const model = models.find(candidate => candidate.slug === effectiveSlug)
   if (!model) {
     throw new Error(`Unknown model "${effectiveSlug}" configured for ${agent}`)

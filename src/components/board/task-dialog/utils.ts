@@ -24,6 +24,22 @@ export function groupByTurn(messages: LiveMessage[], completedTurns: number): Tu
 
   return raw.map(({ user, items }, groupIdx) => {
     const turnDone = groupIdx < completedTurns
+    const interrupted = items.find(isUserInterruptedMarker) ?? null
+    const startedAt = user?.createdAt ?? items.find(m => !!m.createdAt)?.createdAt
+    const endedAt = [...items].reverse().find(m => !!m.createdAt)?.createdAt ?? user?.createdAt
+
+    if (interrupted) {
+      return {
+        user,
+        interrupted,
+        thinking: [],
+        final: null,
+        tail: [],
+        startedAt,
+        endedAt,
+      }
+    }
+
     let finalIdx = -1
     if (turnDone) {
       for (let i = items.length - 1; i >= 0; i--) {
@@ -40,12 +56,9 @@ export function groupByTurn(messages: LiveMessage[], completedTurns: number): Tu
     const tail: LiveMessage[] = []
     items.forEach((m, i) => {
       if (i === finalIdx) final = m
-      else if (isUserInterruptedMarker(m)) tail.push(m)
       else thinking.push(m)
     })
-    const startedAt = user?.createdAt ?? items.find(m => !!m.createdAt)?.createdAt
-    const endedAt = [...items].reverse().find(m => !!m.createdAt)?.createdAt ?? user?.createdAt
-    return { user, thinking, final, tail, startedAt, endedAt }
+    return { user, interrupted, thinking, final, tail, startedAt, endedAt }
   })
 }
 

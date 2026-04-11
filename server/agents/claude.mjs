@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { ASK_MODE_PROMPT, CLAUDE_EFFORT, CLAUDE_MODEL } from './config.mjs'
+import { getDefaultModel, sanitizeModel } from './model-config.mjs'
 
 /**
  * ClaudeClient: one instance per run. Wraps `@anthropic-ai/claude-agent-sdk`
@@ -20,17 +21,18 @@ import { ASK_MODE_PROMPT, CLAUDE_EFFORT, CLAUDE_MODEL } from './config.mjs'
  *   'exit'          { code, signal }
  */
 export class ClaudeClient extends EventEmitter {
-  constructor({ cwd, task }) {
+  constructor({ cwd, task, threadId = null }) {
     super()
     this.cwd = cwd
     this.taskMode = task?.mode ?? 'code'
-    this.taskModel = task?.model || CLAUDE_MODEL
+    this.taskModel =
+      sanitizeModel('claude', task?.model) ?? getDefaultModel('claude') ?? CLAUDE_MODEL
     this.taskEffort = task?.effort || CLAUDE_EFFORT
     this.promptQueue = new PromptQueue()
     this.query = null
     this.stopped = false
     this.errored = false
-    this.threadId = null
+    this.threadId = threadId
 
     // Per-assistant-message block tracking (keyed by stream event index).
     // { type: 'text' | 'thinking' | 'tool_use', itemId, buffer }
@@ -53,6 +55,7 @@ export class ClaudeClient extends EventEmitter {
           cwd: this.cwd,
           model: this.taskModel,
           effort: this.taskEffort,
+          ...(this.threadId ? { resume: this.threadId } : {}),
           permissionMode: isAskMode ? 'default' : 'bypassPermissions',
           allowDangerouslySkipPermissions: !isAskMode,
           includePartialMessages: true,

@@ -83,7 +83,7 @@ describe('task dialog utils', () => {
     expect(groups[0].tail).toEqual([])
   })
 
-  it('renders explicit user interruption markers after the final response', () => {
+  it('hides all agent output for a turn once the user interruption marker appears', () => {
     const groups = groupByTurn(
       [
         {
@@ -125,12 +125,13 @@ describe('task dialog utils', () => {
     )
 
     expect(groups).toHaveLength(1)
-    expect(groups[0].final?.id).toBe('a-2')
-    expect(groups[0].thinking.map(message => message.id)).toEqual(['a-1'])
-    expect(groups[0].tail.map(message => message.id)).toEqual(['s-2'])
+    expect(groups[0].final).toBeNull()
+    expect(groups[0].thinking).toEqual([])
+    expect(groups[0].interrupted?.id).toBe('s-2')
+    expect(groups[0].tail).toEqual([])
   })
 
-  it('renders explicit user interruption markers even when no final answer exists yet', () => {
+  it('hides in-flight agent output when an interruption happens before a final answer', () => {
     const groups = groupByTurn(
       [
         {
@@ -165,8 +166,9 @@ describe('task dialog utils', () => {
 
     expect(groups).toHaveLength(1)
     expect(groups[0].final).toBeNull()
-    expect(groups[0].thinking.map(message => message.id)).toEqual(['a-1'])
-    expect(groups[0].tail.map(message => message.id)).toEqual(['s-2'])
+    expect(groups[0].thinking).toEqual([])
+    expect(groups[0].interrupted?.id).toBe('s-2')
+    expect(groups[0].tail).toEqual([])
   })
 
   it('formats worked-for durations for seconds, minutes, and hours', () => {

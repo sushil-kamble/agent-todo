@@ -165,11 +165,15 @@ export async function fetchRun(
 }
 
 export async function sendFollowUp(runId: string, text: string): Promise<void> {
-  await fetch(`/api/runs/${runId}/messages`, {
+  const r = await fetch(`/api/runs/${runId}/messages`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text }),
   })
+  if (!r.ok) {
+    const body = (await r.json().catch(() => null)) as { error?: string } | null
+    throw new Error(body?.error ?? 'failed to send follow-up')
+  }
 }
 
 export async function stopRun(runId: string): Promise<RunSummary | null> {

@@ -9,7 +9,7 @@
 import { appendMessage, listMessages } from '../db/messages.mjs'
 import { getRun } from '../db/runs.mjs'
 import { json, readBody, sseHeaders, sseSend } from '../lib/http.mjs'
-import { emit, getLiveRun, stopRun } from '../services/run-manager.mjs'
+import { emit, ensureLiveRun, getLiveRun, interruptRun } from '../services/run-manager.mjs'
 
 const USER_CANCELLED_EXECUTION = '--- User cancelled execution ---'
 
@@ -21,7 +21,11 @@ export async function handleRunRoutes(req, res, pathname) {
     const body = await readBody(req)
     const text = String(body.text || '').trim()
     if (!text) return json(res, 400, { error: 'text required' })
-    const entry = getLiveRun(runId)
+    let entry = getLiveRun(runId)
+    if (!entry) {
+      await ensureLiveRun(runId)
+      entry = getLiveRun(runId)
+    }
     if (!entry) return json(res, 404, { error: 'run not active' })
     const seq = appendMessage(runId, 'user', 'text', text)
     emit(runId, {
@@ -61,7 +65,7 @@ export async function handleRunRoutes(req, res, pathname) {
       interruptedByUser: true,
       createdAt: new Date().toISOString(),
     })
-    return json(res, 200, { run: await stopRun(runId) })
+    return json(res, 200, { run: await interruptRun(runId) })
   }
 
   // GET /api/runs/:id/events (SSE)

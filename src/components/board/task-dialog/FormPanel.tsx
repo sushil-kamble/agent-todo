@@ -28,14 +28,95 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip
 import type { Project, Subscriptions } from '#/lib/api'
 import * as api from '#/lib/api'
 import type { Agent, ColumnId, EffortLevel, TaskCard, TaskMode } from '../types'
+import { readStoredTaskConfig, writeStoredTaskConfig } from './default-config-storage'
 import {
   getEffortOptions,
   getModelConfig,
   getModelLabel,
   MODELS_BY_AGENT,
   sanitizeEffort,
+  sanitizeModel,
 } from './model-config'
 import { PanelHeader } from './shared'
+import { TASK_MODE_OPTIONS } from './task-config'
+
+type StoredConfigShape = ReturnType<typeof readStoredTaskConfig>
+
+type TaskCreationValidationInput = {
+  title: string
+  project: string
+  projectOptions: string[]
+  agent: Agent
+  mode: string
+  model: string | null
+  effort: string
+  subs: Subscriptions | null
+}
+
+export function resolveInitialFormState(
+  editingTask: TaskCard | null,
+  storedConfig: StoredConfigShape
+) {
+  const agent = editingTask ? editingTask.agent : storedConfig.agent
+  const mode = editingTask ? editingTask.mode : storedConfig.mode
+  const model = sanitizeModel(agent, editingTask ? editingTask.model : storedConfig.model)
+  const effort = editingTask
+    ? sanitizeEffort(agent, model, editingTask.effort)
+    : storedConfig.effort
+
+  return { agent, mode, model, effort }
+}
+
+export function resolveTaskCreationValidation({
+  title,
+  project,
+  projectOptions,
+  agent,
+  mode,
+  model,
+  effort,
+  subs,
+}: TaskCreationValidationInput) {
+  const missing: string[] = []
+  const normalizedTitle = title.trim()
+  const normalizedProject = project.trim()
+
+  if (!normalizedTitle) {
+    missing.push('Task prompt')
+  }
+
+  if (!normalizedProject || !projectOptions.includes(normalizedProject)) {
+    missing.push('Project selection')
+  }
+
+  if (subs && !subs[agent]?.available) {
+    missing.push('Assigned to')
+  }
+
+  const hasValidMode = TASK_MODE_OPTIONS.some(option => option.value === mode)
+  let hasValidConfiguration = hasValidMode
+  if (hasValidConfiguration) {
+    try {
+      hasValidConfiguration = getEffortOptions(agent, model).some(option => option.value === effort)
+    } catch {
+      hasValidConfiguration = false
+    }
+  }
+  if (!hasValidConfiguration) {
+    missing.push('Configuration')
+  }
+
+  return {
+    missing,
+    disabled: missing.length > 0,
+  }
+}
+
+function getCreateTaskTooltipCopy(missing: string[]) {
+  if (missing.length === 0) return null
+  if (missing.length === 1) return `${missing[0]} is required before creating a task.`
+  return `${missing.join(', ')} are required before creating a task.`
+}
 
 export function FormPanel({
   isEdit,
@@ -71,6 +152,9 @@ export function FormPanel({
     column: ColumnId
   ) => void
 }) {
+  const storedConfigRef = useRef(readStoredTaskConfig())
+  const storedConfig = storedConfigRef.current
+  const initialState = resolveInitialFormState(editingTask, storedConfig)
   const [projects, setProjects] = useState<Project[]>([])
   const projectOptions = projects.map(projectEntry => projectEntry.path)
 
@@ -80,13 +164,25 @@ export function FormPanel({
 
   const [title, setTitle] = useState(editingTask?.title ?? '')
   const [project, setProject] = useState(editingTask?.project ?? '')
-  const [agent, setAgent] = useState<Agent>(editingTask?.agent ?? 'claude')
-  const [mode, setMode] = useState<TaskMode>(editingTask?.mode ?? 'code')
-  const [model, setModel] = useState<string | null>(editingTask?.model ?? null)
-  const [effort, setEffort] = useState<EffortLevel>(editingTask?.effort ?? 'medium')
+  const [agent, setAgent] = useState<Agent>(initialState.agent)
+  const [mode, setMode] = useState<TaskMode>(initialState.mode)
+  const [model, setModel] = useState<string | null>(initialState.model)
+  const [effort, setEffort] = useState<EffortLevel>(initialState.effort)
   const [subs, setSubs] = useState<Subscriptions | null>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const projectInputRef = useRef<HTMLInputElement>(null)
+  const createTaskValidation = resolveTaskCreationValidation({
+    title,
+    project,
+    projectOptions,
+    agent,
+    mode,
+    model,
+    effort,
+    subs,
+  })
+  const createTaskTooltip = getCreateTaskTooltipCopy(createTaskValidation.missing)
+  const isSubmitDisabled = isEdit ? !title.trim() : createTaskValidation.disabled
 
   useEffect(() => {
     api.fetchSubscriptions().then(setSubs)
@@ -148,11 +244,18 @@ export function FormPanel({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     // Read from the input ref as fallback for free-typed text
-    const finalProject = projectInputRef.current?.value ?? project
+    const finalProject = (projectInputRef.current?.value ?? project).trim()
     if (!title.trim()) {
       titleRef.current?.focus()
       return
     }
+    if (!isEdit && createTaskValidation.disabled) {
+      if (!projectOptions.includes(finalProject)) {
+        projectInputRef.current?.focus()
+      }
+      return
+    }
+    writeStoredTaskConfig({ agent, mode, model, effort })
     if (isEdit && editingTask && editingColumn) {
       onUpdate(
         editingTask.id,
@@ -294,11 +397,24 @@ export function FormPanel({
           <Button type="button" variant="ghost" size="sm" onClick={close}>
             <span className="text-[0.68rem] tracking-[0.12em] uppercase">Cancel</span>
           </Button>
-          <Button type="submit" size="sm" disabled={!title.trim()}>
-            <span className="text-[0.68rem] tracking-[0.12em] uppercase">
-              {isEdit ? 'Save changes' : 'Create task'}
-            </span>
-          </Button>
+          {isEdit || !createTaskTooltip ? (
+            <Button type="submit" size="sm" disabled={isSubmitDisabled}>
+              <span className="text-[0.68rem] tracking-[0.12em] uppercase">
+                {isEdit ? 'Save changes' : 'Create task'}
+              </span>
+            </Button>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger render={<span className="inline-flex" />}>
+                <Button type="submit" size="sm" disabled={isSubmitDisabled}>
+                  <span className="text-[0.68rem] tracking-[0.12em] uppercase">Create task</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={8}>
+                <p className="max-w-56 text-xs">{createTaskTooltip}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </div>
     </form>
@@ -306,16 +422,19 @@ export function FormPanel({
 }
 
 function ModePicker({ value, onChange }: { value: TaskMode; onChange: (m: TaskMode) => void }) {
+  const currentMode =
+    TASK_MODE_OPTIONS.find(option => option.value === value) ?? TASK_MODE_OPTIONS[0]
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex h-9 w-full items-center justify-between gap-2 border border-border bg-card px-3 text-xs text-foreground transition-colors hover:border-foreground focus:border-foreground focus:outline-none">
         <span className="flex items-center gap-2">
-          {value === 'code' ? (
+          {currentMode?.value === 'code' ? (
             <CodeIcon size={14} weight="bold" />
           ) : (
             <MagnifyingGlassIcon size={14} weight="bold" />
           )}
-          <span className="font-medium">{value === 'code' ? 'Code' : 'Ask'}</span>
+          <span className="font-medium">{currentMode?.label ?? value}</span>
         </span>
         <CaretDownIcon size={12} className="text-muted-foreground" />
       </DropdownMenuTrigger>
@@ -323,22 +442,14 @@ function ModePicker({ value, onChange }: { value: TaskMode; onChange: (m: TaskMo
         <DropdownMenuGroup>
           <DropdownMenuLabel>Mode</DropdownMenuLabel>
           <DropdownMenuRadioGroup value={value} onValueChange={v => onChange(v as TaskMode)}>
-            <DropdownMenuRadioItem value="code">
-              <span className="flex flex-col gap-0.5">
-                <span className="font-medium">Code</span>
-                <span className="text-[0.65rem] text-muted-foreground">
-                  Edits files with full permissions
+            {TASK_MODE_OPTIONS.map(option => (
+              <DropdownMenuRadioItem key={option.value} value={option.value}>
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-medium">{option.label}</span>
+                  <span className="text-[0.65rem] text-muted-foreground">{option.description}</span>
                 </span>
-              </span>
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="ask">
-              <span className="flex flex-col gap-0.5">
-                <span className="font-medium">Ask</span>
-                <span className="text-[0.65rem] text-muted-foreground">
-                  Read-only analysis, no file edits
-                </span>
-              </span>
-            </DropdownMenuRadioItem>
+              </DropdownMenuRadioItem>
+            ))}
           </DropdownMenuRadioGroup>
         </DropdownMenuGroup>
       </DropdownMenuContent>

@@ -5,11 +5,20 @@ import type { AgentPhase } from '#/lib/api'
 import * as api from '#/lib/api'
 import type { TaskCard } from '../types'
 import { ACTIVE_RUN_STATUSES } from './constants'
-import { ProjectPathChip, TurnBlock } from './shared'
+import { ModelConfigChip, ProjectPathChip, TurnBlock } from './shared'
 import type { LiveMessage } from './types'
 import { formatTime, groupByTurn } from './utils'
 
 const USER_CANCELLED_EXECUTION = '--- User cancelled execution ---'
+const LOCAL_INTERRUPTED_MARKER_PREFIX = 'interrupt-local-'
+
+function isInterruptedMarker(message: Pick<LiveMessage, 'role' | 'kind' | 'interruptedByUser'>) {
+  return message.role === 'system' && message.kind === 'error' && message.interruptedByUser === true
+}
+
+function stripLocalInterruptedMarkers(messages: LiveMessage[]) {
+  return messages.filter(message => !message.id.startsWith(LOCAL_INTERRUPTED_MARKER_PREFIX))
+}
 
 function getHeaderRunState(status: string | null) {
   if (!status) return null
@@ -101,6 +110,7 @@ export function ChatPanel({
   const stickyRef = useRef(true)
   const streamingRef = useRef<{ itemId: string; msgId: string } | null>(null)
   const itemPhaseRef = useRef<Map<string, AgentPhase>>(new Map())
+  const interruptPendingRef = useRef(false)
 
   const syncScrollState = useCallback(() => {
     const el = scrollRef.current
@@ -213,6 +223,9 @@ export function ChatPanel({
           if (ev.kind === 'status') return
           if (ev.role !== 'user') setThinking(false)
           setMessages(prev => {
+            if (ev.interruptedByUser === true) {
+              prev = stripLocalInterruptedMarkers(prev)
+            }
             if (prev.some(p => p.id === `p-${ev.seq}`)) return prev
 
             if (ev.role === 'agent') {
@@ -317,7 +330,11 @@ export function ChatPanel({
         }
 
         if (ev.type === 'turnCompleted') {
-          setRunStatus(ev.status === 'interrupted' ? 'interrupted' : 'idle')
+          const interruptedByUser = interruptPendingRef.current
+          interruptPendingRef.current = false
+          setRunStatus(
+            interruptedByUser ? 'idle' : ev.status === 'interrupted' ? 'interrupted' : 'idle'
+          )
           setThinking(false)
           setCompletedTurns(n => n + 1)
           setMessages(prev =>
@@ -327,7 +344,9 @@ export function ChatPanel({
         }
 
         if (ev.type === 'end') {
-          setRunStatus(ev.status ?? 'completed')
+          const interruptedByUser = interruptPendingRef.current
+          interruptPendingRef.current = false
+          setRunStatus(interruptedByUser ? 'idle' : (ev.status ?? 'completed'))
           setThinking(false)
         }
       })
@@ -430,10 +449,30 @@ export function ChatPanel({
     }
 
     setStopping(true)
+    interruptPendingRef.current = true
+    const nowIso = new Date().toISOString()
+    setMessages(prev => {
+      const lastMessage = prev.at(-1)
+      if (lastMessage && isInterruptedMarker(lastMessage)) return prev
+      return [
+        ...prev,
+        {
+          id: `${LOCAL_INTERRUPTED_MARKER_PREFIX}${Date.now()}`,
+          role: 'system',
+          kind: 'error',
+          body: USER_CANCELLED_EXECUTION,
+          at: formatTime(nowIso),
+          createdAt: nowIso,
+          interruptedByUser: true,
+        },
+      ]
+    })
     try {
       await api.stopRun(runId)
     } catch (e) {
       console.error('[chat] stop failed', e)
+      interruptPendingRef.current = false
+      setMessages(prev => stripLocalInterruptedMarkers(prev))
       setStopping(false)
     }
   }
@@ -466,7 +505,7 @@ export function ChatPanel({
                 {task.title}
               </p>
             </div>
-            {headerMetaBadge && (
+            {!readOnly && headerMetaBadge && (
               <span
                 className={`inline-flex shrink-0 items-center gap-2 border px-2 py-0.5 text-[0.62rem] font-semibold tracking-[0.12em] uppercase ${headerMetaBadge.className}`}
                 title={`${headerMetaBadge.statusLabel} • ${headerMetaBadge.modeLabel}`}
@@ -480,10 +519,11 @@ export function ChatPanel({
               </span>
             )}
           </div>
-          <div className="mt-1.5 flex items-center pl-7">
+          <div className="mt-1.5 flex items-center justify-between gap-3 pl-7">
             <div className="min-w-0 flex-1">
               <ProjectPathChip path={task.project} />
             </div>
+            <ModelConfigChip agent={task.agent} model={task.model} effort={task.effort} />
           </div>
         </div>
         <button

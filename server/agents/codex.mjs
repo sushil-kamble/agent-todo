@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import readline from 'node:readline'
 import { ASK_MODE_PROMPT, CODEX_EFFORT, CODEX_MODEL } from './config.mjs'
+import { getDefaultModel, sanitizeModel } from './model-config.mjs'
 
 /**
  * CodexClient: one instance per run. Spawns `codex app-server`, speaks JSON-RPC
@@ -17,15 +18,15 @@ import { ASK_MODE_PROMPT, CODEX_EFFORT, CODEX_MODEL } from './config.mjs'
  *   'exit'          { code, signal }
  */
 export class CodexClient extends EventEmitter {
-  constructor({ cwd, task }) {
+  constructor({ cwd, task, threadId = null }) {
     super()
     this.cwd = cwd
     this.taskMode = task?.mode ?? 'code'
-    this.model = task?.model || CODEX_MODEL
+    this.model = sanitizeModel('codex', task?.model) ?? getDefaultModel('codex') ?? CODEX_MODEL
     this.effort = task?.effort || CODEX_EFFORT
     this.nextId = 1
     this.pending = new Map() // id -> { resolve, reject }
-    this.threadId = null
+    this.threadId = threadId
     this.activeTurnId = null
     this.initialized = false
     this.proc = null
@@ -158,6 +159,19 @@ export class CodexClient extends EventEmitter {
   }
 
   async startThread() {
+    if (this.threadId) {
+      const res = await this._request('thread/resume', {
+        threadId: this.threadId,
+        cwd: this.cwd,
+        model: this.model,
+        approvalPolicy: 'never',
+        sandbox: 'danger-full-access',
+        experimentalRawEvents: false,
+        persistExtendedHistory: false,
+      })
+      this.threadId = res?.thread?.id ?? this.threadId
+      return this.threadId
+    }
     const res = await this._request('thread/start', {
       model: this.model,
       cwd: this.cwd,

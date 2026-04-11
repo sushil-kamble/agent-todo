@@ -63,7 +63,13 @@ async function playStep(client, step) {
 
   switch (step.type) {
     case 'delay': {
-      await sleep(step.ms)
+      let remaining = Math.max(0, Number(step.ms) || 0)
+      while (remaining > 0) {
+        if (client.interruptRequested) return
+        const slice = Math.min(remaining, 25)
+        await sleep(slice)
+        remaining -= slice
+      }
       return
     }
 
@@ -187,7 +193,7 @@ async function playStep(client, step) {
 
 async function playTurn(client, steps) {
   for (const step of steps) {
-    if (client.stopped) return
+    if (client.stopped || client.interruptRequested) return
     await playStep(client, step)
   }
 }
@@ -237,6 +243,8 @@ export function createFakeRunScript(options = {}) {
     startThreadError: options.startThreadError,
     sendErrors: Array.isArray(options.sendErrors) ? [...options.sendErrors] : [],
     emitExitOnStop: options.emitExitOnStop === true,
+    emitTurnCompletedOnInterrupt: options.emitTurnCompletedOnInterrupt !== false,
+    emitExitOnInterrupt: options.emitExitOnInterrupt === true,
   }
 }
 
@@ -283,13 +291,15 @@ export function resetFakeAgentHarness() {
 }
 
 export class FakeAgentClient extends EventEmitter {
-  constructor({ cwd, task } = {}) {
+  constructor({ cwd, task, threadId } = {}) {
     super()
     this.cwd = cwd
     this.task = task ?? null
     this.stopped = false
+    this.interruptRequested = false
+    this.turnInFlight = false
     this.sendIndex = 0
-    this.threadId = createId('thread')
+    this.threadId = threadId || createId('thread')
     this.script = selectScript(task?.id)
   }
 
@@ -322,11 +332,26 @@ export class FakeAgentClient extends EventEmitter {
     if (sendError) throw new Error(sendError)
 
     const turnSteps = this.script.turns?.[currentIndex] ?? []
-    await playTurn(this, turnSteps)
+    this.turnInFlight = true
+    try {
+      await playTurn(this, turnSteps)
+    } finally {
+      this.turnInFlight = false
+      this.interruptRequested = false
+    }
   }
 
   async interrupt() {
-    // no-op for tests
+    if (this.stopped || !this.turnInFlight || this.interruptRequested) return
+    this.interruptRequested = true
+    if (this.script.emitTurnCompletedOnInterrupt !== false) {
+      this.emit('turnCompleted', {
+        turn: { status: 'interrupted' },
+      })
+    }
+    if (this.script.emitExitOnInterrupt) {
+      this.emit('exit', { code: 0, signal: null })
+    }
   }
 
   stop() {

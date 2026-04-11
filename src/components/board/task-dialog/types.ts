@@ -24,6 +24,7 @@ export type LiveMessage = {
 
 export type TurnGroup = {
   user: LiveMessage | null
+  interrupted: LiveMessage | null
   thinking: LiveMessage[]
   final: LiveMessage | null
   tail: LiveMessage[]

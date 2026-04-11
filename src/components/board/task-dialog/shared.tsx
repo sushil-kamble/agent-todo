@@ -3,8 +3,10 @@ import { type ComponentType, memo, useCallback, useEffect, useRef, useState } fr
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '#/components/ui/collapsible'
+import type { Agent, EffortLevel } from '../types'
 import { WORKING_VERBS } from './constants'
 import { MD_COMPONENTS } from './markdown'
+import { getEffortLabel, getModelLabel } from './model-config'
 import type { ChatMessage, LiveMessage, TurnGroup } from './types'
 import { formatWorkedFor } from './utils'
 
@@ -63,6 +65,24 @@ export function ProjectPathChip({ path }: { path: string }) {
   )
 }
 
+export function ModelConfigChip({
+  agent,
+  model,
+  effort,
+}: {
+  agent: Agent
+  model: string | null
+  effort: EffortLevel
+}) {
+  const label = `${getModelLabel(agent, model)} (${getEffortLabel(effort)})`
+
+  return (
+    <span className="inline-flex max-w-full items-center border border-border bg-background px-2 py-0.5 text-[0.7rem] font-medium tracking-[0.08em] text-foreground uppercase">
+      <span className="truncate">{label}</span>
+    </span>
+  )
+}
+
 function TurnBlockImpl({
   group,
   agentIcon: AgentIcon,
@@ -74,11 +94,14 @@ function TurnBlockImpl({
   showThinkingDots: boolean
   inFlight: boolean
 }) {
-  const hasThinking = group.thinking.length > 0 || showThinkingDots || inFlight
+  const hasThinking =
+    !group.interrupted && (group.thinking.length > 0 || showThinkingDots || inFlight)
 
   return (
     <div className="space-y-3">
       {group.user && <LiveChatBubbleMemo message={group.user} agentIcon={AgentIcon} />}
+
+      {group.interrupted && <InterruptedMarker />}
 
       {hasThinking && (
         <Collapsible defaultOpen={false}>
@@ -114,11 +137,25 @@ function TurnBlockImpl({
   )
 }
 
+function InterruptedMarker() {
+  return (
+    <div
+      className="flex items-center gap-3 py-1 text-[0.6rem] font-semibold tracking-[0.18em] text-red-600 uppercase"
+      role="status"
+    >
+      <span className="h-px flex-1 border-t border-dashed border-red-600/60" aria-hidden="true" />
+      <span className="whitespace-nowrap">User cancelled agent execution.</span>
+      <span className="h-px flex-1 border-t border-dashed border-red-600/60" aria-hidden="true" />
+    </div>
+  )
+}
+
 export const TurnBlock = memo(TurnBlockImpl, (prev, next) => {
   if (prev.agentIcon !== next.agentIcon) return false
   if (prev.showThinkingDots !== next.showThinkingDots) return false
   if (prev.inFlight !== next.inFlight) return false
   if (prev.group.user !== next.group.user) return false
+  if (prev.group.interrupted !== next.group.interrupted) return false
   if (prev.group.final !== next.group.final) return false
   if (prev.group.tail.length !== next.group.tail.length) return false
   if (prev.group.startedAt !== next.group.startedAt || prev.group.endedAt !== next.group.endedAt)

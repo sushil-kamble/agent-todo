@@ -1,0 +1,15 @@
+{
+  "defaultMode": "code",
+  "modes": [
+    {
+      "value": "code",
+      "label": "Code",
+      "description": "Edits files with full permissions"
+    },
+    {
+      "value": "ask",
+      "label": "Ask",
+      "description": "Read-only analysis, no file edits"
+    }
+  ]
+}

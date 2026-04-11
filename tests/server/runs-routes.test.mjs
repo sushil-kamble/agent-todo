@@ -259,7 +259,7 @@ describe('run routes integration', () => {
     configureFakeAgentHarness({
       defaultScript: createFakeRunScript({
         turns: [[{ type: 'thread' }, { type: 'delay', ms: 500 }, { type: 'turnCompleted' }]],
-        emitExitOnStop: true,
+        emitTurnCompletedOnInterrupt: true,
       }),
     })
 
@@ -271,7 +271,7 @@ describe('run routes integration', () => {
     })
 
     expect(result.status).toBe(200)
-    expect(result.body.run).toMatchObject({ id: run.id, status: 'interrupted' })
+    expect(result.body.run).toMatchObject({ id: run.id })
     expect(
       harness.messages
         .listMessages(run.id)
@@ -284,8 +284,56 @@ describe('run routes integration', () => {
         )
     ).toBe(true)
     await sleep(50)
+    expect(getLiveRun(run.id)).toBeTruthy()
+    expect(harness.runs.getRun(run.id)?.status).toBe('idle')
+  })
+
+  it('POST /api/runs/:id/messages resumes an idle run after a user stop closed the live client', async () => {
+    configureFakeAgentHarness({
+      scriptsByTaskId: {
+        't-stop-follow-up': [
+          createFakeRunScript({
+            turns: [[{ type: 'thread', threadId: 'thread-stop-follow-up' }, { type: 'delay', ms: 500 }]],
+            emitTurnCompletedOnInterrupt: true,
+            emitExitOnInterrupt: true,
+          }),
+          createFakeRunScript({
+            turns: [
+              [
+                { type: 'thread', threadId: 'thread-stop-follow-up' },
+                { type: 'turnStarted', turnId: 'turn-resumed' },
+                { type: 'turnCompleted', status: 'completed' },
+              ],
+            ],
+          }),
+        ],
+      },
+    })
+
+    const task = harness.tasks.createTask(taskFactory({ id: 't-stop-follow-up' }))
+    const run = startRun(task)
+
+    const stopResult = await server.json(`/api/runs/${run.id}/stop`, {
+      method: 'POST',
+    })
+
+    expect(stopResult.status).toBe(200)
+    await sleep(50)
     expect(getLiveRun(run.id)).toBeFalsy()
-    expect(harness.runs.getRun(run.id)?.status).toBe('interrupted')
+    expect(harness.runs.getRun(run.id)?.status).toBe('idle')
+
+    const followUpResult = await server.json(`/api/runs/${run.id}/messages`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'follow-up after stop' }),
+    })
+
+    expect(followUpResult.status).toBe(200)
+    expect(getFakeAgentSendLog().map(entry => entry.text)).toEqual([
+      expect.stringContaining(task.title),
+      'follow-up after stop',
+    ])
+    expect(getLiveRun(run.id)).toBeTruthy()
   })
 
   it('GET /api/runs/:id/events emits end immediately for non-live runs', async () => {

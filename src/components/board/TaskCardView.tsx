@@ -3,6 +3,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { DotsSixVerticalIcon, FolderIcon } from '@phosphor-icons/react'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
 import { useBoardDialogs } from '#/stores/board'
+import { getEffortLabel, getModelLabel } from './task-dialog/model-config'
 import type { ColumnId, TaskCard } from './types'
 
 type Props = {
@@ -40,6 +41,8 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
 
   const agent = agentMeta[task.agent]
   const AgentIcon = agent.Icon
+  const modelLabel = getModelLabel(task.agent, task.model)
+  const effortLabel = getEffortLabel(task.effort)
   const isDone = column === 'done'
   const isInProgress = column === 'in_progress'
   // Working: agent is actively processing a turn (show pulsing indicator).
@@ -82,10 +85,15 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
         </button>
 
         <span
-          className={`inline-flex items-center gap-1 border px-1.5 py-0.5 text-[0.58rem] font-medium tracking-[0.12em] uppercase ${agent.className}`}
+          className={`inline-flex max-w-[12rem] items-center gap-1.5 border px-1.5 py-0.75 text-[0.58rem] font-medium ${agent.className}`}
+          title={`${modelLabel} (${effortLabel})`}
         >
-          <AgentIcon size={10} />
-          {agent.label}
+          <span className="shrink-0">
+            <AgentIcon size={10} />
+          </span>
+          <span className="min-w-0 truncate leading-none tracking-[0.06em] uppercase">
+            {modelLabel} ({effortLabel})
+          </span>
         </span>
       </div>
 
@@ -108,7 +116,6 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
           </h3>
         </div>
 
-        {/* Footer: project + date */}
         <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-border px-3 py-2">
           <span className="flex items-center gap-1.5 text-[0.62rem] text-muted-foreground">
             <FolderIcon size={11} weight="duotone" />

@@ -8,7 +8,14 @@
  * GET    /api/tasks/:id/run  — get the active run for a task
  */
 import { randomUUID } from 'node:crypto'
-import { getDefaultEffort, getDefaultModel, sanitizeEffort } from '../agents/model-config.mjs'
+import {
+  DEFAULT_AGENT,
+  getDefaultEffort,
+  getDefaultModel,
+  isAgent,
+  sanitizeModel,
+  sanitizeEffort,
+} from '../agents/model-config.mjs'
 import { listMessages } from '../db/messages.mjs'
 import { createProject } from '../db/projects.mjs'
 import { getActiveRunForTask, getLatestRunForTask } from '../db/runs.mjs'
@@ -22,6 +29,7 @@ import {
 } from '../db/tasks.mjs'
 import { json, readBody } from '../lib/http.mjs'
 import { normalizeProjectPath } from '../lib/project-path.mjs'
+import { DEFAULT_TASK_MODE, isTaskMode } from '../lib/task-config.mjs'
 import { ensureRunForTask, stopRunForTask } from '../services/run-manager.mjs'
 
 export async function handleTaskRoutes(req, res, pathname) {
@@ -52,8 +60,8 @@ export async function handleTaskRoutes(req, res, pathname) {
   if (req.method === 'POST' && pathname === '/api/tasks') {
     const body = await readBody(req)
     const id = `t-${randomUUID().slice(0, 5)}`
-    const agent = body.agent === 'claude' ? 'claude' : 'codex'
-    const model = body.model ? String(body.model) : null
+    const agent = isAgent(body.agent) ? body.agent : DEFAULT_AGENT
+    const model = sanitizeModel(agent, body.model ? String(body.model) : null)
     const projectPath =
       (await normalizeProjectPath(String(body.project || '').trim())) || 'untitled'
     const t = createTask({
@@ -64,7 +72,7 @@ export async function handleTaskRoutes(req, res, pathname) {
       tag: body.tag ? String(body.tag) : null,
       column_id: ['todo', 'in_progress', 'done'].includes(body.column_id) ? body.column_id : 'todo',
       created_at: new Date().toISOString().slice(0, 10),
-      mode: ['code', 'ask'].includes(body.mode) ? body.mode : 'code',
+      mode: isTaskMode(body.mode) ? body.mode : DEFAULT_TASK_MODE,
       model,
       effort: sanitizeEffort(
         agent,
@@ -90,9 +98,11 @@ export async function handleTaskRoutes(req, res, pathname) {
         ? prev.project
         : (await normalizeProjectPath(String(body.project).trim())) || 'untitled'
     const nextAgent =
-      body.agent === undefined ? prev.agent : body.agent === 'claude' ? 'claude' : 'codex'
-    const nextModel =
+      body.agent === undefined ? prev.agent : isAgent(body.agent) ? body.agent : prev.agent
+    const nextModel = sanitizeModel(
+      nextAgent,
       body.model === undefined ? (prev.model ?? null) : body.model ? String(body.model) : null
+    )
     const t = updateTaskFields(id, {
       title: body.title ?? prev.title,
       project: normalizedProject,
@@ -100,7 +110,12 @@ export async function handleTaskRoutes(req, res, pathname) {
       tag: body.tag === undefined ? prev.tag : body.tag,
       column_id: body.column_id ?? prev.column_id,
       position: body.position ?? prev.position,
-      mode: body.mode ?? prev.mode ?? 'code',
+      mode:
+        body.mode === undefined
+          ? (prev.mode ?? DEFAULT_TASK_MODE)
+          : isTaskMode(body.mode)
+            ? body.mode
+            : (prev.mode ?? DEFAULT_TASK_MODE),
       model: nextModel,
       effort: sanitizeEffort(
         nextAgent,

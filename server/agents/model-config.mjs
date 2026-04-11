@@ -2,12 +2,25 @@ import sharedConfig from '../../shared/agent-model-config.json' with { type: 'js
 
 const config = sharedConfig
 
+export const DEFAULT_AGENT = config.defaultAgent
+export const AGENT_IDS = Object.keys(config.agents)
+
+export function isAgent(value) {
+  return typeof value === 'string' && AGENT_IDS.includes(value)
+}
+
 function getAgentConfig(agent) {
   return config.agents[agent]
 }
 
 export function getDefaultModel(agent) {
   return getAgentConfig(agent).defaultModel
+}
+
+export function sanitizeModel(agent, slug) {
+  if (typeof slug !== 'string' || !slug.trim()) return null
+  const models = getAgentConfig(agent).models
+  return models.some(candidate => candidate.slug === slug) ? slug : null
 }
 
 export function getModelConfig(agent, slug) {

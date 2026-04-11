@@ -1,5 +1,7 @@
 import { resolve } from 'node:path'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { DEFAULT_AGENT } from '../../server/agents/model-config.mjs'
+import { DEFAULT_TASK_MODE } from '../../server/lib/task-config.mjs'
 import {
   getLiveRun,
   resetRunManagerState,
@@ -75,14 +77,34 @@ describe('task routes integration', () => {
         project: '   server   ',
         agent: 'not-real',
         column_id: 'bad-column',
+        mode: 'not-a-real-mode',
       }),
     })
 
     expect(status).toBe(201)
     expect(body.task.title).toBe('New task title')
-    expect(body.task.agent).toBe('codex')
+    expect(body.task.agent).toBe(DEFAULT_AGENT)
     expect(body.task.column_id).toBe('todo')
+    expect(body.task.mode).toBe(DEFAULT_TASK_MODE)
     expect(body.task.project).toBe(resolve(process.cwd(), 'server'))
+  })
+
+  it('POST /api/tasks drops models that do not belong to the selected agent', async () => {
+    const { status, body } = await server.json('/api/tasks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Cross-agent model',
+        project: 'server',
+        agent: 'codex',
+        model: 'claude-haiku-4-5',
+      }),
+    })
+
+    expect(status).toBe(201)
+    expect(body.task.agent).toBe('codex')
+    expect(body.task.model).toBeNull()
+    expect(body.task.effort).toBe('medium')
   })
 
   it('PATCH /api/tasks/:id updates fields', async () => {
@@ -111,6 +133,44 @@ describe('task routes integration', () => {
       column_id: 'done',
       position: 2,
     })
+  })
+
+  it('PATCH ignores invalid mode values and keeps the current one', async () => {
+    const task = harness.tasks.createTask({
+      ...taskFactory({ id: 't-mode' }),
+      mode: 'ask',
+    })
+
+    const { status, body } = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'not-a-real-mode' }),
+    })
+
+    expect(status).toBe(200)
+    expect(body.task.mode).toBe('ask')
+  })
+
+  it('PATCH clears a stored model when switching to a different agent family', async () => {
+    const task = harness.tasks.createTask({
+      ...taskFactory({ id: 't-switch-agent' }),
+      agent: 'claude',
+      model: 'claude-haiku-4-5',
+      effort: 'medium',
+    })
+
+    const { status, body } = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        agent: 'codex',
+      }),
+    })
+
+    expect(status).toBe(200)
+    expect(body.task.agent).toBe('codex')
+    expect(body.task.model).toBeNull()
+    expect(body.task.effort).toBe('medium')
   })
 
   it('PATCH moving to in_progress starts a run and returns runId', async () => {
