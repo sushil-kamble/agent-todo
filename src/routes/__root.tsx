@@ -1,6 +1,7 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
 import { TaskDialog } from '../components/board/TaskDialog'
 import { Footer } from '../components/Footer'
+import { themeInitScript } from '../lib/theme'
 import { BoardProvider } from '../stores/board'
 import appCss from '../styles.css?url'
 
@@ -49,6 +50,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
+        {/* No-flash theme init — static trusted constant, runs before paint */}
+        <script>{themeInitScript}</script>
       </head>
       <body suppressHydrationWarning>
         {children}

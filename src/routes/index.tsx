@@ -1,8 +1,9 @@
-import { MagnifyingGlassIcon, PlusIcon, XIcon } from '@phosphor-icons/react'
+import { MagnifyingGlassIcon, MoonIcon, PlusIcon, SunIcon, XIcon } from '@phosphor-icons/react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import { Board } from '#/components/board/Board'
 import { Button } from '#/components/ui/button'
+import { useTheme } from '#/lib/theme'
 import { useBoardDialogs, useBoardSearch } from '#/stores/board'
 
 export const Route = createFileRoute('/')({ component: BoardPage })
@@ -37,6 +38,7 @@ function AgentMark({ className = '' }: { className?: string }) {
 function BoardPage() {
   const { openNewTask } = useBoardDialogs()
   const { searchQuery, setSearchQuery } = useBoardSearch()
+  const { theme, toggleTheme } = useTheme()
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -65,6 +67,19 @@ function BoardPage() {
           </Link>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-pressed={theme === 'dark'}
+              className="flex h-8 w-8 items-center justify-center border border-border bg-card text-muted-foreground hover:border-foreground/60 hover:bg-background hover:text-foreground"
+            >
+              {theme === 'dark' ? (
+                <SunIcon size={14} weight="regular" />
+              ) : (
+                <MoonIcon size={14} weight="regular" />
+              )}
+            </button>
             <div className="flex h-8 items-center gap-2 border border-border bg-card px-2.5 text-muted-foreground focus-within:border-foreground/60 focus-within:bg-background">
               <MagnifyingGlassIcon size={13} weight="regular" />
               <input
