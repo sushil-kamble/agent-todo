@@ -293,7 +293,12 @@ describe('run routes integration', () => {
       scriptsByTaskId: {
         't-stop-follow-up': [
           createFakeRunScript({
-            turns: [[{ type: 'thread', threadId: 'thread-stop-follow-up' }, { type: 'delay', ms: 500 }]],
+            turns: [
+              [
+                { type: 'thread', threadId: 'thread-stop-follow-up' },
+                { type: 'delay', ms: 500 },
+              ],
+            ],
             emitTurnCompletedOnInterrupt: true,
             emitExitOnInterrupt: true,
           }),

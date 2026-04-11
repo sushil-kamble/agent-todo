@@ -6,6 +6,7 @@ import * as api from '#/lib/api'
 import type { TaskCard } from '../types'
 import { ACTIVE_RUN_STATUSES } from './constants'
 import { ModelConfigChip, ProjectPathChip, TurnBlock } from './shared'
+import { getTaskModeBadgeClassName, getTaskModeLabel } from './task-config'
 import type { LiveMessage } from './types'
 import { formatTime, groupByTurn } from './utils'
 
@@ -58,17 +59,9 @@ function getHeaderRunState(status: string | null) {
 }
 
 function getModeBadge(mode: TaskCard['mode']) {
-  if (mode === 'ask') {
-    return {
-      label: 'Ask',
-      className:
-        'border-sky-700/30 bg-sky-100 text-sky-950 dark:border-sky-300/30 dark:bg-sky-400/15 dark:text-sky-100',
-    }
-  }
   return {
-    label: 'Code',
-    className:
-      'border-stone-700/20 bg-stone-100 text-stone-900 dark:border-stone-300/20 dark:bg-stone-400/10 dark:text-stone-100',
+    label: getTaskModeLabel(mode),
+    className: getTaskModeBadgeClassName(mode),
   }
 }
 

@@ -1,9 +1,15 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { DotsSixVerticalIcon, FolderIcon } from '@phosphor-icons/react'
+import {
+  CodeIcon,
+  DotsSixVerticalIcon,
+  FolderIcon,
+  MagnifyingGlassIcon,
+} from '@phosphor-icons/react'
 import { ClaudeIcon, OpenAIIcon } from '#/components/icons'
 import { useBoardDialogs } from '#/stores/board'
 import { getEffortLabel, getModelLabel } from './task-dialog/model-config'
+import { getTaskModeBadgeClassName, getTaskModeLabel } from './task-dialog/task-config'
 import type { ColumnId, TaskCard } from './types'
 
 type Props = {
@@ -43,6 +49,8 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
   const AgentIcon = agent.Icon
   const modelLabel = getModelLabel(task.agent, task.model)
   const effortLabel = getEffortLabel(task.effort)
+  const modeLabel = getTaskModeLabel(task.mode)
+  const ModeIcon = task.mode === 'code' ? CodeIcon : MagnifyingGlassIcon
   const isDone = column === 'done'
   const isInProgress = column === 'in_progress'
   // Working: agent is actively processing a turn (show pulsing indicator).
@@ -69,8 +77,8 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
           : '',
       ].join(' ')}
     >
-      {/* Top: drag handle + agent pill */}
-      <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+      {/* Top: drag handle + task configuration */}
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
         <button
           type="button"
           {...attributes}
@@ -84,17 +92,26 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
           </span>
         </button>
 
-        <span
-          className={`inline-flex max-w-[12rem] items-center gap-1.5 border px-1.5 py-0.75 text-[0.58rem] font-medium ${agent.className}`}
-          title={`${modelLabel} (${effortLabel})`}
-        >
-          <span className="shrink-0">
-            <AgentIcon size={10} />
+        <div className="flex max-w-[14rem] items-center justify-end gap-1.5">
+          <span
+            className={`inline-flex shrink-0 items-center gap-1 border px-1.5 py-0.75 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${getTaskModeBadgeClassName(task.mode)}`}
+            title={`${modeLabel} mode`}
+          >
+            <ModeIcon size={9} weight="bold" />
+            <span className="leading-none">{modeLabel}</span>
           </span>
-          <span className="min-w-0 truncate leading-none tracking-[0.06em] uppercase">
-            {modelLabel} ({effortLabel})
+          <span
+            className={`inline-flex min-w-0 max-w-[10.5rem] items-center gap-1.5 border px-1.5 py-0.75 text-[0.58rem] font-medium ${agent.className}`}
+            title={`${modelLabel} (${effortLabel})`}
+          >
+            <span className="shrink-0">
+              <AgentIcon size={10} />
+            </span>
+            <span className="min-w-0 truncate leading-none tracking-[0.06em] uppercase">
+              {modelLabel} ({effortLabel})
+            </span>
           </span>
-        </span>
+        </div>
       </div>
 
       {/* Body: clickable to edit */}

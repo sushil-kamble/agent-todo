@@ -13,8 +13,8 @@ import {
   getDefaultEffort,
   getDefaultModel,
   isAgent,
-  sanitizeModel,
   sanitizeEffort,
+  sanitizeModel,
 } from '../agents/model-config.mjs'
 import { listMessages } from '../db/messages.mjs'
 import { createProject } from '../db/projects.mjs'
