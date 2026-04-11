@@ -92,7 +92,7 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
           </span>
         </button>
 
-        <div className="flex max-w-[14rem] items-center justify-end gap-1.5">
+        <div className="flex max-w-56 items-center justify-end gap-1.5">
           <span
             className={`inline-flex shrink-0 items-center gap-1 border px-1.5 py-0.75 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${getTaskModeBadgeClassName(task.mode)}`}
             title={`${modeLabel} mode`}
@@ -101,7 +101,7 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
             <span className="leading-none">{modeLabel}</span>
           </span>
           <span
-            className={`inline-flex min-w-0 max-w-[10.5rem] items-center gap-1.5 border px-1.5 py-0.75 text-[0.58rem] font-medium ${agent.className}`}
+            className={`inline-flex min-w-0 max-w-42 items-center gap-1.5 border px-1.5 py-0.75 text-[0.58rem] font-medium ${agent.className}`}
             title={`${modelLabel} (${effortLabel})`}
           >
             <span className="shrink-0">
