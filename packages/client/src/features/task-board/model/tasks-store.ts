@@ -79,7 +79,6 @@ export function createBoardTasksStore() {
         title: input.title.trim(),
         project: input.project.trim() || 'untitled',
         agent: input.agent,
-        tag: input.tag?.trim() || undefined,
         column_id: input.column,
         mode: input.mode,
         model: input.model,
@@ -99,8 +98,8 @@ export function createBoardTasksStore() {
         title: updates.title.trim(),
         project: updates.project.trim() || 'untitled',
         agent: updates.agent,
-        tag: updates.tag?.trim() || null,
         column_id: toColumn,
+        position: fromColumn !== toColumn ? 0 : undefined,
         mode: updates.mode,
         model: updates.model,
         effort: updates.effort,
@@ -111,6 +110,15 @@ export function createBoardTasksStore() {
         const withoutOriginal = {
           ...state.tasks,
           [fromColumn]: state.tasks[fromColumn].filter(entry => entry.id !== taskId),
+        }
+
+        if (fromColumn === column) {
+          return {
+            tasks: {
+              ...state.tasks,
+              [column]: state.tasks[column].map(entry => (entry.id === taskId ? task : entry)),
+            },
+          }
         }
 
         return {

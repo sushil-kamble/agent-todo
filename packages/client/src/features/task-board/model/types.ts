@@ -7,7 +7,6 @@ export type CreateTaskInput = {
   title: string
   project: string
   agent: Agent
-  tag?: string
   column: ColumnId
   mode?: TaskMode
   model?: string | null
@@ -19,7 +18,6 @@ export type UpdateTaskInput = {
   title: string
   project: string
   agent: Agent
-  tag?: string
   mode?: TaskMode
   model?: string | null
   effort?: EffortLevel
@@ -29,7 +27,7 @@ export type UpdateTaskInput = {
 const TASK_QUERY_PARAM = 'task'
 
 export function createEmptyTasks(): TasksByColumn {
-  return { todo: [], in_progress: [], done: [] }
+  return { backlog: [], todo: [], in_progress: [], done: [] }
 }
 
 export function applyTasksUpdate(current: TasksByColumn, updater: TasksUpdater): TasksByColumn {

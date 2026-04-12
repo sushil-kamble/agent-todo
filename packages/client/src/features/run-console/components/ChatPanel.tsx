@@ -109,12 +109,12 @@ export function ChatPanel({
   const itemPhaseRef = useRef<Map<string, AgentPhase>>(new Map())
   const interruptPendingRef = useRef(false)
 
-  function resizeDraftInput() {
+  const resizeDraftInput = useCallback(() => {
     const el = draftInputRef.current
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 128)}px`
-  }
+  }, [])
 
   const syncScrollState = useCallback(() => {
     const el = scrollRef.current
@@ -408,7 +408,7 @@ export function ChatPanel({
 
   useLayoutEffect(() => {
     resizeDraftInput()
-  }, [draft])
+  }, [resizeDraftInput])
 
   function handleScroll() {
     syncScrollState()
@@ -498,7 +498,7 @@ export function ChatPanel({
   const headerMetaBadge = getHeaderMetaBadge(headerRunState, modeBadge)
 
   return (
-    <section className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:h-[calc(100vh-3rem)]">
+    <section className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-[56rem] flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:h-[calc(100vh-3rem)]">
       <div className="flex items-start justify-between gap-3 border-b border-border bg-card px-5 py-3">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center justify-between gap-3">

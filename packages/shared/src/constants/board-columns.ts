@@ -6,7 +6,19 @@ export type Column = {
   hint: string
 }
 
-export const BOARD_COLUMN_IDS: ColumnId[] = ['todo', 'in_progress', 'done']
+export const BOARD_COLUMN_IDS: ColumnId[] = ['backlog', 'todo', 'in_progress', 'done']
+
+export const BACKLOG_COLUMN: Column = {
+  id: 'backlog',
+  label: 'Backlog',
+  hint: 'On-top-of-head ideas to triage later',
+}
+
+export const MAIN_BOARD_COLUMN_IDS: Array<Exclude<ColumnId, 'backlog'>> = [
+  'todo',
+  'in_progress',
+  'done',
+]
 
 export const COLUMNS: Column[] = [
   { id: 'todo', label: 'Todo', hint: 'Queued for pickup' },

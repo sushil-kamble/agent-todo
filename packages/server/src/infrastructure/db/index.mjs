@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS tasks (
   title TEXT NOT NULL,
   project TEXT NOT NULL,
   agent TEXT NOT NULL,
-  tag TEXT,
   column_id TEXT NOT NULL,
   position INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
@@ -57,10 +56,15 @@ CREATE TABLE IF NOT EXISTS projects (
   name TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
-
-CREATE INDEX IF NOT EXISTS idx_messages_run ON messages(run_id, seq);
-CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id);
 `
+
+const DB_INDEXES = [
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_column_position ON tasks(column_id, position)`,
+  `CREATE INDEX IF NOT EXISTS idx_messages_run ON messages(run_id, seq)`,
+  `CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_runs_task_created_at ON runs(task_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(name)`,
+]
 
 function resolveDbPath(pathOverride) {
   const fromEnv = process.env.AGENT_TODO_DB_PATH?.trim()
@@ -68,40 +72,47 @@ function resolveDbPath(pathOverride) {
   return resolve(chosen)
 }
 
-const MIGRATIONS = [
-  // Add mode, model, effort columns to tasks (introduced after initial schema).
-  `ALTER TABLE tasks ADD COLUMN mode TEXT NOT NULL DEFAULT 'code'`,
-  `ALTER TABLE tasks ADD COLUMN model TEXT`,
-  `ALTER TABLE tasks ADD COLUMN effort TEXT NOT NULL DEFAULT 'medium'`,
-  `ALTER TABLE tasks ADD COLUMN fast_mode INTEGER NOT NULL DEFAULT 0`,
-]
+function normalizeTaskPositions(instance) {
+  const columns = instance
+    .prepare('SELECT DISTINCT column_id FROM tasks')
+    .all()
+    .map(row => row.column_id)
+  const updatePosition = instance.prepare('UPDATE tasks SET position = ? WHERE id = ?')
+
+  instance.exec('BEGIN')
+  try {
+    for (const columnId of columns) {
+      const taskIds = instance
+        .prepare(
+          `SELECT id
+           FROM tasks
+           WHERE column_id = ?
+           ORDER BY position ASC, created_at ASC, id ASC`
+        )
+        .all(columnId)
+        .map(row => row.id)
+
+      for (const [index, taskId] of taskIds.entries()) {
+        updatePosition.run(index, taskId)
+      }
+    }
+    instance.exec('COMMIT')
+  } catch (error) {
+    instance.exec('ROLLBACK')
+    throw error
+  }
+}
 
 function openDatabase(path) {
   mkdirSync(dirname(path), { recursive: true })
   const instance = new DatabaseSync(path)
 
-  // Migrate old projects table (had path/created_at/last_used_at, no id/name).
-  try {
-    const cols = instance
-      .prepare('PRAGMA table_info(projects)')
-      .all()
-      .map(c => c.name)
-    if (cols.length > 0 && !cols.includes('id')) {
-      instance.exec('DROP TABLE projects')
-    }
-  } catch {
-    // table doesn't exist yet — fine
-  }
-
   instance.exec(DB_SCHEMA)
-  // Run safe migrations — skip if column already exists.
-  for (const sql of MIGRATIONS) {
-    try {
-      instance.exec(sql)
-    } catch (e) {
-      if (!String(e?.message).includes('duplicate column')) throw e
-    }
+  normalizeTaskPositions(instance)
+  for (const sql of DB_INDEXES) {
+    instance.exec(sql)
   }
+  instance.exec('PRAGMA optimize')
   return instance
 }
 

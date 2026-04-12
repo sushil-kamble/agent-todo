@@ -1,4 +1,5 @@
 import { ACTIVE_RUN_STATUSES } from '@agent-todo/shared/constants/run-status'
+import { useRouter } from '@tanstack/react-router'
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef } from 'react'
 import { useStore } from 'zustand'
 import type { ColumnId, TaskCard } from '#/entities/task/types'
@@ -29,6 +30,7 @@ function findTaskSelection(tasks: TasksByColumn, taskId: string | null) {
 }
 
 function BoardStoreEffects() {
+  const router = useRouter()
   const { tasksStore, dialogStore } = useBoardStores()
   const refresh = useStore(tasksStore, state => state.refresh)
   const syncActiveTaskStatuses = useStore(tasksStore, state => state.syncActiveTaskStatuses)
@@ -102,20 +104,29 @@ function BoardStoreEffects() {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== 'n') return
       if (event.metaKey || event.ctrlKey || event.altKey) return
 
       const target = event.target as HTMLElement | null
       const tag = target?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
 
-      event.preventDefault()
-      openNewTask('todo')
+      const key = event.key.toLowerCase()
+
+      if (key === 'n') {
+        event.preventDefault()
+        openNewTask(window.location.pathname === '/backlogs' ? 'backlog' : 'todo')
+        return
+      }
+
+      if (key === 'v') {
+        event.preventDefault()
+        void router.navigate({ to: window.location.pathname === '/backlogs' ? '/' : '/backlogs' })
+      }
     }
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [openNewTask])
+  }, [openNewTask, router])
 
   return null
 }
@@ -185,9 +196,11 @@ export function useBoardDialogs() {
   const dialogColumn = useStore(dialogStore, state => state.dialogColumn)
   const selectedTaskId = useStore(dialogStore, state => state.selectedTaskId)
   const editingColumn = useStore(dialogStore, state => state.editingColumn)
+  const dialogView = useStore(dialogStore, state => state.dialogView)
   const openNewTask = useStore(dialogStore, state => state.openNewTask)
   const closeNewTask = useStore(dialogStore, state => state.closeNewTask)
   const openEditTask = useStore(dialogStore, state => state.openEditTask)
+  const openTaskThread = useStore(dialogStore, state => state.openTaskThread)
   const closeEditTask = useStore(dialogStore, state => state.closeEditTask)
   const tasks = useStore(tasksStore, state => state.tasks)
 
@@ -199,11 +212,13 @@ export function useBoardDialogs() {
   return {
     dialogOpen,
     dialogColumn,
+    dialogView,
     openNewTask,
     closeNewTask,
     editingTask,
     editingColumn,
     openEditTask,
+    openTaskThread,
     closeEditTask,
   }
 }

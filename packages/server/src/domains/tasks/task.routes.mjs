@@ -8,6 +8,7 @@
  * GET    /api/tasks/:id/run  — get the active run for a task
  */
 import { randomUUID } from 'node:crypto'
+import { BOARD_COLUMN_IDS } from '@agent-todo/shared/constants/board-columns'
 import {
   DEFAULT_AGENT,
   getDefaultEffort,
@@ -32,6 +33,10 @@ import {
   listTasks,
   updateTaskFields,
 } from './task.repository.mjs'
+
+function resolveColumnId(value, fallback = 'todo') {
+  return BOARD_COLUMN_IDS.includes(value) ? value : fallback
+}
 
 export async function handleTaskRoutes(req, res, pathname) {
   // GET /api/tasks
@@ -71,8 +76,7 @@ export async function handleTaskRoutes(req, res, pathname) {
       title: String(body.title || '').trim(),
       project: projectPath,
       agent,
-      tag: body.tag ? String(body.tag) : null,
-      column_id: ['todo', 'in_progress', 'done'].includes(body.column_id) ? body.column_id : 'todo',
+      column_id: resolveColumnId(body.column_id),
       created_at: new Date().toISOString().slice(0, 10),
       mode: isTaskMode(body.mode) ? body.mode : DEFAULT_TASK_MODE,
       model,
@@ -96,6 +100,13 @@ export async function handleTaskRoutes(req, res, pathname) {
     const body = await readBody(req)
     const prev = getTask(id)
     if (!prev) return json(res, 404, { error: 'not found' })
+    const nextColumnId = resolveColumnId(body.column_id, prev.column_id)
+    const nextPosition =
+      typeof body.position === 'number'
+        ? body.position
+        : body.column_id !== undefined && nextColumnId !== prev.column_id
+          ? 0
+          : undefined
     const normalizedProject =
       body.project === undefined
         ? prev.project
@@ -115,9 +126,8 @@ export async function handleTaskRoutes(req, res, pathname) {
       title: body.title ?? prev.title,
       project: normalizedProject,
       agent: nextAgent,
-      tag: body.tag === undefined ? prev.tag : body.tag,
-      column_id: body.column_id ?? prev.column_id,
-      position: body.position ?? prev.position,
+      column_id: nextColumnId,
+      position: nextPosition,
       mode:
         body.mode === undefined
           ? (prev.mode ?? DEFAULT_TASK_MODE)
@@ -162,8 +172,8 @@ export async function handleTaskRoutes(req, res, pathname) {
   if (req.method === 'DELETE' && taskMatch) {
     const task = getTask(taskMatch[1])
     if (!task) return json(res, 404, { error: 'not found' })
-    if (task.column_id !== 'todo') {
-      return json(res, 409, { error: 'only tasks in the todo column can be deleted' })
+    if (!['backlog', 'todo'].includes(task.column_id)) {
+      return json(res, 409, { error: 'only backlog and todo tasks can be deleted' })
     }
     await stopRunForTask(taskMatch[1])
     deleteTask(taskMatch[1])

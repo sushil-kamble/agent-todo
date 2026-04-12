@@ -78,7 +78,6 @@ export async function enableFakeE2EMode() {
     title: 'E2E Todo Task',
     project: workspaceServerPath,
     agent: 'codex',
-    tag: 'e2e',
     column_id: 'todo',
     created_at: today,
   })
@@ -88,7 +87,6 @@ export async function enableFakeE2EMode() {
     title: 'E2E In Progress Task',
     project: workspaceServerPath,
     agent: 'claude',
-    tag: 'stream',
     column_id: 'in_progress',
     created_at: today,
   })
@@ -98,7 +96,6 @@ export async function enableFakeE2EMode() {
     title: 'E2E Completed Task',
     project: workspaceServerPath,
     agent: 'codex',
-    tag: 'done',
     column_id: 'done',
     created_at: today,
   })

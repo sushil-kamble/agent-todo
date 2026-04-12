@@ -89,6 +89,21 @@ describe('task routes integration', () => {
     expect(body.task.project).toBe(resolve(process.cwd()))
   })
 
+  it('POST /api/tasks accepts backlog as a persisted task column', async () => {
+    const { status, body } = await server.json('/api/tasks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Backlog item',
+        project: 'server',
+        column_id: 'backlog',
+      }),
+    })
+
+    expect(status).toBe(201)
+    expect(body.task.column_id).toBe('backlog')
+  })
+
   it('POST /api/tasks drops models that do not belong to the selected agent', async () => {
     const { status, body } = await server.json('/api/tasks', {
       method: 'POST',
@@ -149,7 +164,6 @@ describe('task routes integration', () => {
         title: 'Updated',
         project: '/tmp/updated',
         agent: 'claude',
-        tag: 'edited',
         column_id: 'done',
         position: 2,
       }),
@@ -161,9 +175,8 @@ describe('task routes integration', () => {
       title: 'Updated',
       project: '/tmp/updated',
       agent: 'claude',
-      tag: 'edited',
       column_id: 'done',
-      position: 2,
+      position: 0,
     })
   })
 
@@ -269,6 +282,57 @@ describe('task routes integration', () => {
     expect(body.task.fast_mode).toBe(0)
   })
 
+  it('PATCH moves backlog items into todo without starting a run', async () => {
+    const task = harness.tasks.createTask(
+      taskFactory({ id: 't-backlog-move', column_id: 'backlog' })
+    )
+    harness.tasks.createTask(taskFactory({ id: 't-todo-a', column_id: 'todo' }))
+    harness.tasks.createTask(taskFactory({ id: 't-todo-b', column_id: 'todo' }))
+
+    const { status, body } = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ column_id: 'todo', position: 0 }),
+    })
+
+    expect(status).toBe(200)
+    expect(body.task.column_id).toBe('todo')
+    expect(body.task.position).toBe(0)
+    expect(body.runId).toBeNull()
+
+    const list = await server.json('/api/tasks')
+    const todoTasks = list.body.tasks.filter(entry => entry.column_id === 'todo')
+    expect(todoTasks.map(entry => [entry.id, entry.position])).toEqual([
+      ['t-backlog-move', 0],
+      ['t-todo-a', 1],
+      ['t-todo-b', 2],
+    ])
+  })
+
+  it('PATCH position reorders tasks within the same column', async () => {
+    harness.tasks.createTask(taskFactory({ id: 't-reorder-a', column_id: 'todo' }))
+    harness.tasks.createTask(taskFactory({ id: 't-reorder-b', column_id: 'todo' }))
+    harness.tasks.createTask(taskFactory({ id: 't-reorder-c', column_id: 'todo' }))
+
+    const { status, body } = await server.json('/api/tasks/t-reorder-c', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ position: 0 }),
+    })
+
+    expect(status).toBe(200)
+    expect(body.task.column_id).toBe('todo')
+    expect(body.task.position).toBe(0)
+
+    const list = await server.json('/api/tasks')
+    const todoTasks = list.body.tasks.filter(entry => entry.column_id === 'todo')
+    expect(todoTasks.map(entry => [entry.id, entry.position])).toEqual([
+      ['t-reorder-c', 0],
+      ['t-reorder-a', 1],
+      ['t-reorder-b', 2],
+    ])
+  })
+
   it('PATCH moving to in_progress starts a run and returns runId', async () => {
     const task = harness.tasks.createTask(taskFactory({ id: 't-run-start', column_id: 'todo' }))
 
@@ -343,6 +407,21 @@ describe('task routes integration', () => {
 
   it('DELETE /api/tasks/:id removes task', async () => {
     const task = harness.tasks.createTask(taskFactory({ id: 't-delete', column_id: 'todo' }))
+
+    const del = await server.json(`/api/tasks/${task.id}`, {
+      method: 'DELETE',
+    })
+
+    expect(del.status).toBe(200)
+
+    const list = await server.json('/api/tasks')
+    expect(list.body.tasks.some(entry => entry.id === task.id)).toBe(false)
+  })
+
+  it('DELETE /api/tasks/:id removes backlog items too', async () => {
+    const task = harness.tasks.createTask(
+      taskFactory({ id: 't-delete-backlog', column_id: 'backlog' })
+    )
 
     const del = await server.json(`/api/tasks/${task.id}`, {
       method: 'DELETE',

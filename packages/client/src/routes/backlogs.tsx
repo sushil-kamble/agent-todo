@@ -1,0 +1,246 @@
+import { ArrowRightIcon, FolderIcon, PencilSimpleIcon, TrashIcon } from '@phosphor-icons/react'
+import { createFileRoute } from '@tanstack/react-router'
+import { useMemo, useState } from 'react'
+import { AppTopBar } from '#/app/components/AppTopBar'
+import type { TaskCard } from '#/entities/task/types'
+import { getEffortLabel, getModelLabel } from '#/features/agent-config/model/model-config'
+import {
+  getTaskModeBadgeClassName,
+  getTaskModeLabel,
+} from '#/features/agent-config/model/task-config'
+import { useBoardDialogs, useBoardTasks } from '#/features/task-board/model'
+import { formatProjectPathLabel } from '#/shared/lib/utils'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '#/shared/ui/alert-dialog'
+import { Button } from '#/shared/ui/button'
+import { ClaudeIcon, OpenAIIcon } from '#/shared/ui/icons'
+
+export const Route = createFileRoute('/backlogs')({ component: BacklogsPage })
+
+const agentMeta = {
+  claude: {
+    Icon: ClaudeIcon,
+    className: 'text-primary-foreground bg-primary border-primary',
+  },
+  codex: {
+    Icon: OpenAIIcon,
+    className: 'text-foreground bg-background border-foreground',
+  },
+} as const
+
+function BacklogsPage() {
+  const { tasks, updateTask, removeTask } = useBoardTasks()
+  const { openEditTask, openNewTask } = useBoardDialogs()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [movingTaskId, setMovingTaskId] = useState<string | null>(null)
+
+  const filteredBacklog = useMemo(() => {
+    if (!searchQuery.trim()) return tasks.backlog
+    const query = searchQuery.toLowerCase()
+    return tasks.backlog.filter(
+      task =>
+        task.title.toLowerCase().includes(query) ||
+        task.id.toLowerCase().includes(query) ||
+        task.project.toLowerCase().includes(query)
+    )
+  }, [searchQuery, tasks.backlog])
+
+  async function moveToTodo(task: TaskCard) {
+    setMovingTaskId(task.id)
+    try {
+      await updateTask(
+        task.id,
+        {
+          title: task.title,
+          project: task.project,
+          agent: task.agent,
+          mode: task.mode,
+          model: task.model,
+          effort: task.effort,
+          fastMode: task.fastMode,
+        },
+        'backlog',
+        'todo'
+      )
+    } catch (error) {
+      console.error('[backlog] move to todo failed', error)
+    } finally {
+      setMovingTaskId(current => (current === task.id ? null : current))
+    }
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <AppTopBar
+        addLabel="New backlog"
+        backlogActive
+        backlogCount={tasks.backlog.length}
+        onAddTask={() => openNewTask('backlog')}
+        searchPlaceholder="Search backlog…"
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+      />
+
+      <div className="bg-paper min-h-0 flex-1 overflow-auto">
+        <div className="mx-auto flex w-full max-w-350 flex-col px-8 py-5">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
+            <div className="space-y-1">
+              <p className="text-[0.68rem] font-medium tracking-[0.16em] text-muted-foreground uppercase">
+                Backlog
+              </p>
+              <h1 className="font-heading text-3xl tracking-tight text-foreground">
+                Ideas not yet surfaced on the main board
+              </h1>
+              <p className="max-w-2xl text-sm text-muted-foreground">
+                Capture rough ideas here, revisit them later, and move the ones worth shipping into
+                Todo when they are ready for execution.
+              </p>
+            </div>
+
+            <Button size="sm" onClick={() => openNewTask('backlog')}>
+              Create backlog item
+            </Button>
+          </div>
+
+          {tasks.backlog.length === 0 ? (
+            <div className="mt-6 flex flex-col items-center justify-center border border-dashed border-border bg-card/50 px-6 py-16 text-center">
+              <p className="font-heading text-2xl tracking-tight text-foreground">
+                Nothing in backlog yet
+              </p>
+              <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                Use backlog for top-of-head ideas that should stay out of the main board until they
+                are ready to become actionable tasks.
+              </p>
+              <Button className="mt-5" onClick={() => openNewTask('backlog')}>
+                Create backlog item
+              </Button>
+            </div>
+          ) : filteredBacklog.length === 0 ? (
+            <div className="mt-6 flex items-center justify-center border border-dashed border-border bg-card/50 px-6 py-12 text-center">
+              <p className="text-sm text-muted-foreground">No backlog items match this search.</p>
+            </div>
+          ) : (
+            <div className="mt-6 grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+              {filteredBacklog.map(task => {
+                const agent = agentMeta[task.agent]
+                const AgentIcon = agent.Icon
+                const modelLabel = getModelLabel(task.agent, task.model)
+                const effortLabel = getEffortLabel(task.effort)
+                const modelSummary = `${modelLabel} (${effortLabel}${task.fastMode ? ', Fast' : ''})`
+                const projectLabel = formatProjectPathLabel(task.project)
+
+                return (
+                  <article
+                    key={task.id}
+                    className="self-start border border-border bg-card shadow-[4px_4px_0_0_oklch(0.18_0.012_80/0.06)]"
+                  >
+                    <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
+                      <p className="text-[0.62rem] tracking-[0.16em] text-muted-foreground uppercase">
+                        {task.id}
+                      </p>
+                      <div className="flex max-w-56 items-center justify-end gap-1.5">
+                        <span
+                          className={`inline-flex shrink-0 items-center border px-1.5 py-0.75 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${getTaskModeBadgeClassName(task.mode)}`}
+                        >
+                          {getTaskModeLabel(task.mode)}
+                        </span>
+                        <span
+                          className={`inline-flex min-w-0 max-w-42 items-center gap-1.5 border px-1.5 py-0.75 text-[0.58rem] font-medium ${agent.className}`}
+                          title={modelSummary}
+                        >
+                          <span className="shrink-0">
+                            <AgentIcon size={10} />
+                          </span>
+                          <span className="min-w-0 truncate leading-none tracking-[0.06em] uppercase">
+                            {modelSummary}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => openEditTask(task, 'backlog')}
+                      className="block w-full text-left"
+                    >
+                      <div className="px-5 py-5">
+                        <h2 className="font-heading text-xl leading-tight tracking-tight text-foreground">
+                          {task.title}
+                        </h2>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 border-t border-dashed border-border px-5 py-3 text-xs text-muted-foreground">
+                        <span className="flex min-w-0 items-center gap-1.5" title={task.project}>
+                          <FolderIcon size={12} />
+                          <span className="truncate">{projectLabel}</span>
+                        </span>
+                        <span>{task.createdAt}</span>
+                      </div>
+                    </button>
+
+                    <div className="mt-auto flex items-center justify-between gap-3 border-t border-border bg-background/60 px-5 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <AlertDialog>
+                          <AlertDialogTrigger
+                            render={<Button type="button" variant="destructive" size="sm" />}
+                          >
+                            <TrashIcon size={13} />
+                            Delete
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete the task and all its run history. This
+                                action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel size="sm">Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => removeTask(task.id, 'backlog')}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEditTask(task, 'backlog')}
+                        >
+                          <PencilSimpleIcon size={13} />
+                          Edit
+                        </Button>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => void moveToTodo(task)}
+                        disabled={movingTaskId === task.id}
+                      >
+                        <ArrowRightIcon size={13} />
+                        Move to Todo
+                      </Button>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

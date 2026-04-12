@@ -5,7 +5,15 @@ import { FormPanel } from './FormPanel'
 
 export function TaskDialog() {
   const { addTask, refresh, updateTask, removeTask } = useBoardTasks()
-  const { dialogOpen, closeNewTask, editingTask, editingColumn, closeEditTask } = useBoardDialogs()
+  const {
+    dialogOpen,
+    dialogColumn,
+    dialogView,
+    closeNewTask,
+    editingTask,
+    editingColumn,
+    closeEditTask,
+  } = useBoardDialogs()
 
   const isEdit = !!editingTask
   const isOpen = dialogOpen || isEdit
@@ -32,8 +40,10 @@ export function TaskDialog() {
   if (!isOpen) return null
 
   const mode: 'form' | 'chat' =
-    isEdit && (editingColumn === 'in_progress' || editingColumn === 'done') ? 'chat' : 'form'
-  const readOnly = editingColumn === 'done'
+    isEdit && (dialogView === 'chat' || editingColumn === 'in_progress' || editingColumn === 'done')
+      ? 'chat'
+      : 'form'
+  const readOnly = editingColumn === 'done' || editingColumn === 'backlog'
 
   return (
     <div
@@ -51,6 +61,7 @@ export function TaskDialog() {
       {mode === 'form' && (
         <FormPanel
           isEdit={isEdit}
+          createColumn={dialogColumn}
           editingTask={editingTask}
           editingColumn={editingColumn}
           close={close}
@@ -58,13 +69,17 @@ export function TaskDialog() {
             addTask(input)
             closeNewTask()
           }}
-          onUpdate={(id, updates, col) => {
-            updateTask(id, updates, col, col)
+          onUpdate={(id, updates, fromColumn, toColumn) => {
+            updateTask(id, updates, fromColumn, toColumn)
             close()
           }}
           onDelete={id => {
-            removeTask(id, 'todo')
+            removeTask(id, editingColumn ?? 'todo')
             closeEditTask()
+          }}
+          onMoveToBacklog={(id, updates) => {
+            updateTask(id, updates, 'todo', 'backlog')
+            close()
           }}
         />
       )}

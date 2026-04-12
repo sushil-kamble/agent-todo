@@ -5,8 +5,10 @@ import type {
   Subscriptions,
 } from '@agent-todo/shared/contracts/subscription'
 import {
+  ArchiveIcon,
   CaretDownIcon,
   CodeIcon,
+  FloppyDiskIcon,
   FolderOpenIcon,
   MagnifyingGlassIcon,
   TrashIcon,
@@ -178,14 +180,17 @@ export function resolveModelSelectionState({
 
 export function FormPanel({
   isEdit,
+  createColumn,
   editingTask,
   editingColumn,
   close,
   onCreate,
   onUpdate,
   onDelete,
+  onMoveToBacklog,
 }: {
   isEdit: boolean
+  createColumn: ColumnId
   editingTask: TaskCard | null
   editingColumn: ColumnId | null
   close: () => void
@@ -210,9 +215,22 @@ export function FormPanel({
       effort: EffortLevel
       fastMode: boolean
     },
-    column: ColumnId
+    fromColumn: ColumnId,
+    toColumn: ColumnId
   ) => void
   onDelete?: (id: string) => void
+  onMoveToBacklog?: (
+    id: string,
+    updates: {
+      title: string
+      project: string
+      agent: Agent
+      mode: TaskMode
+      model: string | null
+      effort: EffortLevel
+      fastMode: boolean
+    }
+  ) => void
 }) {
   const storedConfigRef = useRef(readStoredTaskConfig())
   const storedConfig = storedConfigRef.current
@@ -322,17 +340,27 @@ export function FormPanel({
       onUpdate(
         editingTask.id,
         { title, project: finalProject, agent, mode, model, effort, fastMode },
+        editingColumn,
         editingColumn
       )
       return
     }
-    onCreate({ title, project: finalProject, agent, column: 'todo', mode, model, effort, fastMode })
+    onCreate({
+      title,
+      project: finalProject,
+      agent,
+      column: createColumn,
+      mode,
+      model,
+      effort,
+      fastMode,
+    })
   }
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:max-h-[calc(100vh-3rem)]"
+      className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:max-h-[calc(100vh-3rem)]"
     >
       <PanelHeader label={title.trim() || (isEdit ? 'Edit task' : 'New task')} onClose={close} />
 
@@ -457,50 +485,63 @@ export function FormPanel({
       </div>
 
       <div className="flex items-center justify-between gap-3 border-t border-border bg-card px-5 py-3">
-        {isEdit && editingColumn === 'todo' && onDelete && editingTask ? (
-          <AlertDialog>
-            <AlertDialogTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                />
+        <div className="flex items-center gap-2">
+          {isEdit &&
+          ['backlog', 'todo'].includes(editingColumn ?? '') &&
+          onDelete &&
+          editingTask ? (
+            <AlertDialog>
+              <AlertDialogTrigger render={<Button type="button" variant="destructive" size="sm" />}>
+                <TrashIcon size={14} />
+                <span className="text-[0.68rem] tracking-[0.12em] uppercase">Delete</span>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete the task and all its run history. This action
+                    cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel size="sm">Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => onDelete(editingTask.id)}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : null}
+          {isEdit && editingColumn === 'todo' && onMoveToBacklog && editingTask ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                onMoveToBacklog(editingTask.id, {
+                  title,
+                  project: (projectInputRef.current?.value ?? project).trim(),
+                  agent,
+                  mode,
+                  model,
+                  effort,
+                  fastMode,
+                })
               }
             >
-              <TrashIcon size={14} />
-              <span className="text-[0.68rem] tracking-[0.12em] uppercase">Delete</span>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete this task?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete the task and all its run history. This action cannot
-                  be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel size="sm">Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => onDelete(editingTask.id)}
-                >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        ) : (
-          <div />
-        )}
+              <ArchiveIcon size={14} />
+              <span className="text-[0.68rem] tracking-[0.12em] uppercase">Move to backlog</span>
+            </Button>
+          ) : null}
+        </div>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={close}>
-            <span className="text-[0.68rem] tracking-[0.12em] uppercase">Cancel</span>
-          </Button>
           {isEdit || !createTaskTooltip ? (
             <Button type="submit" size="sm" disabled={isSubmitDisabled}>
+              {isEdit ? <FloppyDiskIcon size={14} /> : null}
               <span className="text-[0.68rem] tracking-[0.12em] uppercase">
                 {isEdit ? 'Save changes' : 'Create task'}
               </span>
@@ -654,11 +695,7 @@ function ModelEffortPicker({
                           <DropdownMenuRadioGroup
                             value={isActiveModel && fastMode ? 'on' : 'off'}
                             onValueChange={value =>
-                              selectModelAndConfig(
-                                m.slug,
-                                effort,
-                                value === 'on'
-                              )
+                              selectModelAndConfig(m.slug, effort, value === 'on')
                             }
                           >
                             <DropdownMenuRadioItem value="off">
@@ -822,7 +859,7 @@ export function getAgentTooltipCopy({
 
     return {
       title: resolvedPlan ? `${label} ${resolvedPlan}` : `${label} status`,
-      body: bodyParts.join('. ') + '.',
+      body: `${bodyParts.join('. ')}.`,
     }
   }
 

@@ -22,7 +22,6 @@ export function taskFactory(overrides = {}) {
     title: overrides.title || `Task ${n}`,
     project: overrides.project || `/tmp/project-${n}`,
     agent: overrides.agent || 'codex',
-    tag: overrides.tag ?? null,
     column_id: overrides.column_id || 'todo',
     created_at: overrides.created_at || isoDay(),
   }

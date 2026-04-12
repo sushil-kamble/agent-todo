@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest'
 import {
   getDefaultEffort,
   getDefaultModel,
@@ -9,6 +8,7 @@ import {
   sanitizeFastMode,
   sanitizeModel,
 } from '@agent-todo/shared/config/agents'
+import { describe, expect, it } from 'vitest'
 
 describe('shared agent model config', () => {
   it('accepts only registered runtime agents', () => {

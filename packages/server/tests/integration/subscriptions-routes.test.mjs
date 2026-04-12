@@ -230,7 +230,12 @@ describe('subscription detection', () => {
       readFileSync: missingFile,
       execFileSync(command, args) {
         expect(command).toBe('security')
-        expect(args).toEqual(['find-generic-password', '-s', 'Claude Code-custom-oauth-credentials', '-w'])
+        expect(args).toEqual([
+          'find-generic-password',
+          '-s',
+          'Claude Code-custom-oauth-credentials',
+          '-w',
+        ])
         return JSON.stringify({
           claudeAiOauth: {
             accessToken: 'custom-token',
@@ -412,7 +417,14 @@ describe('subscription detection', () => {
       fetchImpl: async (url, init) => {
         if (url === 'https://chatgpt.com/backend-api/wham/usage') {
           usageRequests += 1
-          if (usageRequests === 1) return { ok: false, status: 401, async json() { return {} } }
+          if (usageRequests === 1)
+            return {
+              ok: false,
+              status: 401,
+              async json() {
+                return {}
+              },
+            }
           expect(init.headers.Authorization).toBe('Bearer refreshed-token')
           return buildUsageResponse({
             plan_type: 'pro',
@@ -464,9 +476,21 @@ describe('subscription detection', () => {
       },
       fetchImpl: async url => {
         if (url === 'https://chatgpt.com/backend-api/wham/usage') {
-          return { ok: false, status: 401, async json() { return {} } }
+          return {
+            ok: false,
+            status: 401,
+            async json() {
+              return {}
+            },
+          }
         }
-        return { ok: false, status: 401, async json() { return {} } }
+        return {
+          ok: false,
+          status: 401,
+          async json() {
+            return {}
+          },
+        }
       },
     })
 

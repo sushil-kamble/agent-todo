@@ -1,5 +1,5 @@
 export type Agent = 'claude' | 'codex'
-export type ColumnId = 'todo' | 'in_progress' | 'done'
+export type ColumnId = 'backlog' | 'todo' | 'in_progress' | 'done'
 export type TaskMode = 'code' | 'ask'
 export type EffortLevel = 'low' | 'medium' | 'high' | 'max' | 'xhigh'
 
@@ -9,7 +9,6 @@ export type TaskCard = {
   project: string
   agent: Agent
   createdAt: string
-  tag?: string
   runStatus?: string
   mode: TaskMode
   model: string | null
@@ -22,7 +21,6 @@ export type ServerTask = {
   title: string
   project: string
   agent: Agent
-  tag: string | null
   column_id: ColumnId
   position: number
   created_at: string
@@ -37,7 +35,6 @@ export type CreateTaskRequest = {
   title: string
   project: string
   agent: Agent
-  tag?: string
   column_id: ColumnId
   mode?: TaskMode
   model?: string | null
@@ -49,7 +46,6 @@ export type PatchTaskRequest = Partial<{
   title: string
   project: string
   agent: Agent
-  tag: string | null
   column_id: ColumnId
   position: number
   mode: TaskMode

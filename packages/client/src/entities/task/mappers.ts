@@ -7,7 +7,6 @@ export function toTaskCard(task: ServerTask): TaskCard {
     title: task.title,
     project: task.project,
     agent: task.agent,
-    tag: task.tag ?? undefined,
     createdAt: task.created_at,
     runStatus: task.run_status ?? undefined,
     mode: task.mode ?? 'code',
@@ -19,6 +18,7 @@ export function toTaskCard(task: ServerTask): TaskCard {
 
 export function toTasksByColumn(tasks: ServerTask[]): TasksByColumn {
   const columns: TasksByColumn = {
+    backlog: [],
     todo: [],
     in_progress: [],
     done: [],

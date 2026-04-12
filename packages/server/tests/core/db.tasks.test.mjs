@@ -1,4 +1,9 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { closeDatabase, configureDatabase, db } from '#infra/db/index.mjs'
 import { resetFactoryCounters, runFactory, taskFactory } from '../helpers/factories.mjs'
 import { bootstrapTestDatabase } from '../helpers/test-db.mjs'
 
@@ -28,14 +33,13 @@ describe('tasks db', () => {
     expect(done.position).toBe(0)
   })
 
-  it('updates title/project/agent/tag/column/position correctly', () => {
+  it('updates title/project/agent/column/position correctly', () => {
     harness.tasks.createTask(taskFactory({ id: 't-a', column_id: 'todo' }))
 
     const updated = harness.tasks.updateTaskFields('t-a', {
       title: 'Updated title',
       project: '/tmp/updated',
       agent: 'claude',
-      tag: 'updated-tag',
       column_id: 'in_progress',
       position: 4,
     })
@@ -45,9 +49,8 @@ describe('tasks db', () => {
       title: 'Updated title',
       project: '/tmp/updated',
       agent: 'claude',
-      tag: 'updated-tag',
       column_id: 'in_progress',
-      position: 4,
+      position: 0,
     })
   })
 
@@ -96,5 +99,61 @@ describe('tasks db', () => {
     expect(byId[a.id]).toBe('active')
     expect(byId[b.id]).toBeNull()
     expect(byId[c.id]).toBeNull()
+  })
+
+  it('normalizes task positions and creates the current task ordering index', () => {
+    const root = mkdtempSync(join(tmpdir(), 'agent-todo-db-normalize-'))
+    const dbPath = join(root, 'normalize.db')
+    const tempDb = new DatabaseSync(dbPath)
+
+    tempDb.exec(`
+      CREATE TABLE tasks (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        project TEXT NOT NULL,
+        agent TEXT NOT NULL,
+        column_id TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        mode TEXT NOT NULL DEFAULT 'code',
+        model TEXT,
+        effort TEXT NOT NULL DEFAULT 'medium',
+        fast_mode INTEGER NOT NULL DEFAULT 0
+      );
+
+      INSERT INTO tasks (id, title, project, agent, column_id, position, created_at, mode, model, effort, fast_mode)
+      VALUES
+        ('t-done-a', 'Done A', '/tmp/a', 'codex', 'done', 1, '2026-04-12', 'code', NULL, 'medium', 0),
+        ('t-done-b', 'Done B', '/tmp/b', 'codex', 'done', 1, '2026-04-13', 'code', NULL, 'medium', 0),
+        ('t-done-c', 'Done C', '/tmp/c', 'codex', 'done', 4, '2026-04-14', 'code', NULL, 'medium', 0);
+    `)
+    tempDb.close()
+
+    try {
+      configureDatabase({ path: dbPath })
+
+      const rows = db
+        .prepare(
+          `SELECT id, position
+           FROM tasks
+           WHERE column_id = 'done'
+           ORDER BY position ASC, created_at ASC, id ASC`
+        )
+        .all()
+      const indexes = db.prepare('PRAGMA index_list(tasks)').all()
+
+      expect(rows).toEqual([
+        { id: 't-done-a', position: 0 },
+        { id: 't-done-b', position: 1 },
+        { id: 't-done-c', position: 2 },
+      ])
+      expect(
+        indexes.some(index => index.name === 'idx_tasks_column_position' && index.unique === 1)
+      ).toBe(true)
+    } finally {
+      closeDatabase()
+      rmSync(root, { recursive: true, force: true })
+      configureDatabase({ path: harness.dbPath })
+    }
   })
 })

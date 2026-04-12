@@ -51,6 +51,12 @@ export function Footer() {
             </kbd>
             search
           </span>
+          <span className="flex items-center gap-1.5">
+            <kbd className="border border-border bg-card px-1.5 py-0.5 text-[0.6rem] font-medium text-foreground normal-case">
+              V
+            </kbd>
+            cycle view
+          </span>
         </div>
       </div>
     </footer>

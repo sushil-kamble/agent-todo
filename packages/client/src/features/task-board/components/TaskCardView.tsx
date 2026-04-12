@@ -1,18 +1,21 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
+  ArchiveIcon,
   CodeIcon,
   DotsSixVerticalIcon,
   FolderIcon,
   MagnifyingGlassIcon,
 } from '@phosphor-icons/react'
+import { useState } from 'react'
 import type { ColumnId, TaskCard } from '#/entities/task/types'
 import { getEffortLabel, getModelLabel } from '#/features/agent-config/model/model-config'
 import {
   getTaskModeBadgeClassName,
   getTaskModeLabel,
 } from '#/features/agent-config/model/task-config'
-import { useBoardDialogs } from '#/features/task-board/model'
+import { useBoardDialogs, useBoardTasks } from '#/features/task-board/model'
+import { formatProjectPathLabel } from '#/shared/lib/utils'
 import { ClaudeIcon, OpenAIIcon } from '#/shared/ui/icons'
 
 type Props = {
@@ -36,6 +39,8 @@ const agentMeta = {
 
 export function TaskCardView({ task, column, isOverlay = false }: Props) {
   const { openEditTask } = useBoardDialogs()
+  const { updateTask } = useBoardTasks()
+  const [movingToBacklog, setMovingToBacklog] = useState(false)
   const sortable = useSortable({
     id: task.id,
     data: { column, task },
@@ -53,6 +58,7 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
   const modelLabel = getModelLabel(task.agent, task.model)
   const effortLabel = getEffortLabel(task.effort)
   const modelSummary = `${modelLabel} (${effortLabel}${task.fastMode ? ', Fast' : ''})`
+  const projectLabel = formatProjectPathLabel(task.project)
   const modeLabel = getTaskModeLabel(task.mode)
   const ModeIcon = task.mode === 'code' ? CodeIcon : MagnifyingGlassIcon
   const isDone = column === 'done'
@@ -63,6 +69,31 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
   const isAgentWorking =
     isInProgress && !!task.runStatus && ['starting', 'running', 'active'].includes(task.runStatus)
   const isAwaitingFollowUp = isInProgress && task.runStatus === 'idle'
+
+  async function moveToBacklog() {
+    if (column !== 'todo' || isOverlay || movingToBacklog) return
+    setMovingToBacklog(true)
+    try {
+      await updateTask(
+        task.id,
+        {
+          title: task.title,
+          project: task.project,
+          agent: task.agent,
+          mode: task.mode,
+          model: task.model,
+          effort: task.effort,
+          fastMode: task.fastMode,
+        },
+        'todo',
+        'backlog'
+      )
+    } catch (error) {
+      console.error('[board] moveToBacklog failed', error)
+    } finally {
+      setMovingToBacklog(false)
+    }
+  }
 
   return (
     <article
@@ -136,17 +167,33 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
             {task.title}
           </h3>
         </div>
+      </button>
 
-        <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-border px-3 py-2">
-          <span className="flex items-center gap-1.5 text-[0.62rem] text-muted-foreground">
-            <FolderIcon size={11} weight="duotone" />
-            <span className="truncate">{task.project}</span>
-          </span>
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-border px-3 py-2">
+        <span
+          className="flex min-w-0 items-center gap-1.5 text-[0.62rem] text-muted-foreground"
+          title={task.project}
+        >
+          <FolderIcon size={11} weight="duotone" />
+          <span className="truncate">{projectLabel}</span>
+        </span>
+        <div className="flex items-center gap-2">
+          {column === 'todo' && !isOverlay ? (
+            <button
+              type="button"
+              onClick={() => void moveToBacklog()}
+              disabled={movingToBacklog}
+              className="inline-flex items-center gap-1 border border-border bg-background px-1.5 py-1 text-[0.58rem] tracking-[0.1em] text-muted-foreground uppercase transition-colors hover:border-foreground hover:text-foreground disabled:opacity-50"
+            >
+              <ArchiveIcon size={10} weight="bold" />
+              <span>Backlog</span>
+            </button>
+          ) : null}
           <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
             {task.createdAt.slice(5)}
           </span>
         </div>
-      </button>
+      </div>
 
       {/* Agent status — left-edge indicator (sits inside the 1px border). */}
       {isAgentWorking && (

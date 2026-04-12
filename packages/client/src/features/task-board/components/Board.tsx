@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useMemo, useState } from 'react'
-import { COLUMNS, type ColumnId, type TaskCard } from '#/entities/task/types'
+import { COLUMNS, type ColumnId, MAIN_BOARD_COLUMN_IDS, type TaskCard } from '#/entities/task/types'
 import { useBoardSearch, useBoardTasks } from '#/features/task-board/model'
 import { BoardColumn } from './Column'
 import { TaskCardView } from './TaskCardView'
@@ -27,18 +27,20 @@ export function Board() {
     if (!searchQuery.trim()) return tasks
     const query = searchQuery.toLowerCase()
 
-    return Object.fromEntries(
-      COLUMNS.map(col => [
-        col.id,
-        tasks[col.id].filter(
-          t =>
-            t.title?.toLowerCase().includes(query) ||
-            t.id?.toLowerCase().includes(query) ||
-            t.project?.toLowerCase().includes(query) ||
-            t.tag?.toLowerCase().includes(query)
-        ),
-      ])
-    ) as Record<ColumnId, TaskCard[]>
+    return {
+      ...tasks,
+      ...Object.fromEntries(
+        COLUMNS.map(col => [
+          col.id,
+          tasks[col.id].filter(
+            t =>
+              t.title?.toLowerCase().includes(query) ||
+              t.id?.toLowerCase().includes(query) ||
+              t.project?.toLowerCase().includes(query)
+          ),
+        ])
+      ),
+    } as Record<ColumnId, TaskCard[]>
   }, [tasks, searchQuery])
 
   const sensors = useSensors(
@@ -47,7 +49,7 @@ export function Board() {
   )
 
   const findColumn = (id: string): ColumnId | null => {
-    if ((['todo', 'in_progress', 'done'] as ColumnId[]).includes(id as ColumnId)) {
+    if (MAIN_BOARD_COLUMN_IDS.includes(id as (typeof MAIN_BOARD_COLUMN_IDS)[number])) {
       return id as ColumnId
     }
     for (const col of COLUMNS) {
