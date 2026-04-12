@@ -24,6 +24,7 @@ export function taskFactory(overrides = {}) {
     agent: overrides.agent || 'codex',
     column_id: overrides.column_id || 'todo',
     created_at: overrides.created_at || isoDay(),
+    task_type: overrides.task_type ?? null,
   }
 }
 

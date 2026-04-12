@@ -1,0 +1,95 @@
+{
+  "emptySelectionHint": "If you're not sure what you have to do, just keep it blank.",
+  "types": [
+    {
+      "value": "feature_dev",
+      "label": "Feature Dev",
+      "description": "Implement or modify product behavior in the codebase",
+      "requiresProject": true,
+      "allowedModes": ["ask", "code"],
+      "promptKey": "feature_dev",
+      "recommendations": {
+        "claude": {
+          "model": "claude-opus-4-6",
+          "effort": "medium"
+        },
+        "codex": {
+          "model": "gpt-5.4",
+          "effort": "high"
+        }
+      }
+    },
+    {
+      "value": "feature_plan",
+      "label": "Feature Plan",
+      "description": "Clarify the approach, tradeoffs, and implementation plan before coding",
+      "requiresProject": true,
+      "allowedModes": ["ask"],
+      "promptKey": "feature_plan",
+      "recommendations": {
+        "claude": {
+          "model": "claude-opus-4-6",
+          "effort": "high"
+        },
+        "codex": {
+          "model": "gpt-5.4",
+          "effort": "xhigh"
+        }
+      }
+    },
+    {
+      "value": "code_review",
+      "label": "Code Review",
+      "description": "Inspect existing code or changes for bugs, risks, and regressions",
+      "requiresProject": true,
+      "allowedModes": ["ask"],
+      "promptKey": "code_review",
+      "recommendations": {
+        "claude": {
+          "model": "claude-opus-4-6",
+          "effort": "high"
+        },
+        "codex": {
+          "model": "gpt-5.4",
+          "effort": "xhigh"
+        }
+      }
+    },
+    {
+      "value": "write_tests",
+      "label": "Write Tests",
+      "description": "Add or improve automated tests to cover behavior and regressions",
+      "requiresProject": true,
+      "allowedModes": ["ask", "code"],
+      "promptKey": "write_tests",
+      "recommendations": {
+        "claude": {
+          "model": "claude-sonnet-4-6",
+          "effort": "high"
+        },
+        "codex": {
+          "model": "gpt-5.4",
+          "effort": "high"
+        }
+      }
+    },
+    {
+      "value": "brainstorming",
+      "label": "Brainstorming",
+      "description": "Generate options, tradeoffs, and ideas before narrowing down",
+      "requiresProject": false,
+      "allowedModes": ["ask"],
+      "promptKey": "brainstorming",
+      "recommendations": {
+        "claude": {
+          "model": "claude-sonnet-4-6",
+          "effort": "high"
+        },
+        "codex": {
+          "model": "gpt-5.4",
+          "effort": "high"
+        }
+      }
+    }
+  ]
+}

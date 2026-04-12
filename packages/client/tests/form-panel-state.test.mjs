@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   getAgentTooltipCopy,
+  resolveAvailableTaskTypes,
+  resolveAvailableTaskModes,
+  resolveConstrainedTaskMode,
   resolveAgentSelectionAfterSubscriptions,
   resolveInitialFormState,
   resolveModelSelectionState,
@@ -36,6 +39,7 @@ describe('form panel initial state', () => {
       model: null,
       effort: 'medium',
       fastMode: false,
+      taskType: null,
     })
   })
 
@@ -53,7 +57,100 @@ describe('form panel initial state', () => {
       model: 'gpt-5.3-codex',
       effort: 'medium',
       fastMode: false,
+      taskType: null,
     })
+  })
+
+  it('preserves the stored task type when editing an existing task', () => {
+    const state = resolveInitialFormState(
+      {
+        id: 't-2',
+        title: 'Plan the feature',
+        project: '/tmp/project',
+        agent: 'claude',
+        createdAt: '2026-04-11',
+        mode: 'ask',
+        model: null,
+        effort: 'high',
+        fastMode: false,
+        taskType: 'feature_plan',
+      },
+      {
+        agent: 'codex',
+        mode: 'code',
+        model: null,
+        effort: 'medium',
+        fastMode: false,
+      }
+    )
+
+    expect(state.taskType).toBe('feature_plan')
+  })
+})
+
+describe('task type mode constraints', () => {
+  it('shows only projectless-compatible task types when no project is selected', () => {
+    expect(resolveAvailableTaskTypes({ hasProject: false }).map(option => option.value)).toEqual([
+      'brainstorming',
+    ])
+  })
+
+  it('shows all task types when a project is selected', () => {
+    expect(resolveAvailableTaskTypes({ hasProject: true }).map(option => option.value)).toEqual([
+      'feature_dev',
+      'feature_plan',
+      'code_review',
+      'write_tests',
+      'brainstorming',
+    ])
+  })
+
+  it('filters mode options to the task type when one is selected', () => {
+    expect(
+      resolveAvailableTaskModes({
+        taskType: 'feature_plan',
+        hasProject: true,
+      }).map(option => option.value)
+    ).toEqual(['ask'])
+  })
+
+  it('keeps both feature development modes when a project is selected', () => {
+    expect(
+      resolveAvailableTaskModes({
+        taskType: 'feature_dev',
+        hasProject: true,
+      }).map(option => option.value)
+    ).toEqual(['code', 'ask'])
+  })
+
+  it('falls back to ask when the task type is ask-only', () => {
+    expect(
+      resolveConstrainedTaskMode({
+        currentMode: 'code',
+        taskType: 'code_review',
+        hasProject: true,
+      })
+    ).toBe('ask')
+  })
+
+  it('falls back to ask when no project is selected', () => {
+    expect(
+      resolveConstrainedTaskMode({
+        currentMode: 'code',
+        taskType: null,
+        hasProject: false,
+      })
+    ).toBe('ask')
+  })
+
+  it('keeps the selected mode when the task type itself requires a project', () => {
+    expect(
+      resolveConstrainedTaskMode({
+        currentMode: 'code',
+        taskType: 'feature_dev',
+        hasProject: false,
+      })
+    ).toBe('code')
   })
 })
 
@@ -65,6 +162,7 @@ describe('task creation validation', () => {
       projectOptions: ['/tmp/existing-project'],
       agent: 'codex',
       mode: 'code',
+      taskType: null,
       model: null,
       effort: 'medium',
       subs: null,
@@ -83,6 +181,7 @@ describe('task creation validation', () => {
       projectOptions: ['/tmp/existing-project'],
       agent: 'claude',
       mode: 'code',
+      taskType: null,
       model: null,
       effort: 'medium',
       subs: {
@@ -116,6 +215,7 @@ describe('task creation validation', () => {
       projectOptions: ['/tmp/existing-project'],
       agent: 'codex',
       mode: 'code',
+      taskType: null,
       model: null,
       effort: 'not-real',
       subs: null,
@@ -134,6 +234,7 @@ describe('task creation validation', () => {
       projectOptions: ['/tmp/existing-project'],
       agent: 'codex',
       mode: 'code',
+      taskType: null,
       model: null,
       effort: 'medium',
       subs: {
@@ -152,6 +253,44 @@ describe('task creation validation', () => {
           usage: null,
         },
       },
+    })
+
+    expect(result).toEqual({
+      missing: [],
+      disabled: false,
+    })
+  })
+
+  it('requires a project for feature planning even though its mode is ask', () => {
+    const result = resolveTaskCreationValidation({
+      title: 'Plan the feature',
+      project: '',
+      projectOptions: ['/tmp/existing-project'],
+      agent: 'claude',
+      mode: 'ask',
+      taskType: 'feature_plan',
+      model: null,
+      effort: 'high',
+      subs: null,
+    })
+
+    expect(result).toEqual({
+      missing: ['Project selection'],
+      disabled: true,
+    })
+  })
+
+  it('does not require a project for brainstorming', () => {
+    const result = resolveTaskCreationValidation({
+      title: 'Explore options',
+      project: '',
+      projectOptions: ['/tmp/existing-project'],
+      agent: 'codex',
+      mode: 'ask',
+      taskType: 'brainstorming',
+      model: null,
+      effort: 'high',
+      subs: null,
     })
 
     expect(result).toEqual({

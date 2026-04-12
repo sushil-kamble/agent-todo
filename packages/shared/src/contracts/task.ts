@@ -2,6 +2,12 @@ export type Agent = 'claude' | 'codex'
 export type ColumnId = 'backlog' | 'todo' | 'in_progress' | 'done'
 export type TaskMode = 'code' | 'ask'
 export type EffortLevel = 'low' | 'medium' | 'high' | 'max' | 'xhigh'
+export type TaskType =
+  | 'feature_dev'
+  | 'feature_plan'
+  | 'code_review'
+  | 'write_tests'
+  | 'brainstorming'
 
 export type TaskCard = {
   id: string
@@ -14,6 +20,7 @@ export type TaskCard = {
   model: string | null
   effort: EffortLevel
   fastMode: boolean
+  taskType: TaskType | null
 }
 
 export type ServerTask = {
@@ -29,6 +36,7 @@ export type ServerTask = {
   model: string | null
   effort: EffortLevel
   fast_mode: boolean | number
+  task_type: TaskType | null
 }
 
 export type CreateTaskRequest = {
@@ -40,6 +48,7 @@ export type CreateTaskRequest = {
   model?: string | null
   effort?: EffortLevel
   fastMode?: boolean
+  taskType?: TaskType | null
 }
 
 export type PatchTaskRequest = Partial<{
@@ -52,6 +61,7 @@ export type PatchTaskRequest = Partial<{
   model: string | null
   effort: EffortLevel
   fastMode: boolean
+  taskType: TaskType | null
 }>
 
 export type TaskListResponse = {

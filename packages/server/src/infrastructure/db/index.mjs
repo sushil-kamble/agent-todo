@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   mode TEXT NOT NULL DEFAULT 'code',
   model TEXT,
   effort TEXT NOT NULL DEFAULT 'medium',
-  fast_mode INTEGER NOT NULL DEFAULT 0
+  fast_mode INTEGER NOT NULL DEFAULT 0,
+  task_type TEXT
 );
 
 CREATE TABLE IF NOT EXISTS runs (
@@ -103,11 +104,24 @@ function normalizeTaskPositions(instance) {
   }
 }
 
+function hasColumn(instance, tableName, columnName) {
+  return instance
+    .prepare(`PRAGMA table_info(${tableName})`)
+    .all()
+    .some(column => column.name === columnName)
+}
+
+function ensureColumn(instance, tableName, columnName, definition) {
+  if (hasColumn(instance, tableName, columnName)) return
+  instance.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`)
+}
+
 function openDatabase(path) {
   mkdirSync(dirname(path), { recursive: true })
   const instance = new DatabaseSync(path)
 
   instance.exec(DB_SCHEMA)
+  ensureColumn(instance, 'tasks', 'task_type', 'TEXT')
   normalizeTaskPositions(instance)
   for (const sql of DB_INDEXES) {
     instance.exec(sql)

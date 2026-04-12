@@ -6,6 +6,7 @@ import {
   DotsSixVerticalIcon,
   FolderIcon,
   MagnifyingGlassIcon,
+  ProhibitIcon,
 } from '@phosphor-icons/react'
 import { useState } from 'react'
 import type { ColumnId, TaskCard } from '#/entities/task/types'
@@ -14,6 +15,10 @@ import {
   getTaskModeBadgeClassName,
   getTaskModeLabel,
 } from '#/features/agent-config/model/task-config'
+import {
+  getTaskTypeBadgeClassName,
+  getTaskTypeLabel,
+} from '#/features/agent-config/model/task-type-config'
 import { useBoardDialogs, useBoardTasks } from '#/features/task-board/model'
 import { formatProjectPathLabel } from '#/shared/lib/utils'
 import { ClaudeIcon, OpenAIIcon } from '#/shared/ui/icons'
@@ -58,8 +63,11 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
   const modelLabel = getModelLabel(task.agent, task.model)
   const effortLabel = getEffortLabel(task.effort)
   const modelSummary = `${modelLabel} (${effortLabel}${task.fastMode ? ', Fast' : ''})`
-  const projectLabel = formatProjectPathLabel(task.project)
+  const isProjectless = !task.project || task.project === 'untitled'
+  const projectLabel = isProjectless ? 'No project' : formatProjectPathLabel(task.project)
   const modeLabel = getTaskModeLabel(task.mode)
+  const taskType = task.taskType
+  const taskTypeLabel = taskType ? getTaskTypeLabel(taskType) : null
   const ModeIcon = task.mode === 'code' ? CodeIcon : MagnifyingGlassIcon
   const isDone = column === 'done'
   const isInProgress = column === 'in_progress'
@@ -84,6 +92,7 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
           model: task.model,
           effort: task.effort,
           fastMode: task.fastMode,
+          taskType: task.taskType,
         },
         'todo',
         'backlog'
@@ -127,7 +136,7 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
           </span>
         </button>
 
-        <div className="flex max-w-56 items-center justify-end gap-1.5">
+        <div className="flex max-w-72 flex-wrap items-center justify-end gap-1.5">
           <span
             className={`inline-flex shrink-0 items-center gap-1 border px-1.5 py-0.75 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${getTaskModeBadgeClassName(task.mode)}`}
             title={`${modeLabel} mode`}
@@ -135,6 +144,14 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
             <ModeIcon size={9} weight="bold" />
             <span className="leading-none">{modeLabel}</span>
           </span>
+          {taskType ? (
+            <span
+              className={`inline-flex shrink-0 items-center border px-1.5 py-0.75 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${getTaskTypeBadgeClassName(taskType)}`}
+              title={taskTypeLabel ?? undefined}
+            >
+              {taskTypeLabel}
+            </span>
+          ) : null}
           <span
             className={`inline-flex min-w-0 max-w-42 items-center gap-1.5 border px-1.5 py-0.75 text-[0.58rem] font-medium ${agent.className}`}
             title={modelSummary}
@@ -171,10 +188,17 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
 
       <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-border px-3 py-2">
         <span
-          className="flex min-w-0 items-center gap-1.5 text-[0.62rem] text-muted-foreground"
-          title={task.project}
+          className={[
+            'flex min-w-0 items-center gap-1.5 text-[0.62rem]',
+            isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
+          ].join(' ')}
+          title={isProjectless ? 'No project assigned' : task.project}
         >
-          <FolderIcon size={11} weight="duotone" />
+          {isProjectless ? (
+            <ProhibitIcon size={11} weight="bold" />
+          ) : (
+            <FolderIcon size={11} weight="duotone" />
+          )}
           <span className="truncate">{projectLabel}</span>
         </span>
         <div className="flex items-center gap-2">

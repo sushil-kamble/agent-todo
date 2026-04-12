@@ -8,6 +8,10 @@ import {
   getTaskModeBadgeClassName,
   getTaskModeLabel,
 } from '#/features/agent-config/model/task-config'
+import {
+  getTaskTypeBadgeClassName,
+  getTaskTypeLabel,
+} from '#/features/agent-config/model/task-type-config'
 import { useBoardDialogs, useBoardTasks } from '#/features/task-board/model'
 import { formatProjectPathLabel } from '#/shared/lib/utils'
 import {
@@ -106,6 +110,7 @@ function BacklogsPage() {
           model: task.model,
           effort: task.effort,
           fastMode: task.fastMode,
+          taskType: task.taskType,
         },
         'backlog',
         'todo'
@@ -182,6 +187,8 @@ function BacklogsPage() {
                 const effortLabel = getEffortLabel(task.effort)
                 const modelSummary = `${modelLabel} (${effortLabel}${task.fastMode ? ', Fast' : ''})`
                 const projectLabel = formatProjectPathLabel(task.project)
+                const taskType = task.taskType
+                const taskTypeLabel = taskType ? getTaskTypeLabel(taskType) : null
 
                 return (
                   <article
@@ -192,12 +199,20 @@ function BacklogsPage() {
                       <p className="text-[0.62rem] tracking-[0.16em] text-muted-foreground uppercase">
                         {task.id}
                       </p>
-                      <div className="flex max-w-56 items-center justify-end gap-1.5">
+                      <div className="flex max-w-72 flex-wrap items-center justify-end gap-1.5">
                         <span
                           className={`inline-flex shrink-0 items-center border px-1.5 py-0.75 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${getTaskModeBadgeClassName(task.mode)}`}
                         >
                           {getTaskModeLabel(task.mode)}
                         </span>
+                        {taskType ? (
+                          <span
+                            className={`inline-flex shrink-0 items-center border px-1.5 py-0.75 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${getTaskTypeBadgeClassName(taskType)}`}
+                            title={taskTypeLabel ?? undefined}
+                          >
+                            {taskTypeLabel}
+                          </span>
+                        ) : null}
                         <span
                           className={`inline-flex min-w-0 max-w-42 items-center gap-1.5 border px-1.5 py-0.75 text-[0.58rem] font-medium ${agent.className}`}
                           title={modelSummary}

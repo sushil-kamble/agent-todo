@@ -84,6 +84,7 @@ export function createBoardTasksStore() {
         model: input.model,
         effort: input.effort,
         fastMode: input.fastMode,
+        taskType: input.taskType ?? null,
       })
 
       set(state => ({
@@ -104,6 +105,7 @@ export function createBoardTasksStore() {
         model: updates.model,
         effort: updates.effort,
         fastMode: updates.fastMode,
+        taskType: updates.taskType,
       })
 
       set(state => {

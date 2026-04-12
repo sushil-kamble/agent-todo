@@ -7,10 +7,21 @@
 
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
+import { mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { getAgentClass } from '../agents/agent-registry.mjs'
 import { getTask } from '../tasks/task.repository.mjs'
 import { appendMessage } from './message.repository.mjs'
 import { createRun, getActiveRunForTask, getRun, updateRun } from './run.repository.mjs'
+
+const SCRATCH_DIR = join(homedir(), '.agent-todo', 'scratch')
+
+function resolveTaskCwd(project) {
+  if (project && project !== 'untitled') return project
+  mkdirSync(SCRATCH_DIR, { recursive: true })
+  return SCRATCH_DIR
+}
 
 // In-memory registry of live runs keyed by runId
 // { client: AgentClient, bus: EventEmitter, partials: Map<itemId,string>, ready: Promise<void> }
@@ -115,7 +126,11 @@ async function bootstrapRun(runId, task, client, bus, options = {}) {
   // Build a richer first message so the agent always knows its working context,
   // even if the SDK's own cwd handling misbehaves.
   const modeLabel = task.mode === 'ask' ? '[ASK MODE — read-only analysis] ' : ''
-  const prompt = [`${modeLabel}Working directory: ${task.project}`, '', task.title].join('\n')
+  const hasProject = task.project && task.project !== 'untitled'
+  const contextLine = hasProject
+    ? `${modeLabel}Working directory: ${task.project}`
+    : `${modeLabel}General research task — no specific project directory`
+  const prompt = [contextLine, '', task.title].join('\n')
   try {
     client.start()
     await client.initialize()
@@ -152,7 +167,8 @@ async function bootstrapRun(runId, task, client, bus, options = {}) {
 
 function attachLiveRun(run, task, options = {}) {
   const AgentClass = resolveAgentClass(task.agent)
-  const client = new AgentClass({ cwd: task.project, task, threadId: run.thread_id ?? null })
+  const cwd = resolveTaskCwd(task.project)
+  const client = new AgentClass({ cwd, task, threadId: run.thread_id ?? null })
   const bus = new EventEmitter()
   bus.setMaxListeners(0)
   const partials = new Map()

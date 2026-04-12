@@ -4,12 +4,14 @@
     {
       "value": "code",
       "label": "Code",
-      "description": "Edits files with full permissions"
+      "description": "Edits files with full permissions",
+      "requiresProject": true
     },
     {
       "value": "ask",
       "label": "Ask",
-      "description": "Read-only analysis, no file edits"
+      "description": "Read-only analysis, no file edits",
+      "requiresProject": false
     }
   ]
 }

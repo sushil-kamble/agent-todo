@@ -10,11 +10,19 @@ import {
   CodeIcon,
   FloppyDiskIcon,
   FolderOpenIcon,
+  InfoIcon,
   MagnifyingGlassIcon,
   TrashIcon,
 } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
-import type { Agent, ColumnId, EffortLevel, TaskCard, TaskMode } from '#/entities/task/types'
+import type {
+  Agent,
+  ColumnId,
+  EffortLevel,
+  TaskCard,
+  TaskMode,
+  TaskType,
+} from '#/entities/task/types'
 import { fetchSubscriptions } from '#/features/agent-config/api'
 import {
   getEffortOptions,
@@ -26,7 +34,20 @@ import {
   sanitizeFastMode,
   sanitizeModel,
 } from '#/features/agent-config/model/model-config'
-import { TASK_MODE_OPTIONS } from '#/features/agent-config/model/task-config'
+import {
+  DEFAULT_TASK_MODE,
+  DEFAULT_PROJECTLESS_MODE,
+  modeRequiresProject,
+  TASK_MODE_OPTIONS,
+} from '#/features/agent-config/model/task-config'
+import {
+  getTaskTypeAllowedModes,
+  getTaskTypeLabel,
+  getTaskTypeRecommendation,
+  TASK_TYPE_EMPTY_SELECTION_HINT,
+  TASK_TYPE_OPTIONS,
+  taskTypeRequiresProject,
+} from '#/features/agent-config/model/task-type-config'
 import { addProject, fetchProjects, resolveDirectoryPath } from '#/features/project-picker/api'
 import { PanelHeader } from '#/features/run-console/components/shared'
 import {
@@ -76,6 +97,7 @@ type TaskCreationValidationInput = {
   projectOptions: string[]
   agent: Agent
   mode: string
+  taskType: TaskType | null
   model: string | null
   effort: string
   subs: Subscriptions | null
@@ -94,8 +116,9 @@ export function resolveInitialFormState(
   const fastMode = editingTask
     ? sanitizeFastMode(agent, model, editingTask.fastMode)
     : sanitizeFastMode(agent, model, storedConfig.fastMode)
+  const taskType = editingTask?.taskType ?? null
 
-  return { agent, mode, model, effort, fastMode }
+  return { agent, mode, model, effort, fastMode, taskType }
 }
 
 export function resolveTaskCreationValidation({
@@ -104,6 +127,7 @@ export function resolveTaskCreationValidation({
   projectOptions,
   agent,
   mode,
+  taskType,
   model,
   effort,
   subs,
@@ -116,7 +140,8 @@ export function resolveTaskCreationValidation({
     missing.push('Task prompt')
   }
 
-  if (!normalizedProject || !projectOptions.includes(normalizedProject)) {
+  const needsProject = (taskType ? taskTypeRequiresProject(taskType) : false) || modeRequiresProject(mode as TaskMode)
+  if (needsProject && (!normalizedProject || !projectOptions.includes(normalizedProject))) {
     missing.push('Project selection')
   }
 
@@ -156,6 +181,58 @@ export function resolveAgentSelectionAfterSubscriptions(
   if (!subs || subs[currentAgent]?.available) return currentAgent
   const otherAgent: Agent = currentAgent === 'claude' ? 'codex' : 'claude'
   return subs[otherAgent]?.available ? otherAgent : currentAgent
+}
+
+export function resolveAvailableTaskModes({
+  taskType,
+  hasProject,
+}: {
+  taskType: TaskType | null
+  hasProject: boolean
+}) {
+  let options = TASK_MODE_OPTIONS
+
+  if (taskType) {
+    const allowedModes = getTaskTypeAllowedModes(taskType)
+    options = options.filter(option => allowedModes.includes(option.value))
+  }
+
+  const requiresProject = taskType ? taskTypeRequiresProject(taskType) : false
+  if (!hasProject && !requiresProject) {
+    options = options.filter(option => !option.requiresProject)
+  }
+
+  return options
+}
+
+export function resolveAvailableTaskTypes({ hasProject }: { hasProject: boolean }) {
+  return hasProject
+    ? TASK_TYPE_OPTIONS
+    : TASK_TYPE_OPTIONS.filter(option => option.requiresProject !== true)
+}
+
+export function resolveConstrainedTaskMode({
+  currentMode,
+  taskType,
+  hasProject,
+  fallbackMode = DEFAULT_TASK_MODE,
+}: {
+  currentMode: TaskMode
+  taskType: TaskType | null
+  hasProject: boolean
+  fallbackMode?: TaskMode
+}) {
+  const availableModes = resolveAvailableTaskModes({ taskType, hasProject })
+
+  if (availableModes.some(option => option.value === currentMode)) {
+    return currentMode
+  }
+
+  if (availableModes.some(option => option.value === fallbackMode)) {
+    return fallbackMode
+  }
+
+  return availableModes[0]?.value ?? DEFAULT_PROJECTLESS_MODE
 }
 
 export function resolveModelSelectionState({
@@ -203,6 +280,7 @@ export function FormPanel({
     model: string | null
     effort: EffortLevel
     fastMode: boolean
+    taskType: TaskType | null
   }) => void
   onUpdate: (
     id: string,
@@ -214,6 +292,7 @@ export function FormPanel({
       model: string | null
       effort: EffortLevel
       fastMode: boolean
+      taskType: TaskType | null
     },
     fromColumn: ColumnId,
     toColumn: ColumnId
@@ -229,6 +308,7 @@ export function FormPanel({
       model: string | null
       effort: EffortLevel
       fastMode: boolean
+      taskType: TaskType | null
     }
   ) => void
 }) {
@@ -243,27 +323,33 @@ export function FormPanel({
   }, [])
 
   const [title, setTitle] = useState(editingTask?.title ?? '')
-  const [project, setProject] = useState(editingTask?.project ?? '')
+  const [project, setProject] = useState(
+    editingTask?.project === 'untitled' ? '' : (editingTask?.project ?? '')
+  )
   const [agent, setAgent] = useState<Agent>(initialState.agent)
   const [mode, setMode] = useState<TaskMode>(initialState.mode)
   const [model, setModel] = useState<string | null>(initialState.model)
   const [effort, setEffort] = useState<EffortLevel>(initialState.effort)
   const [fastMode, setFastMode] = useState<boolean>(initialState.fastMode)
+  const [taskType, setTaskType] = useState<TaskType | null>(initialState.taskType)
   const [subs, setSubs] = useState<Subscriptions | null>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const projectInputRef = useRef<HTMLInputElement>(null)
+  const hasProject = project.trim() !== '' && projectOptions.includes(project.trim())
+  const isProjectLocked = isEdit && (editingColumn === 'in_progress' || editingColumn === 'done')
   const createTaskValidation = resolveTaskCreationValidation({
     title,
     project,
     projectOptions,
     agent,
     mode,
+    taskType,
     model,
     effort,
     subs,
   })
   const createTaskTooltip = getCreateTaskTooltipCopy(createTaskValidation.missing)
-  const isSubmitDisabled = isEdit ? !title.trim() : createTaskValidation.disabled
+  const isSubmitDisabled = createTaskValidation.disabled
 
   useEffect(() => {
     fetchSubscriptions().then(setSubs)
@@ -283,6 +369,23 @@ export function FormPanel({
     setEffort(current => sanitizeEffort(agent, model, current))
     setFastMode(current => sanitizeFastMode(agent, model, current))
   }, [agent, model])
+
+  useEffect(() => {
+    if (!hasProject && taskType && taskTypeRequiresProject(taskType)) {
+      setTaskType(null)
+    }
+  }, [hasProject, taskType])
+
+  useEffect(() => {
+    const nextMode = resolveConstrainedTaskMode({
+      currentMode: mode,
+      taskType,
+      hasProject,
+    })
+    if (nextMode !== mode) {
+      setMode(nextMode)
+    }
+  }, [hasProject, mode, taskType])
 
   function handleAgentChange(next: Agent) {
     setAgent(next)
@@ -330,16 +433,25 @@ export function FormPanel({
       return
     }
     if (!isEdit && createTaskValidation.disabled) {
-      if (!projectOptions.includes(finalProject)) {
+      if (modeRequiresProject(mode) && !projectOptions.includes(finalProject)) {
         projectInputRef.current?.focus()
       }
       return
     }
     writeStoredTaskConfig({ agent, mode, model, effort, fastMode })
+    if (isEdit && createTaskValidation.disabled) {
+      if (
+        ((taskType ? taskTypeRequiresProject(taskType) : false) || modeRequiresProject(mode)) &&
+        !projectOptions.includes(finalProject)
+      ) {
+        projectInputRef.current?.focus()
+      }
+      return
+    }
     if (isEdit && editingTask && editingColumn) {
       onUpdate(
         editingTask.id,
-        { title, project: finalProject, agent, mode, model, effort, fastMode },
+        { title, project: finalProject, agent, mode, model, effort, fastMode, taskType },
         editingColumn,
         editingColumn
       )
@@ -354,6 +466,7 @@ export function FormPanel({
       model,
       effort,
       fastMode,
+      taskType,
     })
   }
 
@@ -393,47 +506,101 @@ export function FormPanel({
           />
         </div>
 
-        <div>
-          <label
-            htmlFor="task-project"
-            className="mb-1.5 block text-[0.6rem] font-medium tracking-[0.16em] text-muted-foreground uppercase"
-          >
-            Project
-          </label>
-          <div className="flex items-stretch gap-0">
-            <Combobox
-              items={projectOptions}
-              inputValue={project}
-              value={projectOptions.includes(project) ? project : null}
-              onValueChange={val => setProject(String(val ?? ''))}
-              onInputValueChange={inputVal => setProject(inputVal)}
-            >
-              <ComboboxInput
-                ref={projectInputRef}
-                id="task-project"
-                placeholder="Select or type a path…"
-                className="flex-1 [&_input]:text-xs"
-              />
-              <ComboboxContent>
-                <ComboboxEmpty>No matching projects</ComboboxEmpty>
-                <ComboboxList>
-                  {item => (
-                    <ComboboxItem key={item} value={item}>
-                      <FolderOpenIcon size={13} className="shrink-0 text-muted-foreground" />
-                      <span className="truncate">{item}</span>
-                    </ComboboxItem>
-                  )}
-                </ComboboxList>
-              </ComboboxContent>
-            </Combobox>
-            <button
-              type="button"
-              title="Browse folder"
-              onClick={pickFolder}
-              className="flex items-center border border-l-0 border-input bg-transparent px-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <FolderOpenIcon size={13} />
-            </button>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <span className="mb-1.5 flex items-center gap-1.5 text-[0.6rem] font-medium tracking-[0.16em] text-muted-foreground uppercase">
+              <label htmlFor="task-project">Project</label>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+                      aria-label="Project field guidance"
+                    />
+                  }
+                >
+                  <InfoIcon size={12} weight="bold" />
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={8}>
+                  <p className="max-w-56 text-xs">
+                    Choose the local project directory the agent should use as working context. Leave
+                    it blank only for task types that support project-less work.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </span>
+            <div className="flex items-stretch gap-0">
+              <Combobox
+                items={projectOptions}
+                inputValue={project}
+                value={projectOptions.includes(project) ? project : null}
+                onValueChange={val => !isProjectLocked && setProject(String(val ?? ''))}
+                onInputValueChange={inputVal => !isProjectLocked && setProject(inputVal)}
+              >
+                <ComboboxInput
+                  ref={projectInputRef}
+                  id="task-project"
+                  placeholder={
+                    isProjectLocked
+                      ? 'Project cannot be changed here'
+                      : 'Select or type a path… (optional)'
+                  }
+                  className="h-9 flex-1 [&_input]:text-xs"
+                  disabled={isProjectLocked}
+                />
+                {!isProjectLocked && (
+                  <ComboboxContent>
+                    <ComboboxEmpty>No matching projects</ComboboxEmpty>
+                    <ComboboxList>
+                      {item => (
+                        <ComboboxItem key={item} value={item}>
+                          <FolderOpenIcon size={13} className="shrink-0 text-muted-foreground" />
+                          <span className="truncate">{item}</span>
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                )}
+              </Combobox>
+              <button
+                type="button"
+                title="Browse folder"
+                onClick={pickFolder}
+                disabled={isProjectLocked}
+                className={[
+                  'h-9 flex items-center border border-l-0 border-input bg-transparent px-2.5 text-muted-foreground transition-colors',
+                  isProjectLocked
+                    ? 'cursor-not-allowed opacity-50'
+                    : 'hover:bg-accent hover:text-foreground',
+                ].join(' ')}
+              >
+                <FolderOpenIcon size={13} />
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <span className="mb-1.5 flex items-center gap-1.5 text-[0.6rem] font-medium tracking-[0.16em] text-muted-foreground uppercase">
+              <span>Task type</span>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+                      aria-label="Task type guidance"
+                    />
+                  }
+                >
+                  <InfoIcon size={12} weight="bold" />
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={8}>
+                  <p className="max-w-56 text-xs">{TASK_TYPE_EMPTY_SELECTION_HINT}</p>
+                </TooltipContent>
+              </Tooltip>
+            </span>
+            <TaskTypePicker value={taskType} onChange={setTaskType} hasProject={hasProject} />
           </div>
         </div>
 
@@ -470,12 +637,13 @@ export function FormPanel({
             Configuration
           </span>
           <div className="grid grid-cols-2 gap-2">
-            <ModePicker value={mode} onChange={setMode} />
+            <ModePicker value={mode} onChange={setMode} hasProject={hasProject} taskType={taskType} />
             <ModelEffortPicker
               agent={agent}
               model={model}
               effort={effort}
               fastMode={fastMode}
+              taskType={taskType}
               onModelChange={setModel}
               onEffortChange={setEffort}
               onFastModeChange={setFastMode}
@@ -530,6 +698,7 @@ export function FormPanel({
                   model,
                   effort,
                   fastMode,
+                  taskType,
                 })
               }
             >
@@ -539,7 +708,7 @@ export function FormPanel({
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          {isEdit || !createTaskTooltip ? (
+          {!createTaskTooltip ? (
             <Button type="submit" size="sm" disabled={isSubmitDisabled}>
               {isEdit ? <FloppyDiskIcon size={14} /> : null}
               <span className="text-[0.68rem] tracking-[0.12em] uppercase">
@@ -564,7 +733,18 @@ export function FormPanel({
   )
 }
 
-function ModePicker({ value, onChange }: { value: TaskMode; onChange: (m: TaskMode) => void }) {
+function ModePicker({
+  value,
+  onChange,
+  hasProject,
+  taskType,
+}: {
+  value: TaskMode
+  onChange: (m: TaskMode) => void
+  hasProject: boolean
+  taskType: TaskType | null
+}) {
+  const availableModes = resolveAvailableTaskModes({ taskType, hasProject })
   const currentMode =
     TASK_MODE_OPTIONS.find(option => option.value === value) ?? TASK_MODE_OPTIONS[0]
 
@@ -585,7 +765,7 @@ function ModePicker({ value, onChange }: { value: TaskMode; onChange: (m: TaskMo
         <DropdownMenuGroup>
           <DropdownMenuLabel>Mode</DropdownMenuLabel>
           <DropdownMenuRadioGroup value={value} onValueChange={v => onChange(v as TaskMode)}>
-            {TASK_MODE_OPTIONS.map(option => (
+            {availableModes.map(option => (
               <DropdownMenuRadioItem key={option.value} value={option.value}>
                 <span className="flex flex-col gap-0.5">
                   <span className="font-medium">{option.label}</span>
@@ -600,11 +780,68 @@ function ModePicker({ value, onChange }: { value: TaskMode; onChange: (m: TaskMo
   )
 }
 
+function TaskTypePicker({
+  value,
+  onChange,
+  hasProject,
+}: {
+  value: TaskType | null
+  onChange: (value: TaskType | null) => void
+  hasProject: boolean
+}) {
+  const availableTaskTypes = resolveAvailableTaskTypes({ hasProject })
+  const summaryLabel = value ? getTaskTypeLabel(value) : 'Select a task type… (optional)'
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className="flex h-9 w-full items-center justify-between gap-2 border border-border bg-card px-3 text-xs text-foreground transition-colors hover:border-foreground focus:border-foreground focus:outline-none">
+        <span className={value ? 'font-medium' : 'text-muted-foreground'}>{summaryLabel}</span>
+        <CaretDownIcon size={12} className="text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" sideOffset={4} className="w-72">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Task type</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={value ?? '__none__'}
+            onValueChange={nextValue =>
+              onChange(nextValue === '__none__' ? null : (nextValue as TaskType))
+            }
+          >
+            <DropdownMenuRadioItem value="__none__">
+              <span className="flex flex-col gap-0.5">
+                <span className="font-medium">Leave blank</span>
+                <span className="text-[0.65rem] text-muted-foreground">
+                  No task-type prompt or recommendations
+                </span>
+              </span>
+            </DropdownMenuRadioItem>
+            {availableTaskTypes.map(option => (
+              <DropdownMenuRadioItem key={option.value} value={option.value}>
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-medium">{option.label}</span>
+                  <span className="text-[0.65rem] text-muted-foreground">
+                    {option.description}
+                  </span>
+                </span>
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function describeMenuHints(hints: string[]) {
+  return hints.length > 0 ? ` (${hints.join(', ')})` : ''
+}
+
 function ModelEffortPicker({
   agent,
   model,
   effort,
   fastMode,
+  taskType,
   onModelChange,
   onEffortChange,
   onFastModeChange,
@@ -613,12 +850,14 @@ function ModelEffortPicker({
   model: string | null
   effort: EffortLevel
   fastMode: boolean
+  taskType: TaskType | null
   onModelChange: (m: string | null) => void
   onEffortChange: (e: EffortLevel) => void
   onFastModeChange: (value: boolean) => void
 }) {
   const models = MODELS_BY_AGENT[agent]
   const currentModelSlug = getModelConfig(agent, model).slug
+  const recommendedSelection = taskType ? getTaskTypeRecommendation(taskType, agent) : null
   const summaryLabel = `${getModelLabel(agent, model)} (${effort}${fastMode ? ', fast' : ''})`
 
   function selectModelAndConfig(
@@ -648,12 +887,16 @@ function ModelEffortPicker({
           <DropdownMenuLabel>Model</DropdownMenuLabel>
           {models.map(m => {
             const isActiveModel = m.slug === currentModelSlug
+            const isRecommendedModel = recommendedSelection?.model === m.slug
             const effortOptions = getEffortOptions(agent, m.slug)
             return (
               <DropdownMenuSub key={m.slug}>
                 <DropdownMenuSubTrigger className={isActiveModel ? 'font-semibold' : ''}>
                   {m.label}
-                  {m.isDefault ? ' (default)' : ''}
+                  {describeMenuHints([
+                    ...(m.isDefault ? ['default'] : []),
+                    ...(isRecommendedModel ? ['Recommended'] : []),
+                  ])}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent>
@@ -661,6 +904,8 @@ function ModelEffortPicker({
                       <DropdownMenuLabel>Thinking Effort</DropdownMenuLabel>
                       {effortOptions.map(e => {
                         const isActive = isActiveModel && e.value === effort
+                        const isRecommendedEffort =
+                          isRecommendedModel && recommendedSelection?.effort === e.value
                         return (
                           <DropdownMenuItem
                             key={e.value}
@@ -676,7 +921,10 @@ function ModelEffortPicker({
                             <span className="flex flex-col gap-0.5">
                               <span className="font-medium">
                                 {e.label}
-                                {e.isDefault ? ' (default)' : ''}
+                                {describeMenuHints([
+                                  ...(e.isDefault ? ['default'] : []),
+                                  ...(isRecommendedEffort ? ['Recommended'] : []),
+                                ])}
                                 {isActive ? ' ✓' : ''}
                               </span>
                               <span className="text-[0.65rem] text-muted-foreground">

@@ -9,3 +9,11 @@ export const TASK_MODES = TASK_MODE_OPTIONS.map(option => option.value)
 export function isTaskMode(value) {
   return typeof value === 'string' && TASK_MODES.includes(value)
 }
+
+export const DEFAULT_PROJECTLESS_MODE =
+  config.modes.find(m => !m.requiresProject)?.value ?? config.defaultMode
+
+export function modeRequiresProject(mode) {
+  const entry = TASK_MODE_OPTIONS.find(option => option.value === mode)
+  return entry?.requiresProject ?? true
+}

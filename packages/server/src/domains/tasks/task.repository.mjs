@@ -85,8 +85,8 @@ export function createTask(t) {
     .prepare('SELECT COALESCE(MAX(position), -1) AS m FROM tasks WHERE column_id = ?')
     .get(t.column_id).m
   db.prepare(
-    `INSERT INTO tasks (id, title, project, agent, column_id, position, created_at, mode, model, effort, fast_mode)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO tasks (id, title, project, agent, column_id, position, created_at, mode, model, effort, fast_mode, task_type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     t.id,
     t.title,
@@ -98,7 +98,8 @@ export function createTask(t) {
     t.mode ?? 'code',
     t.model ?? null,
     t.effort ?? 'medium',
-    t.fast_mode ? 1 : 0
+    t.fast_mode ? 1 : 0,
+    t.task_type ?? null
   )
   return getTask(t.id)
 }
@@ -115,7 +116,7 @@ export function updateTaskFields(id, updates) {
 
   if (!columnChanged && !positionChanged) {
     db.prepare(
-      `UPDATE tasks SET title=?, project=?, agent=?, column_id=?, position=?, mode=?, model=?, effort=?, fast_mode=? WHERE id = ?`
+      `UPDATE tasks SET title=?, project=?, agent=?, column_id=?, position=?, mode=?, model=?, effort=?, fast_mode=?, task_type=? WHERE id = ?`
     ).run(
       next.title,
       next.project,
@@ -126,6 +127,7 @@ export function updateTaskFields(id, updates) {
       next.model ?? null,
       next.effort ?? 'medium',
       next.fast_mode ? 1 : 0,
+      next.task_type ?? null,
       id
     )
     return getTask(id)
@@ -142,7 +144,7 @@ export function updateTaskFields(id, updates) {
     displaceColumnPositions(next.column_id, id, targetIds.length + 1)
 
     db.prepare(
-      `UPDATE tasks SET title=?, project=?, agent=?, column_id=?, position=?, mode=?, model=?, effort=?, fast_mode=? WHERE id = ?`
+      `UPDATE tasks SET title=?, project=?, agent=?, column_id=?, position=?, mode=?, model=?, effort=?, fast_mode=?, task_type=? WHERE id = ?`
     ).run(
       next.title,
       next.project,
@@ -153,6 +155,7 @@ export function updateTaskFields(id, updates) {
       next.model ?? null,
       next.effort ?? 'medium',
       next.fast_mode ? 1 : 0,
+      next.task_type ?? null,
       id
     )
 

@@ -154,6 +154,56 @@ describe('task routes integration', () => {
     expect(unsupported.body.task.fast_mode).toBe(0)
   })
 
+  it('POST /api/tasks persists task type and constrains incompatible modes', async () => {
+    const { status, body } = await server.json('/api/tasks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Review this change',
+        project: 'server',
+        taskType: 'code_review',
+        mode: 'code',
+      }),
+    })
+
+    expect(status).toBe(201)
+    expect(body.task.task_type).toBe('code_review')
+    expect(body.task.mode).toBe('ask')
+  })
+
+  it('POST /api/tasks rejects project-required task types when no project is provided', async () => {
+    const { status, body } = await server.json('/api/tasks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Plan this change',
+        project: '',
+        taskType: 'feature_plan',
+        mode: 'ask',
+      }),
+    })
+
+    expect(status).toBe(400)
+    expect(body.error).toBe('project is required for this task type')
+  })
+
+  it('POST /api/tasks allows brainstorming without a project', async () => {
+    const { status, body } = await server.json('/api/tasks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Explore some ideas',
+        project: '',
+        taskType: 'brainstorming',
+        mode: 'ask',
+      }),
+    })
+
+    expect(status).toBe(201)
+    expect(body.task.task_type).toBe('brainstorming')
+    expect(body.task.project).toBe('untitled')
+  })
+
   it('PATCH /api/tasks/:id updates fields', async () => {
     const task = harness.tasks.createTask(taskFactory({ id: 't-patch', project: '/tmp/original' }))
 
@@ -194,6 +244,69 @@ describe('task routes integration', () => {
 
     expect(status).toBe(200)
     expect(body.task.mode).toBe('ask')
+  })
+
+  it('PATCH updates task type and keeps invalid task type patches from clearing it', async () => {
+    const task = harness.tasks.createTask(
+      taskFactory({ id: 't-task-type', task_type: 'feature_dev' })
+    )
+
+    const updated = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        taskType: 'write_tests',
+      }),
+    })
+
+    expect(updated.status).toBe(200)
+    expect(updated.body.task.task_type).toBe('write_tests')
+
+    const invalid = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        taskType: 'not-real',
+      }),
+    })
+
+    expect(invalid.status).toBe(200)
+    expect(invalid.body.task.task_type).toBe('write_tests')
+  })
+
+  it('PATCH changing to an ask-only task type falls back to ask mode', async () => {
+    const task = harness.tasks.createTask(
+      taskFactory({ id: 't-task-type-mode', task_type: 'feature_dev' })
+    )
+    harness.tasks.updateTaskFields(task.id, { mode: 'code' })
+
+    const { status, body } = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        taskType: 'feature_plan',
+      }),
+    })
+
+    expect(status).toBe(200)
+    expect(body.task.task_type).toBe('feature_plan')
+    expect(body.task.mode).toBe('ask')
+  })
+
+  it('PATCH rejects changing to a project-required task type when the task has no project', async () => {
+    const task = harness.tasks.createTask(taskFactory({ id: 't-task-type-projectless' }))
+    harness.tasks.updateTaskFields(task.id, { project: 'untitled' })
+
+    const { status, body } = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        taskType: 'write_tests',
+      }),
+    })
+
+    expect(status).toBe(400)
+    expect(body.error).toBe('project is required for this task type')
   })
 
   it('PATCH clears a stored model when switching to a different agent family', async () => {

@@ -19,6 +19,12 @@ import {
   sanitizeModel,
 } from '#domains/agents/agent-config.mjs'
 import { DEFAULT_TASK_MODE, isTaskMode } from '#domains/agents/task-mode-config.mjs'
+import {
+  getTaskTypeAllowedModes,
+  isTaskType,
+  sanitizeTaskType,
+  taskTypeRequiresProject,
+} from '#domains/agents/task-type-config.mjs'
 import { createProject } from '#domains/projects/project.repository.mjs'
 import { listMessages } from '#domains/runs/message.repository.mjs'
 import { getActiveRunForTask, getLatestRunForTask } from '#domains/runs/run.repository.mjs'
@@ -36,6 +42,29 @@ import {
 
 function resolveColumnId(value, fallback = 'todo') {
   return BOARD_COLUMN_IDS.includes(value) ? value : fallback
+}
+
+function resolveTaskModeForType(taskType, requestedMode, fallbackMode = DEFAULT_TASK_MODE) {
+  if (!taskType) {
+    return isTaskMode(requestedMode) ? requestedMode : fallbackMode
+  }
+
+  const allowedModes = getTaskTypeAllowedModes(taskType)
+  if (isTaskMode(requestedMode) && allowedModes.includes(requestedMode)) {
+    return requestedMode
+  }
+
+  if (allowedModes.includes(fallbackMode)) {
+    return fallbackMode
+  }
+
+  return allowedModes[0] ?? DEFAULT_TASK_MODE
+}
+
+function resolvePatchedTaskType(value, previousTaskType) {
+  if (value === undefined) return previousTaskType ?? null
+  if (value === null) return null
+  return isTaskType(value) ? value : (previousTaskType ?? null)
 }
 
 export async function handleTaskRoutes(req, res, pathname) {
@@ -67,10 +96,15 @@ export async function handleTaskRoutes(req, res, pathname) {
     const body = await readBody(req)
     const id = `t-${randomUUID().slice(0, 5)}`
     const agent = isAgent(body.agent) ? body.agent : DEFAULT_AGENT
+    const taskType = sanitizeTaskType(body.taskType)
+    const mode = resolveTaskModeForType(taskType, body.mode, DEFAULT_TASK_MODE)
     const model = sanitizeModel(agent, body.model ? String(body.model) : null)
     const fastMode = sanitizeFastMode(agent, model, body.fastMode)
     const projectPath =
       (await normalizeProjectPath(String(body.project || '').trim())) || 'untitled'
+    if (taskType && taskTypeRequiresProject(taskType) && projectPath === 'untitled') {
+      return json(res, 400, { error: 'project is required for this task type' })
+    }
     const t = createTask({
       id,
       title: String(body.title || '').trim(),
@@ -78,7 +112,7 @@ export async function handleTaskRoutes(req, res, pathname) {
       agent,
       column_id: resolveColumnId(body.column_id),
       created_at: new Date().toISOString().slice(0, 10),
-      mode: isTaskMode(body.mode) ? body.mode : DEFAULT_TASK_MODE,
+      mode,
       model,
       effort: sanitizeEffort(
         agent,
@@ -86,6 +120,7 @@ export async function handleTaskRoutes(req, res, pathname) {
         body.effort ?? getDefaultEffort(agent, model)
       ),
       fast_mode: fastMode,
+      task_type: taskType,
     })
     if (projectPath && projectPath !== 'untitled') {
       createProject(projectPath)
@@ -117,6 +152,10 @@ export async function handleTaskRoutes(req, res, pathname) {
       nextAgent,
       body.model === undefined ? (prev.model ?? null) : body.model ? String(body.model) : null
     )
+    const nextTaskType = resolvePatchedTaskType(body.taskType, prev.task_type)
+    if (nextTaskType && taskTypeRequiresProject(nextTaskType) && normalizedProject === 'untitled') {
+      return json(res, 400, { error: 'project is required for this task type' })
+    }
     const nextFastMode = sanitizeFastMode(
       nextAgent,
       nextModel,
@@ -128,12 +167,11 @@ export async function handleTaskRoutes(req, res, pathname) {
       agent: nextAgent,
       column_id: nextColumnId,
       position: nextPosition,
-      mode:
-        body.mode === undefined
-          ? (prev.mode ?? DEFAULT_TASK_MODE)
-          : isTaskMode(body.mode)
-            ? body.mode
-            : (prev.mode ?? DEFAULT_TASK_MODE),
+      mode: resolveTaskModeForType(
+        nextTaskType,
+        body.mode === undefined ? (prev.mode ?? DEFAULT_TASK_MODE) : body.mode,
+        prev.mode ?? DEFAULT_TASK_MODE
+      ),
       model: nextModel,
       effort: sanitizeEffort(
         nextAgent,
@@ -141,6 +179,7 @@ export async function handleTaskRoutes(req, res, pathname) {
         body.effort ?? prev.effort ?? getDefaultEffort(nextAgent, nextModel)
       ),
       fast_mode: nextFastMode,
+      task_type: nextTaskType,
     })
 
     const leftInProgress = prev.column_id === 'in_progress' && t.column_id !== 'in_progress'

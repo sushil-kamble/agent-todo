@@ -1,7 +1,9 @@
 import {
+  DEFAULT_PROJECTLESS_MODE,
   DEFAULT_TASK_MODE,
   getTaskModeLabel,
   isTaskMode,
+  modeRequiresProject,
   TASK_MODE_OPTIONS,
   TASK_MODES,
 } from '@agent-todo/shared/config/task-modes'
@@ -16,4 +18,12 @@ export function getTaskModeBadgeClassName(mode: TaskMode) {
   return TASK_MODE_BADGE_STYLES[mode]
 }
 
-export { DEFAULT_TASK_MODE, getTaskModeLabel, isTaskMode, TASK_MODE_OPTIONS, TASK_MODES }
+export {
+  DEFAULT_PROJECTLESS_MODE,
+  DEFAULT_TASK_MODE,
+  getTaskModeLabel,
+  isTaskMode,
+  modeRequiresProject,
+  TASK_MODE_OPTIONS,
+  TASK_MODES,
+}

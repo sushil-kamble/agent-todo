@@ -1,5 +1,7 @@
+import { delimiter } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ClaudeClient } from '#infra/agent-clients/claude.mjs'
+import { ASK_MODE_PROMPT, getAgentSystemPrompt } from '#infra/agent-clients/config.mjs'
+import { buildClaudeProcessEnv, ClaudeClient } from '#infra/agent-clients/claude.mjs'
 import { CodexClient } from '#infra/agent-clients/codex.mjs'
 
 describe('agent client configuration', () => {
@@ -110,5 +112,61 @@ describe('agent client configuration', () => {
 
     expect(client.taskModel).toBe('claude-sonnet-4-6')
     expect(client.taskEffort).toBe('high')
+  })
+
+  it('prepends the current node binary directory for claude child processes', () => {
+    const env = buildClaudeProcessEnv({ PATH: '/usr/local/bin' }, '/opt/node/bin/node')
+
+    expect(env.PATH).toBe(`/opt/node/bin${delimiter}/usr/local/bin`)
+  })
+
+  it('does not duplicate the current node binary directory in PATH', () => {
+    const env = buildClaudeProcessEnv(
+      { PATH: `/opt/node/bin${delimiter}/usr/local/bin` },
+      '/opt/node/bin/node'
+    )
+
+    expect(env.PATH).toBe(`/opt/node/bin${delimiter}/usr/local/bin`)
+  })
+
+  it('returns only the ask prompt for untyped ask-mode tasks', () => {
+    expect(getAgentSystemPrompt({ mode: 'ask', taskType: null })).toBe(ASK_MODE_PROMPT)
+    expect(getAgentSystemPrompt({ mode: 'code', taskType: null })).toBeNull()
+  })
+
+  it('composes ask mode and the task-type prompt for typed ask-mode tasks', () => {
+    const prompt = getAgentSystemPrompt({ mode: 'ask', taskType: 'code_review' })
+
+    expect(prompt).toContain(ASK_MODE_PROMPT)
+    expect(prompt).toContain('You are handling a **Code Review** task.')
+  })
+
+  it('prepends the task-type prompt for typed codex code-mode tasks', async () => {
+    const requests = []
+    const client = new CodexClient({
+      cwd: '/tmp/project',
+      task: {
+        mode: 'code',
+        taskType: 'write_tests',
+      },
+    })
+    client._request = async (method, params) => {
+      requests.push({ method, params })
+      if (method === 'thread/start') return { thread: { id: 'thread-tests' } }
+      return {}
+    }
+
+    await client.startThread()
+    await client.sendUserText('Add regression coverage')
+
+    expect(requests[1]).toMatchObject({
+      method: 'turn/start',
+      params: {
+        threadId: 'thread-tests',
+      },
+    })
+    expect(requests[1].params.input[0].text).toContain('You are handling a **Write Tests** task.')
+    expect(requests[1].params.input[0].text).toContain('Add regression coverage')
+    expect(requests[1].params.input[0].text).not.toContain(ASK_MODE_PROMPT)
   })
 })

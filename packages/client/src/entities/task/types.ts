@@ -11,4 +11,5 @@ export type {
   EffortLevel,
   TaskCard,
   TaskMode,
+  TaskType,
 } from '@agent-todo/shared/contracts/task'

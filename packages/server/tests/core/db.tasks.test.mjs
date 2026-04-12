@@ -54,6 +54,20 @@ describe('tasks db', () => {
     })
   })
 
+  it('round-trips task_type through create and update operations', () => {
+    const created = harness.tasks.createTask(
+      taskFactory({ id: 't-typed', task_type: 'feature_dev' })
+    )
+
+    expect(created.task_type).toBe('feature_dev')
+
+    const updated = harness.tasks.updateTaskFields(created.id, {
+      task_type: 'write_tests',
+    })
+
+    expect(updated.task_type).toBe('write_tests')
+  })
+
   it('deletes tasks cleanly', () => {
     harness.tasks.createTask(taskFactory({ id: 't-a' }))
     harness.tasks.createTask(taskFactory({ id: 't-b' }))
@@ -140,6 +154,7 @@ describe('tasks db', () => {
            ORDER BY position ASC, created_at ASC, id ASC`
         )
         .all()
+      const columns = db.prepare('PRAGMA table_info(tasks)').all()
       const indexes = db.prepare('PRAGMA index_list(tasks)').all()
 
       expect(rows).toEqual([
@@ -147,6 +162,7 @@ describe('tasks db', () => {
         { id: 't-done-b', position: 1 },
         { id: 't-done-c', position: 2 },
       ])
+      expect(columns.some(column => column.name === 'task_type')).toBe(true)
       expect(
         indexes.some(index => index.name === 'idx_tasks_column_position' && index.unique === 1)
       ).toBe(true)

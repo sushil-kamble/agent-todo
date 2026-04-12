@@ -1,4 +1,11 @@
-import type { Agent, ColumnId, EffortLevel, TaskCard, TaskMode } from '#/entities/task/types'
+import type {
+  Agent,
+  ColumnId,
+  EffortLevel,
+  TaskCard,
+  TaskMode,
+  TaskType,
+} from '#/entities/task/types'
 
 export type TasksByColumn = Record<ColumnId, TaskCard[]>
 export type TasksUpdater = TasksByColumn | ((current: TasksByColumn) => TasksByColumn)
@@ -12,6 +19,7 @@ export type CreateTaskInput = {
   model?: string | null
   effort?: EffortLevel
   fastMode?: boolean
+  taskType?: TaskType | null
 }
 
 export type UpdateTaskInput = {
@@ -22,6 +30,7 @@ export type UpdateTaskInput = {
   model?: string | null
   effort?: EffortLevel
   fastMode?: boolean
+  taskType?: TaskType | null
 }
 
 const TASK_QUERY_PARAM = 'task'

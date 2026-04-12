@@ -47,7 +47,12 @@ export function subscribeRunEvents(runId: string, onEvent: (event: RunEvent) => 
   const eventSource = new EventSource(`/api/runs/${runId}/events`)
   eventSource.onmessage = event => {
     try {
-      onEvent(JSON.parse(event.data) as RunEvent)
+      const parsed = JSON.parse(event.data) as RunEvent
+      onEvent(parsed)
+      // Terminal event — close immediately to prevent auto-reconnect.
+      if (parsed.type === 'end') {
+        eventSource.close()
+      }
     } catch {}
   }
   eventSource.onerror = () => {}

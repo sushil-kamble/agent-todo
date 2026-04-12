@@ -2,7 +2,8 @@ import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import readline from 'node:readline'
 import { getDefaultModel, sanitizeFastMode, sanitizeModel } from '#domains/agents/agent-config.mjs'
-import { ASK_MODE_PROMPT, CODEX_EFFORT, CODEX_MODEL } from './config.mjs'
+import { sanitizeTaskType } from '#domains/agents/task-type-config.mjs'
+import { CODEX_EFFORT, CODEX_MODEL, getAgentSystemPrompt } from './config.mjs'
 
 /**
  * CodexClient: one instance per run. Spawns `codex app-server`, speaks JSON-RPC
@@ -22,6 +23,7 @@ export class CodexClient extends EventEmitter {
     super()
     this.cwd = cwd
     this.taskMode = task?.mode ?? 'code'
+    this.taskType = sanitizeTaskType(task?.task_type ?? task?.taskType)
     this.model = sanitizeModel('codex', task?.model) ?? getDefaultModel('codex') ?? CODEX_MODEL
     this.effort = task?.effort || CODEX_EFFORT
     this.fastMode = sanitizeFastMode(
@@ -193,7 +195,11 @@ export class CodexClient extends EventEmitter {
 
   async sendUserText(text) {
     if (!this.threadId) throw new Error('thread not started')
-    const effectiveText = this.taskMode === 'ask' ? `${ASK_MODE_PROMPT}\n\n---\n\n${text}` : text
+    const systemPrompt = getAgentSystemPrompt({
+      mode: this.taskMode,
+      taskType: this.taskType,
+    })
+    const effectiveText = systemPrompt ? `${systemPrompt}\n\n---\n\n${text}` : text
     if (this.activeTurnId) {
       // Append to in-flight turn
       return this._request('turn/steer', {

@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
+import { delimiter, dirname } from 'node:path'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { getDefaultModel, sanitizeModel } from '#domains/agents/agent-config.mjs'
-import { ASK_MODE_PROMPT, CLAUDE_EFFORT, CLAUDE_MODEL } from './config.mjs'
+import { sanitizeTaskType } from '#domains/agents/task-type-config.mjs'
+import { CLAUDE_EFFORT, CLAUDE_MODEL, getAgentSystemPrompt } from './config.mjs'
 
 /**
  * ClaudeClient: one instance per run. Wraps `@anthropic-ai/claude-agent-sdk`
@@ -20,11 +22,27 @@ import { ASK_MODE_PROMPT, CLAUDE_EFFORT, CLAUDE_MODEL } from './config.mjs'
  *   'error'         { message }
  *   'exit'          { code, signal }
  */
+export function buildClaudeProcessEnv(env = process.env, executablePath = process.execPath) {
+  const executableDir = dirname(executablePath)
+  const currentPath = env.PATH ?? ''
+  const pathEntries = currentPath.split(delimiter).filter(Boolean)
+
+  if (pathEntries.includes(executableDir)) {
+    return env
+  }
+
+  return {
+    ...env,
+    PATH: currentPath ? `${executableDir}${delimiter}${currentPath}` : executableDir,
+  }
+}
+
 export class ClaudeClient extends EventEmitter {
   constructor({ cwd, task, threadId = null }) {
     super()
     this.cwd = cwd
     this.taskMode = task?.mode ?? 'code'
+    this.taskType = sanitizeTaskType(task?.task_type ?? task?.taskType)
     this.taskModel =
       sanitizeModel('claude', task?.model) ?? getDefaultModel('claude') ?? CLAUDE_MODEL
     this.taskEffort = task?.effort || CLAUDE_EFFORT
@@ -48,20 +66,30 @@ export class ClaudeClient extends EventEmitter {
 
   start() {
     const isAskMode = this.taskMode === 'ask'
+    const systemPrompt = getAgentSystemPrompt({
+      mode: this.taskMode,
+      taskType: this.taskType,
+    })
+    const childEnv = buildClaudeProcessEnv(process.env)
     try {
       this.query = query({
         prompt: this.promptQueue,
         options: {
           cwd: this.cwd,
+          // The SDK shells out to `node cli.js` by default. When the server is
+          // launched outside a login shell, PATH may not include the active Node
+          // install (for example nvm), and the SDK surfaces that as a misleading
+          // "Claude Code executable not found .../cli.js" error.
+          executable: process.execPath,
           model: this.taskModel,
           effort: this.taskEffort,
           ...(this.threadId ? { resume: this.threadId } : {}),
           permissionMode: isAskMode ? 'default' : 'bypassPermissions',
           allowDangerouslySkipPermissions: !isAskMode,
           includePartialMessages: true,
-          env: process.env,
+          env: childEnv,
           settingSources: ['user', 'project', 'local'],
-          ...(isAskMode ? { systemPrompt: ASK_MODE_PROMPT } : {}),
+          ...(systemPrompt ? { systemPrompt } : {}),
           // Disable sandboxing so tools can access the host filesystem at the
           // project's cwd. Without this, user/project settings picked up via
           // settingSources can enable the sandbox, which containerises tool

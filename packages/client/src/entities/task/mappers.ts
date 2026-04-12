@@ -13,6 +13,7 @@ export function toTaskCard(task: ServerTask): TaskCard {
     model: task.model ?? null,
     effort: task.effort ?? 'medium',
     fastMode: task.fast_mode === true || task.fast_mode === 1,
+    taskType: task.task_type ?? null,
   }
 }
 
