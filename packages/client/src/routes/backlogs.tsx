@@ -37,8 +37,47 @@ const agentMeta = {
   },
 } as const
 
+const backlogSkeletonIds = [
+  'backlog-skeleton-1',
+  'backlog-skeleton-2',
+  'backlog-skeleton-3',
+  'backlog-skeleton-4',
+] as const
+
+function BacklogCardSkeleton() {
+  return (
+    <article className="self-start border border-border bg-card shadow-[4px_4px_0_0_oklch(0.18_0.012_80/0.06)]">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
+        <div className="h-3 w-20 animate-pulse rounded-sm bg-muted" />
+        <div className="flex items-center gap-1.5">
+          <div className="h-5 w-16 animate-pulse rounded-sm bg-muted" />
+          <div className="h-5 w-28 animate-pulse rounded-sm bg-muted" />
+        </div>
+      </div>
+
+      <div className="space-y-2 px-5 py-5">
+        <div className="h-6 w-4/5 animate-pulse rounded-sm bg-muted" />
+        <div className="h-6 w-3/5 animate-pulse rounded-sm bg-muted" />
+      </div>
+
+      <div className="flex items-center justify-between gap-2 border-t border-dashed border-border px-5 py-3">
+        <div className="h-3 w-32 animate-pulse rounded-sm bg-muted" />
+        <div className="h-3 w-14 animate-pulse rounded-sm bg-muted" />
+      </div>
+
+      <div className="mt-auto flex items-center justify-between gap-3 border-t border-border bg-background/60 px-5 py-3">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-20 animate-pulse rounded-sm bg-muted" />
+          <div className="h-8 w-16 animate-pulse rounded-sm bg-muted" />
+        </div>
+        <div className="h-8 w-28 animate-pulse rounded-sm bg-muted" />
+      </div>
+    </article>
+  )
+}
+
 function BacklogsPage() {
-  const { tasks, updateTask, removeTask } = useBoardTasks()
+  const { tasks, isLoading, updateTask, removeTask } = useBoardTasks()
   const { openEditTask, openNewTask } = useBoardDialogs()
   const [searchQuery, setSearchQuery] = useState('')
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null)
@@ -111,7 +150,13 @@ function BacklogsPage() {
             </Button>
           </div>
 
-          {tasks.backlog.length === 0 ? (
+          {isLoading ? (
+            <div className="mt-6 grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+              {backlogSkeletonIds.map(skeletonId => (
+                <BacklogCardSkeleton key={skeletonId} />
+              ))}
+            </div>
+          ) : tasks.backlog.length === 0 ? (
             <div className="mt-6 flex flex-col items-center justify-center border border-dashed border-border bg-card/50 px-6 py-16 text-center">
               <p className="font-heading text-2xl tracking-tight text-foreground">
                 Nothing in backlog yet
@@ -141,7 +186,7 @@ function BacklogsPage() {
                 return (
                   <article
                     key={task.id}
-                    className="self-start border border-border bg-card shadow-[4px_4px_0_0_oklch(0.18_0.012_80/0.06)]"
+                    className="group/card relative self-start border border-border bg-card shadow-[4px_4px_0_0_oklch(0.18_0.012_80/0.06)] transition-all hover:border-foreground/40 hover:-translate-y-px"
                   >
                     <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
                       <p className="text-[0.62rem] tracking-[0.16em] text-muted-foreground uppercase">
@@ -170,7 +215,7 @@ function BacklogsPage() {
                     <button
                       type="button"
                       onClick={() => openEditTask(task, 'backlog')}
-                      className="block w-full text-left"
+                      className="block w-full cursor-pointer text-left"
                     >
                       <div className="px-5 py-5">
                         <h2 className="font-heading text-xl leading-tight tracking-tight text-foreground">
@@ -234,6 +279,8 @@ function BacklogsPage() {
                         Move to Todo
                       </Button>
                     </div>
+
+                    <span className="pointer-events-none absolute top-0 right-0 size-2 border-t-2 border-r-2 border-foreground/0 transition-colors group-hover/card:border-primary" />
                   </article>
                 )
               })}
