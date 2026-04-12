@@ -34,7 +34,7 @@ function AgentMark({ className = '' }: { className?: string }) {
           strokeLinecap="square"
         />
       </svg>
-      <span className="pointer-events-none absolute -right-[3px] -bottom-[3px] size-1.5 bg-primary" />
+      <span className="pointer-events-none absolute -right-0.75 -bottom-0.75 size-1.5 bg-primary" />
     </span>
   )
 }
@@ -106,8 +106,8 @@ export function AppTopBar({
             className={[
               'flex h-8 items-center gap-1.5 border px-3 text-xs font-medium transition-colors',
               homeActive
-                ? 'border-foreground bg-foreground text-background'
-                : 'border-border bg-card text-foreground hover:border-foreground/60 hover:bg-background',
+                ? 'border-primary bg-primary text-primary-foreground shadow-primary-hard'
+                : 'border-border bg-card text-foreground hover:border-primary/40 hover:bg-primary/6 hover:text-foreground',
             ].join(' ')}
           >
             <HouseIcon size={13} weight="bold" />
@@ -119,8 +119,8 @@ export function AppTopBar({
             className={[
               'flex h-8 items-center gap-1.5 border px-3 text-xs font-medium transition-colors',
               backlogActive
-                ? 'border-foreground bg-foreground text-background'
-                : 'border-border bg-card text-foreground hover:border-foreground/60 hover:bg-background',
+                ? 'border-primary bg-primary text-primary-foreground shadow-primary-hard'
+                : 'border-border bg-card text-foreground hover:border-primary/40 hover:bg-primary/6 hover:text-foreground',
             ].join(' ')}
           >
             <ArchiveIcon size={13} weight="bold" />
@@ -153,7 +153,7 @@ export function AppTopBar({
             )}
           </div>
 
-          <Button size="sm" variant="outline" onClick={onAddTask}>
+          <Button size="sm" onClick={onAddTask}>
             <PlusIcon size={13} />
             <span className="text-xs">{addLabel}</span>
           </Button>

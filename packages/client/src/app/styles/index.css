@@ -97,7 +97,7 @@
   --popover: oklch(0.328 0.016 256.9);
   --popover-foreground: oklch(0.981 0.005 110);
   --primary: oklch(0.745 0.073 278);
-  --primary-foreground: oklch(0.981 0.005 110);
+  --primary-foreground: oklch(0.248 0.02 264);
   --secondary: oklch(0.404 0.015 261.6);
   --secondary-foreground: oklch(0.981 0.005 110);
   --muted: oklch(0.368 0.018 257.7);
@@ -116,7 +116,7 @@
   --sidebar: oklch(0.27 0.012 262.9);
   --sidebar-foreground: oklch(0.981 0.005 110);
   --sidebar-primary: oklch(0.745 0.073 278);
-  --sidebar-primary-foreground: oklch(0.981 0.005 110);
+  --sidebar-primary-foreground: oklch(0.248 0.02 264);
   --sidebar-accent: oklch(0.404 0.015 261.6);
   --sidebar-accent-foreground: oklch(0.981 0.005 110);
   --sidebar-border: oklch(0.453 0.024 254.9);
@@ -158,6 +158,12 @@
 }
 
 @layer utilities {
+  .shadow-primary-hard {
+    box-shadow: 4px 4px 0 color-mix(in oklab, var(--primary) 18%, transparent);
+  }
+  .shadow-primary-hard-lg {
+    box-shadow: 6px 6px 0 color-mix(in oklab, var(--primary) 18%, transparent);
+  }
   .bg-paper {
     background-image: radial-gradient(
       circle at 1px 1px,
@@ -183,5 +189,11 @@
     background-image:
       linear-gradient(to right, oklch(0.745 0.073 278 / 0.06) 1px, transparent 1px),
       linear-gradient(to bottom, oklch(0.745 0.073 278 / 0.06) 1px, transparent 1px);
+  }
+  .dark .shadow-primary-hard {
+    box-shadow: 4px 4px 0 color-mix(in oklab, var(--primary) 28%, transparent);
+  }
+  .dark .shadow-primary-hard-lg {
+    box-shadow: 6px 6px 0 color-mix(in oklab, var(--primary) 28%, transparent);
   }
 }

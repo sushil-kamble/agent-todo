@@ -57,7 +57,7 @@ export function Header() {
               2 agents online
             </span>
           </div>
-          <Button size="sm" variant="outline" onClick={() => openNewTask('todo')}>
+          <Button size="sm" onClick={() => openNewTask('todo')}>
             <span className="text-[0.68rem] tracking-[0.12em] uppercase">New task</span>
           </Button>
         </nav>

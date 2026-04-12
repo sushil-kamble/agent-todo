@@ -498,7 +498,7 @@ export function ChatPanel({
   const headerMetaBadge = getHeaderMetaBadge(headerRunState, modeBadge)
 
   return (
-    <section className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-[56rem] flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:h-[calc(100vh-3rem)]">
+    <section className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-4xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:h-[calc(100vh-3rem)]">
       <div className="flex items-start justify-between gap-3 border-b border-border bg-card px-5 py-3">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center justify-between gap-3">
@@ -607,7 +607,12 @@ export function ChatPanel({
               type="button"
               onClick={isRunActive ? stop : send}
               disabled={isRunActive ? stopping : !draft.trim() || !canSend}
-              className="flex size-7 items-center justify-center border border-foreground bg-foreground text-background transition-opacity disabled:opacity-30"
+              className={[
+                'flex size-7 items-center justify-center border transition-colors disabled:opacity-30',
+                isRunActive
+                  ? 'border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/15'
+                  : 'border-primary bg-primary text-primary-foreground hover:bg-primary/90',
+              ].join(' ')}
               aria-label={isRunActive ? 'Stop' : 'Send'}
             >
               {isRunActive ? (

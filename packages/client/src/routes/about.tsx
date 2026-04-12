@@ -74,7 +74,7 @@ function About() {
           <section className="flex flex-col items-start gap-4 border-t border-border pt-8 sm:flex-row sm:items-center">
             <Link
               to="/"
-              className="group flex items-center gap-2 border border-foreground bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-background hover:text-foreground"
+              className="group flex items-center gap-2 border border-primary bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-primary-hard-lg transition-colors hover:bg-primary/90"
             >
               Open Task Board
               <ArrowRightIcon
@@ -87,7 +87,7 @@ function About() {
               href="https://github.com"
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-2 border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-foreground"
+              className="flex items-center gap-2 border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/6"
             >
               <GithubLogoIcon size={16} weight="fill" />
               Source Code
