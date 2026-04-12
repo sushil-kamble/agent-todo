@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   getAgentTooltipCopy,
-  resolveAvailableTaskTypes,
-  resolveAvailableTaskModes,
-  resolveConstrainedTaskMode,
   resolveAgentSelectionAfterSubscriptions,
+  resolveAvailableTaskModes,
+  resolveAvailableTaskTypes,
+  resolveConstrainedTaskMode,
   resolveInitialFormState,
   resolveModelSelectionState,
   resolveTaskCreationValidation,

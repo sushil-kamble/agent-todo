@@ -35,8 +35,8 @@ import {
   sanitizeModel,
 } from '#/features/agent-config/model/model-config'
 import {
-  DEFAULT_TASK_MODE,
   DEFAULT_PROJECTLESS_MODE,
+  DEFAULT_TASK_MODE,
   modeRequiresProject,
   TASK_MODE_OPTIONS,
 } from '#/features/agent-config/model/task-config'
@@ -50,6 +50,7 @@ import {
 } from '#/features/agent-config/model/task-type-config'
 import { addProject, fetchProjects, resolveDirectoryPath } from '#/features/project-picker/api'
 import { PanelHeader } from '#/features/run-console/components/shared'
+import { formatProjectPathLabel } from '#/shared/lib/utils'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -140,7 +141,8 @@ export function resolveTaskCreationValidation({
     missing.push('Task prompt')
   }
 
-  const needsProject = (taskType ? taskTypeRequiresProject(taskType) : false) || modeRequiresProject(mode as TaskMode)
+  const needsProject =
+    (taskType ? taskTypeRequiresProject(taskType) : false) || modeRequiresProject(mode as TaskMode)
   if (needsProject && (!normalizedProject || !projectOptions.includes(normalizedProject))) {
     missing.push('Project selection')
   }
@@ -524,8 +526,8 @@ export function FormPanel({
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={8}>
                   <p className="max-w-56 text-xs">
-                    Choose the local project directory the agent should use as working context. Leave
-                    it blank only for task types that support project-less work.
+                    Choose the local project directory the agent should use as working context.
+                    Leave it blank only for task types that support project-less work.
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -554,9 +556,19 @@ export function FormPanel({
                     <ComboboxEmpty>No matching projects</ComboboxEmpty>
                     <ComboboxList>
                       {item => (
-                        <ComboboxItem key={item} value={item}>
-                          <FolderOpenIcon size={13} className="shrink-0 text-muted-foreground" />
-                          <span className="truncate">{item}</span>
+                        <ComboboxItem key={item} value={item} className="items-start">
+                          <FolderOpenIcon
+                            size={13}
+                            className="mt-0.5 shrink-0 text-muted-foreground"
+                          />
+                          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <span className="truncate font-medium">
+                              {formatProjectPathLabel(item)}
+                            </span>
+                            <span className="truncate text-[0.65rem] text-muted-foreground">
+                              {item}
+                            </span>
+                          </span>
                         </ComboboxItem>
                       )}
                     </ComboboxList>
@@ -637,7 +649,12 @@ export function FormPanel({
             Configuration
           </span>
           <div className="grid grid-cols-2 gap-2">
-            <ModePicker value={mode} onChange={setMode} hasProject={hasProject} taskType={taskType} />
+            <ModePicker
+              value={mode}
+              onChange={setMode}
+              hasProject={hasProject}
+              taskType={taskType}
+            />
             <ModelEffortPicker
               agent={agent}
               model={model}
@@ -722,7 +739,7 @@ export function FormPanel({
                   <span className="text-[0.68rem] tracking-[0.12em] uppercase">Create task</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top" sideOffset={8}>
+              <TooltipContent side="bottom" sideOffset={8}>
                 <p className="max-w-56 text-xs">{createTaskTooltip}</p>
               </TooltipContent>
             </Tooltip>
@@ -819,9 +836,7 @@ function TaskTypePicker({
               <DropdownMenuRadioItem key={option.value} value={option.value}>
                 <span className="flex flex-col gap-0.5">
                   <span className="font-medium">{option.label}</span>
-                  <span className="text-[0.65rem] text-muted-foreground">
-                    {option.description}
-                  </span>
+                  <span className="text-[0.65rem] text-muted-foreground">{option.description}</span>
                 </span>
               </DropdownMenuRadioItem>
             ))}
@@ -1207,7 +1222,7 @@ function AgentChoice({
   return (
     <Tooltip>
       <TooltipTrigger render={<span className="flex w-full" />}>{buttonElem}</TooltipTrigger>
-      <TooltipContent side="top" sideOffset={8}>
+      <TooltipContent side="bottom" sideOffset={8}>
         <div className="flex max-w-64 flex-col gap-1">
           <p className="font-medium">{tooltipCopy.title}</p>
           <p className="text-xs text-background/80">{tooltipCopy.body}</p>

@@ -1,8 +1,8 @@
 import { delimiter } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ASK_MODE_PROMPT, getAgentSystemPrompt } from '#infra/agent-clients/config.mjs'
 import { buildClaudeProcessEnv, ClaudeClient } from '#infra/agent-clients/claude.mjs'
 import { CodexClient } from '#infra/agent-clients/codex.mjs'
+import { ASK_MODE_PROMPT, getAgentSystemPrompt } from '#infra/agent-clients/config.mjs'
 
 describe('agent client configuration', () => {
   it('normalizes codex constructor state for defaults and unsupported fast mode', () => {

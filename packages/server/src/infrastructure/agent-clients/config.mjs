@@ -3,19 +3,16 @@
  *
  * Swap these to change model / thinking depth without touching any other file.
  */
-import {
-  getDefaultEffort,
-  getDefaultModel,
-} from "#domains/agents/agent-config.mjs";
-import { sanitizeTaskType } from "#domains/agents/task-type-config.mjs";
+import { getDefaultEffort, getDefaultModel } from '#domains/agents/agent-config.mjs'
+import { sanitizeTaskType } from '#domains/agents/task-type-config.mjs'
 
 // ── Claude (claude-agent-sdk) ──────────────────────────────────────────────
-export const CLAUDE_MODEL = getDefaultModel("claude");
-export const CLAUDE_EFFORT = getDefaultEffort("claude", CLAUDE_MODEL);
+export const CLAUDE_MODEL = getDefaultModel('claude')
+export const CLAUDE_EFFORT = getDefaultEffort('claude', CLAUDE_MODEL)
 
 // ── Codex (codex app-server JSON-RPC) ─────────────────────────────────────
-export const CODEX_MODEL = getDefaultModel("codex");
-export const CODEX_EFFORT = getDefaultEffort("codex", CODEX_MODEL);
+export const CODEX_MODEL = getDefaultModel('codex')
+export const CODEX_EFFORT = getDefaultEffort('codex', CODEX_MODEL)
 
 // ── Ask-mode system prompt ────────────────────────────────────────────────
 // Prepended to the user's task prompt when mode === 'ask'. Constrains the
@@ -37,7 +34,7 @@ YOUR ROLE:
 - Write test cases as suggestions in your response, not as file edits.
 - Create tickets, plans, and documentation as text in your response.
 
-If the user asks you to make changes, explain what you WOULD do and where, but do NOT execute the changes. Always clarify that you are in read-only mode.`;
+If the user asks you to make changes, explain what you WOULD do and where, but do NOT execute the changes. Always clarify that you are in read-only mode.`
 
 export const FEATURE_DEV_TASK_PROMPT = `\
 You are handling a **Feature Development** task.
@@ -58,7 +55,7 @@ QUALITY BAR:
 
 RESPONSE SHAPE:
 - State the concrete outcome, the key implementation decisions, and any residual risks or follow-up work.
-- If the request is too large or unclear to execute safely, first produce a focused implementation plan with blockers.`;
+- If the request is too large or unclear to execute safely, first produce a focused implementation plan with blockers.`
 
 export const FEATURE_PLAN_TASK_PROMPT = `\
 You are handling a **Feature Planning** task.
@@ -77,7 +74,7 @@ QUALITY BAR:
 - Avoid premature coding or speculative detail that is not needed to make the plan actionable.
 
 RESPONSE SHAPE:
-- Present a concise implementation plan, acceptance criteria, and the highest-risk edge cases.`;
+- Present a concise implementation plan, acceptance criteria, and the highest-risk edge cases.`
 
 export const CODE_REVIEW_TASK_PROMPT = `\
 You are handling a **Code Review** task.
@@ -96,7 +93,7 @@ QUALITY BAR:
 - If no substantive findings exist, state that clearly and mention any remaining testing or confidence gaps.
 
 RESPONSE SHAPE:
-- Lead with the findings, then brief open questions or residual risks, then a short summary only if useful.`;
+- Lead with the findings, then brief open questions or residual risks, then a short summary only if useful.`
 
 export const WRITE_TESTS_TASK_PROMPT = `\
 You are handling a **Write Tests** task.
@@ -116,7 +113,7 @@ QUALITY BAR:
 - Explain any coverage that remains missing and why.
 
 RESPONSE SHAPE:
-- Summarize the scenarios covered, how they protect the requested behavior, and any remaining gaps.`;
+- Summarize the scenarios covered, how they protect the requested behavior, and any remaining gaps.`
 
 export const BRAINSTORMING_TASK_PROMPT = `\
 You are handling a **Brainstorming** task.
@@ -135,7 +132,7 @@ QUALITY BAR:
 - Distinguish clearly between recommended options, alternatives, and speculative ideas.
 
 RESPONSE SHAPE:
-- Present a concise set of options, compare them, and recommend one only when the tradeoff is genuinely favorable.`;
+- Present a concise set of options, compare them, and recommend one only when the tradeoff is genuinely favorable.`
 
 export const TASK_TYPE_PROMPTS = {
   feature_dev: FEATURE_DEV_TASK_PROMPT,
@@ -143,22 +140,22 @@ export const TASK_TYPE_PROMPTS = {
   code_review: CODE_REVIEW_TASK_PROMPT,
   write_tests: WRITE_TESTS_TASK_PROMPT,
   brainstorming: BRAINSTORMING_TASK_PROMPT,
-};
+}
 
 export function getTaskTypePrompt(taskType) {
-  const normalizedTaskType = sanitizeTaskType(taskType);
-  return normalizedTaskType ? TASK_TYPE_PROMPTS[normalizedTaskType] : null;
+  const normalizedTaskType = sanitizeTaskType(taskType)
+  return normalizedTaskType ? TASK_TYPE_PROMPTS[normalizedTaskType] : null
 }
 
 export function getAgentSystemPrompt({ mode, taskType }) {
-  const taskTypePrompt = getTaskTypePrompt(taskType);
-  const isAskMode = mode === "ask";
+  const taskTypePrompt = getTaskTypePrompt(taskType)
+  const isAskMode = mode === 'ask'
 
   if (isAskMode && taskTypePrompt) {
-    return `${ASK_MODE_PROMPT}\n\n---\n\n${taskTypePrompt}`;
+    return `${ASK_MODE_PROMPT}\n\n---\n\n${taskTypePrompt}`
   }
   if (isAskMode) {
-    return ASK_MODE_PROMPT;
+    return ASK_MODE_PROMPT
   }
-  return taskTypePrompt;
+  return taskTypePrompt
 }
