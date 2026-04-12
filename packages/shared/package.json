@@ -1,0 +1,24 @@
+{
+  "name": "@agent-todo/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contracts/task": "./src/contracts/task.ts",
+    "./contracts/run": "./src/contracts/run.ts",
+    "./contracts/project": "./src/contracts/project.ts",
+    "./contracts/subscription": "./src/contracts/subscription.ts",
+    "./constants/board-columns": "./src/constants/board-columns.ts",
+    "./constants/run-status": "./src/constants/run-status.ts",
+    "./config/agents": "./src/config/agents.ts",
+    "./config/task-modes": "./src/config/task-modes.ts",
+    "./runtime/agents": "./src/runtime/agents.mjs",
+    "./runtime/task-modes": "./src/runtime/task-modes.mjs",
+    "./validation/task.schema": "./src/validation/task.schema.ts",
+    "./validation/project.schema": "./src/validation/project.schema.ts",
+    "./validation/run.schema": "./src/validation/run.schema.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

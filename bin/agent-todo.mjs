@@ -64,7 +64,7 @@ function openBrowser(url) {
 const args = parseArgs(process.argv)
 
 // Verify the build exists
-const clientDir = resolve(ROOT, 'dist', 'client')
+const clientDir = resolve(ROOT, 'packages', 'client', 'dist', 'client')
 if (!existsSync(clientDir)) {
   console.error('\n  Build not found. Run `npm run build` first, then try again.\n')
   process.exit(1)
@@ -73,8 +73,12 @@ if (!existsSync(clientDir)) {
 // Set port before importing server (modules may read process.env)
 process.env.PORT = String(args.port)
 
-const { createApp } = await import(resolve(ROOT, 'server', 'app.mjs'))
-const { seedIfEmpty } = await import(resolve(ROOT, 'server', 'db', 'tasks.mjs'))
+const { createApp } = await import(
+  resolve(ROOT, 'packages', 'server', 'src', 'app', 'http-server.mjs')
+)
+const { seedIfEmpty } = await import(
+  resolve(ROOT, 'packages', 'server', 'src', 'domains', 'tasks', 'task.repository.mjs')
+)
 
 seedIfEmpty()
 

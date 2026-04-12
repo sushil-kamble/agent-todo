@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
+  "exclude": [".temp"],
+  "compilerOptions": {
+    "types": ["vite/client"],
+    "paths": {
+      "#/*": ["./src/*"],
+      "@/*": ["./src/*"],
+      "@app/*": ["./src/app/*"],
+      "@entities/*": ["./src/entities/*"],
+      "@features/*": ["./src/features/*"],
+      "@routes/*": ["./src/routes/*"],
+      "@shared/*": ["./src/shared/*"]
+    }
+  }
+}

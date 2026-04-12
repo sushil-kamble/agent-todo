@@ -4,7 +4,8 @@
     "includes": [
       "**",
       "!dist",
-      "!src/routeTree.gen.ts",
+      "!packages/client/dist",
+      "!packages/client/src/routeTree.gen.ts",
       "!.temp",
       "!.agents",
       "!.claude",

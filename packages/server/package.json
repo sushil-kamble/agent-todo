@@ -1,0 +1,20 @@
+{
+  "name": "@agent-todo/server",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#app/*": "./src/app/*",
+    "#domains/*": "./src/domains/*",
+    "#infra/*": "./src/infrastructure/*",
+    "#testing/*": "./src/testing/*"
+  },
+  "scripts": {
+    "dev": "node src/index.mjs",
+    "test": "vitest run --config vitest.config.mjs",
+    "typecheck": "node -e \"console.log('No TypeScript sources in @agent-todo/server')\""
+  },
+  "dependencies": {
+    "@agent-todo/shared": "workspace:*",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.97"
+  }
+}

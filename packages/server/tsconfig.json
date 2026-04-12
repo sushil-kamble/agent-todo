@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src/**/*.mjs", "tests/**/*.mjs"],
+  "exclude": ["dist"],
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "paths": {
+      "#app/*": ["./src/app/*"],
+      "#domains/*": ["./src/domains/*"],
+      "#infra/*": ["./src/infrastructure/*"],
+      "#testing/*": ["./src/testing/*"]
+    }
+  }
+}
