@@ -243,7 +243,9 @@ function BacklogsPage() {
                         <span
                           className={[
                             'inline-flex min-w-0 items-center gap-1 text-[0.62rem]',
-                            isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
+                            isProjectless
+                              ? 'italic text-muted-foreground/50'
+                              : 'text-muted-foreground',
                           ].join(' ')}
                           title={isProjectless ? 'No project assigned' : task.project}
                         >

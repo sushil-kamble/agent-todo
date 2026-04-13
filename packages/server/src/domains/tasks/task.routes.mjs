@@ -29,6 +29,7 @@ import { createProject } from '#domains/projects/project.repository.mjs'
 import { listMessages } from '#domains/runs/message.repository.mjs'
 import { getActiveRunForTask, getLatestRunForTask } from '#domains/runs/run.repository.mjs'
 import { ensureRunForTask, stopRunForTask } from '#domains/runs/run-manager.mjs'
+import { getTaskWorkedTime } from '#domains/runs/worked-time.mjs'
 import { normalizeProjectPath } from '#infra/filesystem/project-path.mjs'
 import { json, readBody } from '#infra/http/http.mjs'
 import {
@@ -67,10 +68,23 @@ function resolvePatchedTaskType(value, previousTaskType) {
   return isTaskType(value) ? value : (previousTaskType ?? null)
 }
 
+function withRunMetrics(task, runStatus = null) {
+  const workedTime = getTaskWorkedTime(task.id)
+
+  return {
+    ...task,
+    run_status: runStatus,
+    worked_time_ms: workedTime?.total_ms ?? null,
+    active_turn_started_at: workedTime?.active_turn_started_at ?? null,
+  }
+}
+
 export async function handleTaskRoutes(req, res, pathname) {
   // GET /api/tasks
   if (req.method === 'GET' && pathname === '/api/tasks') {
-    return json(res, 200, { tasks: listTasks() })
+    return json(res, 200, {
+      tasks: listTasks().map(task => withRunMetrics(task, task.run_status ?? null)),
+    })
   }
 
   if (req.method === 'GET' && pathname === '/api/tasks/statuses') {
@@ -83,7 +97,8 @@ export async function handleTaskRoutes(req, res, pathname) {
     const statuses = Object.fromEntries(
       listTaskStatuses(ids ?? []).map(row => [row.id, row.run_status ?? null])
     )
-    return json(res, 200, { statuses })
+    const workedTimes = Object.fromEntries((ids ?? []).map(id => [id, getTaskWorkedTime(id)]))
+    return json(res, 200, { statuses, workedTimes })
   }
 
   if (req.method === 'POST' && pathname === '/api/paths/resolve-directory') {
@@ -125,7 +140,7 @@ export async function handleTaskRoutes(req, res, pathname) {
     if (projectPath && projectPath !== 'untitled') {
       createProject(projectPath)
     }
-    return json(res, 201, { task: t })
+    return json(res, 201, { task: withRunMetrics(t) })
   }
 
   // PATCH /api/tasks/:id
@@ -204,7 +219,10 @@ export async function handleTaskRoutes(req, res, pathname) {
         return json(res, 500, { error: `failed to start ${t.agent}: ${e.message}` })
       }
     }
-    return json(res, 200, { task: t, runId })
+    return json(res, 200, {
+      task: withRunMetrics(t, getActiveRunForTask(t.id)?.status ?? null),
+      runId,
+    })
   }
 
   // DELETE /api/tasks/:id

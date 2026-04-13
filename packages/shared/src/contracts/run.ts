@@ -12,13 +12,15 @@ export type RunMessage = {
   run_id: string
   seq: number
   role: 'user' | 'agent' | 'system'
-  kind: 'text' | 'command' | 'status' | 'error'
+  kind: 'text' | 'reasoning' | 'command' | 'status' | 'error'
   content: string
   meta: unknown
   created_at: string
 }
 
 export type AgentPhase = 'commentary' | 'final'
+export type ReasoningProvider = 'claude' | 'codex'
+export type ReasoningFormat = 'summary' | 'raw'
 
 export type RunEvent =
   | ({ type: 'message' } & {
@@ -28,11 +30,20 @@ export type RunEvent =
       content: string
       phase?: AgentPhase
       itemId?: string
+      provider?: ReasoningProvider
+      reasoningFormat?: ReasoningFormat
       interruptedByUser?: boolean
-      source?: string
       createdAt: string
     })
-  | { type: 'delta'; itemId: string; delta: string }
+  | {
+      type: 'delta'
+      itemId: string
+      kind: 'text' | 'reasoning'
+      delta: string
+      phase?: AgentPhase
+      provider?: ReasoningProvider
+      reasoningFormat?: ReasoningFormat
+    }
   | { type: 'turnStarted'; turnId: string }
   | {
       type: 'itemStarted'
@@ -41,6 +52,8 @@ export type RunEvent =
       command?: string
       cwd?: string
       phase?: AgentPhase
+      provider?: ReasoningProvider
+      reasoningFormat?: ReasoningFormat
     }
   | { type: 'commandDelta'; itemId: string; delta: string }
   | { type: 'turnCompleted'; status?: string }

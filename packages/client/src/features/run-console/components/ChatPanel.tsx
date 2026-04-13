@@ -14,11 +14,17 @@ import {
 import * as api from '#/features/run-console/api'
 import { ClaudeIcon, OpenAIIcon } from '#/shared/ui/icons'
 import type { LiveMessage } from '../model/types'
-import { formatTime, groupByTurn } from '../model/utils'
-import { ModelConfigChip, ProjectPathChip, TurnBlock } from './shared'
+import { formatTime, getWorkedTimeDuration, groupByTurn } from '../model/utils'
+import { ModelConfigChip, ProjectPathChip, TurnBlock, WorkedTimeChip } from './shared'
 
 const USER_CANCELLED_EXECUTION = '--- User cancelled execution ---'
 const LOCAL_INTERRUPTED_MARKER_PREFIX = 'interrupt-local-'
+type StreamingItemMeta = {
+  kind: 'text' | 'reasoning'
+  phase?: AgentPhase
+  provider?: 'claude' | 'codex'
+  reasoningFormat?: 'summary' | 'raw'
+}
 
 function isInterruptedMarker(message: Pick<LiveMessage, 'role' | 'kind' | 'interruptedByUser'>) {
   return message.role === 'system' && message.kind === 'error' && message.interruptedByUser === true
@@ -92,13 +98,14 @@ export function ChatPanel({
   const [completedTurns, setCompletedTurns] = useState(0)
   const [scrollReady, setScrollReady] = useState(false)
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
+  const [headerNowMs, setHeaderNowMs] = useState(() => Date.now())
   const didInitialScrollRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const draftInputRef = useRef<HTMLTextAreaElement>(null)
   const stickyRef = useRef(true)
-  const streamingRef = useRef<{ itemId: string; msgId: string } | null>(null)
-  const itemPhaseRef = useRef<Map<string, AgentPhase>>(new Map())
+  const streamingRefs = useRef<Map<string, string>>(new Map())
+  const itemMetaRef = useRef<Map<string, StreamingItemMeta>>(new Map())
   const interruptPendingRef = useRef(false)
 
   const resizeDraftInput = useCallback(() => {
@@ -155,19 +162,25 @@ export function ChatPanel({
           .map(m => {
             const meta = (m.meta ?? null) as {
               phase?: AgentPhase
+              itemId?: string
+              provider?: 'claude' | 'codex'
+              reasoningFormat?: 'summary' | 'raw'
               interruptedByUser?: boolean
             } | null
-            return {
-              id: `p-${m.seq}`,
-              role: m.role,
-              kind: m.kind,
-              body: m.content,
-              at: formatTime(m.created_at),
-              createdAt: m.created_at,
-              phase: meta?.phase,
-              interruptedByUser:
-                m.role === 'system' &&
-                m.kind === 'error' &&
+              return {
+                id: `p-${m.seq}`,
+                role: m.role,
+                kind: m.kind,
+                body: m.content,
+                at: formatTime(m.created_at),
+                createdAt: m.created_at,
+                phase: meta?.phase,
+                itemId: meta?.itemId,
+                provider: meta?.provider,
+                reasoningFormat: meta?.reasoningFormat,
+                interruptedByUser:
+                  m.role === 'system' &&
+                  m.kind === 'error' &&
                 (meta?.interruptedByUser === true || m.content === USER_CANCELLED_EXECUTION),
             }
           })
@@ -184,8 +197,17 @@ export function ChatPanel({
 
         if (ev.type === 'itemStarted') {
           setThinking(false)
-          if (ev.itemType === 'agentMessage' && ev.phase) {
-            itemPhaseRef.current.set(ev.itemId, ev.phase)
+          if (ev.itemType === 'agentMessage') {
+            itemMetaRef.current.set(ev.itemId, {
+              kind: 'text',
+              phase: ev.phase,
+            })
+          } else if (ev.itemType === 'reasoning') {
+            itemMetaRef.current.set(ev.itemId, {
+              kind: 'reasoning',
+              provider: ev.provider,
+              reasoningFormat: ev.reasoningFormat,
+            })
           }
           if (ev.itemType === 'commandExecution' && ev.command) {
             setMessages(prev => [
@@ -285,42 +307,66 @@ export function ChatPanel({
                 createdAt: ev.createdAt,
                 phase: ev.phase,
                 itemId: ev.itemId,
+                provider: ev.provider,
+                reasoningFormat: ev.reasoningFormat,
                 interruptedByUser: ev.interruptedByUser === true,
               },
             ]
           })
 
-          if (ev.role === 'agent' && ev.itemId && streamingRef.current?.itemId === ev.itemId) {
-            streamingRef.current = null
+          if (ev.itemId) {
+            streamingRefs.current.delete(ev.itemId)
+            itemMetaRef.current.delete(ev.itemId)
           }
-          if (ev.itemId) itemPhaseRef.current.delete(ev.itemId)
           return
         }
 
         if (ev.type === 'delta') {
           setThinking(false)
           setMessages(prev => {
-            if (!streamingRef.current || streamingRef.current.itemId !== ev.itemId) {
+            const existingId = streamingRefs.current.get(ev.itemId)
+            if (!existingId) {
               const msgId = `s-${ev.itemId}`
-              streamingRef.current = { itemId: ev.itemId, msgId }
-              const phase = itemPhaseRef.current.get(ev.itemId) ?? 'final'
+              streamingRefs.current.set(ev.itemId, msgId)
+              const baseMeta = itemMetaRef.current.get(ev.itemId) ?? {
+                kind: ev.kind,
+              }
+              const nextMeta = {
+                ...baseMeta,
+                kind: ev.kind,
+                phase: ev.phase ?? baseMeta.phase,
+                provider: ev.provider ?? baseMeta.provider,
+                reasoningFormat: ev.reasoningFormat ?? baseMeta.reasoningFormat,
+              }
+              itemMetaRef.current.set(ev.itemId, nextMeta)
               return [
                 ...prev,
                 {
                   id: msgId,
                   role: 'agent',
-                  kind: 'text',
+                  kind: ev.kind,
                   body: ev.delta,
                   at: '',
                   createdAt: new Date().toISOString(),
                   streaming: true,
-                  phase,
+                  phase: nextMeta.phase,
                   itemId: ev.itemId,
+                  provider: nextMeta.provider,
+                  reasoningFormat: nextMeta.reasoningFormat,
                 },
               ]
             }
-            const msgId = streamingRef.current.msgId
-            return prev.map(p => (p.id === msgId ? { ...p, body: p.body + ev.delta } : p))
+            const msgId = existingId
+            return prev.map(p => {
+              if (p.id !== msgId) return p
+              return {
+                ...p,
+                body: p.body + ev.delta,
+                provider: ev.provider ?? p.provider,
+                reasoningFormat: ev.reasoningFormat ?? p.reasoningFormat,
+                phase: ev.phase ?? p.phase,
+              }
+            })
           })
           return
         }
@@ -487,6 +533,17 @@ export function ChatPanel({
   const canSend = !readOnly && !!runId && runStatus === 'idle'
   const headerRunState = getHeaderRunState(runStatus)
   const modeBadge = getModeBadge(task.mode)
+  const workedTimeMs = useMemo(
+    () => getWorkedTimeDuration(turns, isRunActive, headerNowMs),
+    [turns, isRunActive, headerNowMs]
+  )
+
+  useEffect(() => {
+    if (!isRunActive) return
+    setHeaderNowMs(Date.now())
+    const intervalId = window.setInterval(() => setHeaderNowMs(Date.now()), 1000)
+    return () => window.clearInterval(intervalId)
+  }, [isRunActive])
 
   return (
     <section className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-4xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:h-[calc(100vh-3rem)]">
@@ -528,6 +585,7 @@ export function ChatPanel({
             </div>
           </div>
           <div className="mt-1.5 flex items-center justify-end gap-2">
+            <WorkedTimeChip durationMs={workedTimeMs} />
             <ProjectPathChip path={task.project} />
             <ModelConfigChip
               agent={task.agent}

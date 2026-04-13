@@ -1,4 +1,3 @@
-import { HouseIcon, InfoIcon } from '@phosphor-icons/react'
 import { Link, useRouterState } from '@tanstack/react-router'
 
 function AgentMark({ className = '' }: { className?: string }) {
@@ -67,13 +66,8 @@ export function Footer() {
           </div>
           <Link
             to={isAboutPage ? '/' : '/about'}
-            className="flex h-8 items-center gap-1.5 border border-border bg-card px-3 text-xs font-medium text-foreground transition-colors hover:border-foreground/60 hover:bg-background"
+            className="inline-flex h-8 items-center border border-border bg-card px-3 text-xs font-medium text-foreground transition-colors hover:border-foreground/60 hover:bg-background"
           >
-            {isAboutPage ? (
-              <HouseIcon size={13} weight="bold" />
-            ) : (
-              <InfoIcon size={13} weight="bold" />
-            )}
             <span>{isAboutPage ? 'Home' : 'About'}</span>
           </Link>
         </div>

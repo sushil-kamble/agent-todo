@@ -1,6 +1,23 @@
 import type { ComponentProps } from 'react'
 
-function rewriteFileHref(href: string | undefined): string | null {
+const FILE_PATH_RE = /\.[A-Za-z0-9]+$/
+const FILE_PATH_WITH_POSITION_RE = /^(.*\.[A-Za-z0-9]+)(?::(\d+)(?::(\d+))?)$/
+
+function parseFilePath(pathname: string) {
+  const positioned = pathname.match(FILE_PATH_WITH_POSITION_RE)
+  if (positioned) {
+    return {
+      pathname: positioned[1],
+      line: positioned[2],
+      col: positioned[3] ?? null,
+    }
+  }
+
+  if (!FILE_PATH_RE.test(pathname)) return null
+  return { pathname, line: null, col: null }
+}
+
+export function rewriteFileHref(href: string | undefined): string | null {
   if (!href) return null
   let pathname: string
   let hash = ''
@@ -14,11 +31,12 @@ function rewriteFileHref(href: string | undefined): string | null {
     return null
   }
   if (!pathname.startsWith('/')) return null
-  if (!/\.[A-Za-z0-9]+$/.test(pathname)) return null
+  const parsedPath = parseFilePath(pathname)
+  if (!parsedPath) return null
   const lineMatch = hash.match(/^#L(\d+)(?:[-:](\d+))?/)
-  const line = lineMatch ? lineMatch[1] : null
-  const col = lineMatch?.[2] ?? null
-  let uri = `vscode://file${pathname}`
+  const line = lineMatch ? lineMatch[1] : parsedPath.line
+  const col = lineMatch?.[2] ?? parsedPath.col
+  let uri = `vscode://file${parsedPath.pathname}`
   if (line) uri += `:${line}${col ? `:${col}` : ''}`
   return uri
 }

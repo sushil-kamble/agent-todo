@@ -83,6 +83,9 @@ export async function handleRunRoutes(req, res, pathname) {
         kind: msg.kind,
         content: msg.content,
         phase: meta?.phase,
+        itemId: meta?.itemId,
+        provider: meta?.provider,
+        reasoningFormat: meta?.reasoningFormat,
         interruptedByUser: meta?.interruptedByUser === true,
         createdAt: msg.created_at,
       })

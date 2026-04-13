@@ -225,20 +225,22 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
         </div>
       ) : (
         <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-border px-3 py-2">
-          <span
-            className={[
-              'inline-flex min-w-0 items-center gap-1 text-[0.62rem]',
-              isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
-            ].join(' ')}
-            title={isProjectless ? 'No project assigned' : task.project}
-          >
-            {isProjectless ? (
-              <ProhibitIcon size={11} weight="bold" />
-            ) : (
-              <FolderIcon size={11} weight="duotone" />
-            )}
-            <span className="truncate">{projectLabel}</span>
-          </span>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span
+              className={[
+                'inline-flex min-w-0 items-center gap-1 text-[0.62rem]',
+                isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
+              ].join(' ')}
+              title={isProjectless ? 'No project assigned' : task.project}
+            >
+              {isProjectless ? (
+                <ProhibitIcon size={11} weight="bold" />
+              ) : (
+                <FolderIcon size={11} weight="duotone" />
+              )}
+              <span className="truncate">{projectLabel}</span>
+            </span>
+          </div>
           <div className="flex items-center gap-2">
             <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
               {task.createdAt.slice(5)}

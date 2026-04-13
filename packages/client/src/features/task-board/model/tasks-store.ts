@@ -50,15 +50,29 @@ export function createBoardTasksStore() {
       if (taskIds.length === 0) return
 
       try {
-        const statuses = await api.fetchTaskStatuses(taskIds)
+        const { statuses, workedTimes } = await api.fetchTaskStatuses(taskIds)
         set(state => {
           let changed = false
           const nextInProgress = state.tasks.in_progress.map(task => {
             if (!ACTIVE_RUN_STATUSES.has(task.runStatus ?? '')) return task
             const nextStatus = statuses[task.id] ?? undefined
-            if (task.runStatus === nextStatus) return task
+            const nextWorkedTime = workedTimes[task.id] ?? null
+            const nextWorkedTimeMs = nextWorkedTime?.total_ms ?? null
+            const nextActiveTurnStartedAt = nextWorkedTime?.active_turn_started_at ?? null
+            if (
+              task.runStatus === nextStatus &&
+              task.workedTimeMs === nextWorkedTimeMs &&
+              task.activeTurnStartedAt === nextActiveTurnStartedAt
+            ) {
+              return task
+            }
             changed = true
-            return { ...task, runStatus: nextStatus }
+            return {
+              ...task,
+              runStatus: nextStatus,
+              workedTimeMs: nextWorkedTimeMs,
+              activeTurnStartedAt: nextActiveTurnStartedAt,
+            }
           })
 
           if (!changed) return state

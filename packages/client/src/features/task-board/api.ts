@@ -15,12 +15,18 @@ export async function fetchTasks(): Promise<Record<ColumnId, TaskCard[]>> {
   return toTasksByColumn(body.tasks)
 }
 
-export async function fetchTaskStatuses(taskIds: string[]): Promise<Record<string, string | null>> {
-  if (taskIds.length === 0) return {}
+export async function fetchTaskStatuses(taskIds: string[]): Promise<{
+  statuses: Record<string, string | null>
+  workedTimes: TaskStatusesResponse['workedTimes']
+}> {
+  if (taskIds.length === 0) return { statuses: {}, workedTimes: {} }
   const query = new URLSearchParams({ ids: taskIds.join(',') })
   const response = await fetch(`/api/tasks/statuses?${query.toString()}`)
   const body = (await response.json()) as TaskStatusesResponse
-  return body.statuses
+  return {
+    statuses: body.statuses,
+    workedTimes: body.workedTimes ?? {},
+  }
 }
 
 export async function createTask(

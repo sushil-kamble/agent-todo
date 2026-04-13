@@ -3,6 +3,7 @@ import {
   CaretRightIcon,
   FolderIcon,
   ProhibitIcon,
+  WatchIcon,
   XIcon,
 } from '@phosphor-icons/react'
 import { type ComponentType, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -27,7 +28,7 @@ import { AntiGravityIcon, CursorIcon, VSCodeIcon } from '#/shared/ui/icons'
 import { WORKING_VERBS } from '../model/constants'
 import { MD_COMPONENTS } from '../model/markdown'
 import type { ChatMessage, LiveMessage, TurnGroup } from '../model/types'
-import { formatWorkedFor } from '../model/utils'
+import { formatWorkedFor, formatWorkedForDuration } from '../model/utils'
 
 export function PanelHeader({ label, onClose }: { label: string; onClose: () => void }) {
   return (
@@ -153,6 +154,18 @@ export function ModelConfigChip({
   )
 }
 
+export function WorkedTimeChip({ durationMs }: { durationMs: number | null }) {
+  const workedFor = formatWorkedForDuration(durationMs)
+  if (!workedFor) return null
+
+  return (
+    <span className="inline-flex shrink-0 items-center justify-center gap-1 border border-border bg-muted px-1.5 py-0.5 text-[0.58rem] font-semibold tabular-nums text-foreground whitespace-nowrap">
+      <WatchIcon size={10} weight="duotone" className="shrink-0" />
+      <span>{workedFor}</span>
+    </span>
+  )
+}
+
 function TurnBlockImpl({
   group,
   agentIcon: AgentIcon,
@@ -164,8 +177,10 @@ function TurnBlockImpl({
   showThinkingDots: boolean
   inFlight: boolean
 }) {
-  const hasThinking =
-    !group.interrupted && (group.thinking.length > 0 || showThinkingDots || inFlight)
+  const hasReasoning = group.supporting.some(message => message.kind === 'reasoning')
+  const accordionLabel = hasReasoning ? 'Reasoning' : 'Work log'
+  const hasSupporting =
+    !group.interrupted && (group.supporting.length > 0 || showThinkingDots || inFlight)
 
   return (
     <div className="space-y-3">
@@ -173,7 +188,7 @@ function TurnBlockImpl({
 
       {group.interrupted && <InterruptedMarker />}
 
-      {hasThinking && (
+      {hasSupporting && (
         <Collapsible defaultOpen={false}>
           <CollapsibleTrigger className="group/th flex w-full items-center gap-2 border border-dashed border-border bg-muted/40 px-3 py-1.5 text-left transition-colors hover:border-foreground/40 hover:bg-muted aria-expanded:border-foreground/30">
             <CaretRightIcon
@@ -181,7 +196,7 @@ function TurnBlockImpl({
               weight="bold"
               className="shrink-0 text-muted-foreground transition-transform duration-150 group-aria-expanded/th:rotate-90"
             />
-            <CyclingVerb active={inFlight || showThinkingDots} />
+            <CyclingVerb active={inFlight || showThinkingDots} idleLabel={accordionLabel} />
             <WorkedForBadge
               startedAt={group.startedAt}
               endedAt={group.endedAt}
@@ -190,7 +205,7 @@ function TurnBlockImpl({
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 border-l-2 border-dashed border-border pl-3">
             <div className="space-y-2.5">
-              {group.thinking.map(m => (
+              {group.supporting.map(m => (
                 <LiveChatBubbleMemo key={m.id} message={m} agentIcon={AgentIcon} muted />
               ))}
               {showThinkingDots && <ThinkingDots agentIcon={AgentIcon} />}
@@ -230,9 +245,9 @@ export const TurnBlock = memo(TurnBlockImpl, (prev, next) => {
   if (prev.group.tail.length !== next.group.tail.length) return false
   if (prev.group.startedAt !== next.group.startedAt || prev.group.endedAt !== next.group.endedAt)
     return false
-  if (prev.group.thinking.length !== next.group.thinking.length) return false
+  if (prev.group.supporting.length !== next.group.supporting.length) return false
   if (prev.group.tail.some((message, index) => message !== next.group.tail[index])) return false
-  return prev.group.thinking.every((message, index) => message === next.group.thinking[index])
+  return prev.group.supporting.every((message, index) => message === next.group.supporting[index])
 })
 
 function WorkedForBadge({
@@ -262,8 +277,8 @@ function WorkedForBadge({
   )
 }
 
-/** Cycles through WORKING_VERBS while active, settles on "Reasoning" when done. */
-function CyclingVerb({ active }: { active: boolean }) {
+/** Cycles through WORKING_VERBS while active, settles on the provided label when done. */
+function CyclingVerb({ active, idleLabel }: { active: boolean; idleLabel: string }) {
   const [index, setIndex] = useState(() => Math.floor(Math.random() * WORKING_VERBS.length))
   const [fading, setFading] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -292,7 +307,7 @@ function CyclingVerb({ active }: { active: boolean }) {
     }
   }, [active, advance])
 
-  const label = active ? WORKING_VERBS[index] : 'Reasoning'
+  const label = active ? WORKING_VERBS[index] : idleLabel
 
   return (
     <span
@@ -402,6 +417,16 @@ function LiveChatBubble({
   }
 
   const isUser = message.role === 'user'
+  const mutedLabel =
+    !isUser && muted
+      ? message.kind === 'reasoning'
+        ? message.reasoningFormat === 'summary' || message.provider === 'claude'
+          ? 'Reasoning summary'
+          : 'Reasoning'
+        : message.phase === 'commentary'
+          ? 'Commentary'
+          : null
+      : null
   return (
     <div className={`flex min-w-0 gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
       {!muted && (
@@ -423,6 +448,11 @@ function LiveChatBubble({
       <div
         className={`flex min-w-0 max-w-[80%] flex-col ${isUser ? 'items-end text-right' : 'items-start text-left'}`}
       >
+        {mutedLabel && (
+          <span className="mb-1 text-[0.55rem] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+            {mutedLabel}
+          </span>
+        )}
         <div
           className={[
             'min-w-0 max-w-full overflow-hidden border wrap-break-word',

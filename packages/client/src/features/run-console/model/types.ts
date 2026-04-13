@@ -1,4 +1,4 @@
-import type { AgentPhase } from '#/entities/run'
+import type { AgentPhase, ReasoningFormat, ReasoningProvider } from '#/entities/run'
 
 export type ChatMessage = {
   id: string
@@ -17,6 +17,8 @@ export type LiveMessage = {
   streaming?: boolean
   phase?: AgentPhase
   itemId?: string
+  provider?: ReasoningProvider
+  reasoningFormat?: ReasoningFormat
   commandOutput?: string
   commandRunning?: boolean
   interruptedByUser?: boolean
@@ -25,7 +27,7 @@ export type LiveMessage = {
 export type TurnGroup = {
   user: LiveMessage | null
   interrupted: LiveMessage | null
-  thinking: LiveMessage[]
+  supporting: LiveMessage[]
   final: LiveMessage | null
   tail: LiveMessage[]
   startedAt?: string

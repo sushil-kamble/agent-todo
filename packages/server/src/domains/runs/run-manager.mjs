@@ -123,13 +123,11 @@ export function emit(runId, event) {
  */
 async function bootstrapRun(runId, task, client, bus, options = {}) {
   const sendBootstrapPrompt = options.sendBootstrapPrompt !== false
-  // Build a richer first message so the agent always knows its working context,
-  // even if the SDK's own cwd handling misbehaves.
-  const modeLabel = task.mode === 'ask' ? '[ASK MODE — read-only analysis] ' : ''
+  // Build a richer first message so the agent always knows its working context.
   const hasProject = task.project && task.project !== 'untitled'
   const contextLine = hasProject
-    ? `${modeLabel}Working directory: ${task.project}`
-    : `${modeLabel}General research task — no specific project directory`
+    ? `Working directory: ${task.project}`
+    : 'General research task — no specific project directory'
   const prompt = [contextLine, '', task.title].join('\n')
   try {
     client.start()
@@ -225,6 +223,8 @@ function attachLiveRun(run, task, options = {}) {
       command: item.type === 'commandExecution' ? item.command : undefined,
       cwd: item.type === 'commandExecution' ? item.cwd : undefined,
       phase,
+      provider: item.type === 'reasoning' ? item.provider : undefined,
+      reasoningFormat: item.type === 'reasoning' ? item.reasoningFormat : undefined,
     })
   })
 
@@ -239,7 +239,22 @@ function attachLiveRun(run, task, options = {}) {
     if (!live || live.terminalStatus) return
     const cur = partials.get(itemId) ?? ''
     partials.set(itemId, cur + delta)
-    bus.emit('evt', { type: 'delta', itemId, delta })
+    bus.emit('evt', { type: 'delta', itemId, kind: 'text', delta })
+  })
+
+  client.on('reasoningDelta', ({ itemId, delta, provider, reasoningFormat }) => {
+    const live = runs.get(run.id)
+    if (!live || live.terminalStatus) return
+    const cur = partials.get(itemId) ?? ''
+    partials.set(itemId, cur + delta)
+    bus.emit('evt', {
+      type: 'delta',
+      itemId,
+      kind: 'reasoning',
+      delta,
+      provider,
+      reasoningFormat,
+    })
   })
 
   client.on('item', ({ item }) => {
@@ -266,22 +281,24 @@ function attachLiveRun(run, task, options = {}) {
         createdAt: new Date().toISOString(),
       })
     } else if (item.type === 'reasoning') {
-      const text = extractReasoningText(item)
+      const streamed = partials.get(item.id) ?? ''
+      partials.delete(item.id)
+      const text = extractReasoningText(item) || streamed.trim()
       if (!text) return
-      const s = appendMessage(run.id, 'agent', 'text', text, {
-        phase: 'commentary',
-        source: 'reasoning',
+      const s = appendMessage(run.id, 'agent', 'reasoning', text, {
         itemId: item.id,
+        provider: item.provider,
+        reasoningFormat: item.reasoningFormat,
       })
       bus.emit('evt', {
         type: 'message',
         seq: s,
         role: 'agent',
-        kind: 'text',
+        kind: 'reasoning',
         content: text,
-        phase: 'commentary',
         itemId: item.id,
-        source: 'reasoning',
+        provider: item.provider,
+        reasoningFormat: item.reasoningFormat,
         createdAt: new Date().toISOString(),
       })
     } else if (item.type === 'commandExecution') {

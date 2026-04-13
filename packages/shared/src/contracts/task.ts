@@ -16,6 +16,8 @@ export type TaskCard = {
   agent: Agent
   createdAt: string
   runStatus?: string
+  workedTimeMs: number | null
+  activeTurnStartedAt: string | null
   mode: TaskMode
   model: string | null
   effort: EffortLevel
@@ -32,11 +34,18 @@ export type ServerTask = {
   position: number
   created_at: string
   run_status: string | null
+  worked_time_ms?: number | null
+  active_turn_started_at?: string | null
   mode: TaskMode
   model: string | null
   effort: EffortLevel
   fast_mode: boolean | number
   task_type: TaskType | null
+}
+
+export type WorkedTimeSummary = {
+  total_ms: number
+  active_turn_started_at: string | null
 }
 
 export type CreateTaskRequest = {
@@ -70,6 +79,7 @@ export type TaskListResponse = {
 
 export type TaskStatusesResponse = {
   statuses: Record<string, string | null>
+  workedTimes: Record<string, WorkedTimeSummary | null>
 }
 
 export type CreateTaskResponse = {

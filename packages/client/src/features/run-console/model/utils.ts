@@ -32,7 +32,7 @@ export function groupByTurn(messages: LiveMessage[], completedTurns: number): Tu
       return {
         user,
         interrupted,
-        thinking: [],
+        supporting: [],
         final: null,
         tail: [],
         startedAt,
@@ -44,21 +44,21 @@ export function groupByTurn(messages: LiveMessage[], completedTurns: number): Tu
     if (turnDone) {
       for (let i = items.length - 1; i >= 0; i--) {
         const m = items[i]
-        if (m.role !== 'agent' || m.kind !== 'text') continue
+        if (m.role !== 'agent' || m.kind !== 'text' || m.phase !== 'final') continue
         if (m.streaming) continue
         finalIdx = i
         break
       }
     }
 
-    const thinking: LiveMessage[] = []
+    const supporting: LiveMessage[] = []
     let final: LiveMessage | null = null
     const tail: LiveMessage[] = []
     items.forEach((m, i) => {
       if (i === finalIdx) final = m
-      else thinking.push(m)
+      else supporting.push(m)
     })
-    return { user, interrupted, thinking, final, tail, startedAt, endedAt }
+    return { user, interrupted, supporting, final, tail, startedAt, endedAt }
   })
 }
 
@@ -77,7 +77,12 @@ export function formatWorkedFor(startedAt?: string, endedAt?: string, nowMs?: nu
   if (Number.isNaN(startMs)) return null
   const endMs = endedAt ? Date.parse(endedAt) : (nowMs ?? Date.now())
   if (Number.isNaN(endMs)) return null
-  const totalSeconds = Math.max(0, Math.floor((endMs - startMs) / 1000))
+  return formatWorkedForDuration(endMs - startMs)
+}
+
+export function formatWorkedForDuration(durationMs?: number | null) {
+  if (durationMs == null) return null
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1000))
   const hours = Math.floor(totalSeconds / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
@@ -88,4 +93,23 @@ export function formatWorkedFor(startedAt?: string, endedAt?: string, nowMs?: nu
         ? [`${minutes}m`, `${seconds}s`]
         : [`${seconds}s`]
   return `Worked for ${parts.join(' ')}`
+}
+
+export function getWorkedTimeDuration(turns: TurnGroup[], inFlight: boolean, nowMs = Date.now()) {
+  return turns.reduce((total, turn, index) => {
+    if (!turn.startedAt) return total
+    const startMs = Date.parse(turn.startedAt)
+    if (Number.isNaN(startMs)) return total
+
+    const isLastTurn = index === turns.length - 1
+    const endMs =
+      inFlight && isLastTurn
+        ? nowMs
+        : turn.endedAt
+          ? Date.parse(turn.endedAt)
+          : startMs
+
+    if (Number.isNaN(endMs)) return total
+    return total + Math.max(0, endMs - startMs)
+  }, 0)
 }

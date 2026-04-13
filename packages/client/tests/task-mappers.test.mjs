@@ -10,6 +10,8 @@ function buildServerTask(fast_mode) {
     column_id: 'todo',
     created_at: '2026-04-12',
     run_status: null,
+    worked_time_ms: 62000,
+    active_turn_started_at: '2026-04-12T10:00:00.000Z',
     mode: 'code',
     model: null,
     effort: 'medium',
@@ -23,6 +25,13 @@ describe('task mappers', () => {
     expect(toTaskCard(buildServerTask(true)).fastMode).toBe(true)
     expect(toTaskCard(buildServerTask(0)).fastMode).toBe(false)
     expect(toTaskCard(buildServerTask(false)).fastMode).toBe(false)
+  })
+
+  it('maps worked time fields for board cards', () => {
+    const task = toTaskCard(buildServerTask(0))
+
+    expect(task.workedTimeMs).toBe(62000)
+    expect(task.activeTurnStartedAt).toBe('2026-04-12T10:00:00.000Z')
   })
 
   it('groups backlog tasks into the backlog bucket', () => {

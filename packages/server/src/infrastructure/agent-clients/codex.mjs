@@ -2,8 +2,8 @@ import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import readline from 'node:readline'
 import { getDefaultModel, sanitizeFastMode, sanitizeModel } from '#domains/agents/agent-config.mjs'
-import { sanitizeTaskType } from '#domains/agents/task-type-config.mjs'
-import { CODEX_EFFORT, CODEX_MODEL, getAgentSystemPrompt } from './config.mjs'
+import { CODEX_EFFORT, CODEX_MODEL } from './config.mjs'
+import { resolveAgentRunProfile } from './run-profile.mjs'
 
 /**
  * CodexClient: one instance per run. Spawns `codex app-server`, speaks JSON-RPC
@@ -13,6 +13,7 @@ import { CODEX_EFFORT, CODEX_MODEL, getAgentSystemPrompt } from './config.mjs'
  *   'thread'        { threadId }
  *   'turnStarted'   { turnId }
  *   'agentDelta'    { itemId, delta }
+ *   'reasoningDelta' { itemId, delta, provider, reasoningFormat }
  *   'item'          { item }                 // item/completed — authoritative
  *   'turnCompleted' { turn }
  *   'error'         { message }
@@ -22,8 +23,9 @@ export class CodexClient extends EventEmitter {
   constructor({ cwd, task, threadId = null }) {
     super()
     this.cwd = cwd
-    this.taskMode = task?.mode ?? 'code'
-    this.taskType = sanitizeTaskType(task?.task_type ?? task?.taskType)
+    this.runProfile = resolveAgentRunProfile(task)
+    this.taskMode = this.runProfile.mode
+    this.taskType = this.runProfile.taskType
     this.model = sanitizeModel('codex', task?.model) ?? getDefaultModel('codex') ?? CODEX_MODEL
     this.effort = task?.effort || CODEX_EFFORT
     this.fastMode = sanitizeFastMode(
@@ -37,6 +39,7 @@ export class CodexClient extends EventEmitter {
     this.activeTurnId = null
     this.initialized = false
     this.proc = null
+    this.reasoningFormatByItemId = new Map()
   }
 
   start() {
@@ -105,13 +108,13 @@ export class CodexClient extends EventEmitter {
   }
 
   _handleServerRequest(msg) {
-    // YOLO mode: auto-approve everything so the agent can execute without restrictions.
+    const decision = this.taskMode === 'ask' ? 'decline' : 'approved'
     let result = {}
-    if (msg.method === 'item/commandExecution/requestApproval') result = { decision: 'approved' }
-    else if (msg.method === 'item/fileChange/requestApproval') result = { decision: 'approved' }
-    else if (msg.method === 'item/permissions/requestApproval') result = { decision: 'approved' }
-    else if (msg.method === 'applyPatchApproval') result = { decision: 'approved' }
-    else if (msg.method === 'execCommandApproval') result = { decision: 'approved' }
+    if (msg.method === 'item/commandExecution/requestApproval') result = { decision }
+    else if (msg.method === 'item/fileChange/requestApproval') result = { decision }
+    else if (msg.method === 'item/permissions/requestApproval') result = { decision }
+    else if (msg.method === 'applyPatchApproval') result = { decision }
+    else if (msg.method === 'execCommandApproval') result = { decision }
     this._send({ jsonrpc: '2.0', id: msg.id, result })
   }
 
@@ -122,7 +125,18 @@ export class CodexClient extends EventEmitter {
         this.emit('thread', { threadId: this.threadId })
         break
       case 'item/started':
-        this.emit('itemStarted', { item: msg.params?.item })
+        this.emit('itemStarted', {
+          item:
+            msg.params?.item?.type === 'reasoning'
+              ? {
+                  ...msg.params.item,
+                  provider: 'codex',
+                  reasoningFormat:
+                    msg.params.item.reasoningFormat ??
+                    this.reasoningFormatByItemId.get(msg.params.item.id),
+                }
+              : msg.params?.item,
+        })
         break
       case 'item/commandExecution/outputDelta':
         this.emit('commandDelta', {
@@ -140,7 +154,45 @@ export class CodexClient extends EventEmitter {
           delta: msg.params?.delta ?? '',
         })
         break
+      case 'item/reasoning/summaryTextDelta':
+        this.reasoningFormatByItemId.set(msg.params?.itemId, 'summary')
+        this.emit('reasoningDelta', {
+          itemId: msg.params?.itemId,
+          delta: msg.params?.delta ?? '',
+          provider: 'codex',
+          reasoningFormat: 'summary',
+        })
+        break
+      case 'item/reasoning/summaryPartAdded':
+        this.reasoningFormatByItemId.set(msg.params?.itemId, 'summary')
+        this.emit('reasoningDelta', {
+          itemId: msg.params?.itemId,
+          delta: '\n\n',
+          provider: 'codex',
+          reasoningFormat: 'summary',
+        })
+        break
+      case 'item/reasoning/textDelta':
+        this.reasoningFormatByItemId.set(msg.params?.itemId, 'raw')
+        this.emit('reasoningDelta', {
+          itemId: msg.params?.itemId,
+          delta: msg.params?.delta ?? '',
+          provider: 'codex',
+          reasoningFormat: 'raw',
+        })
+        break
       case 'item/completed':
+        if (msg.params?.item?.type === 'reasoning') {
+          const reasoningItem = {
+            ...msg.params.item,
+            provider: 'codex',
+            reasoningFormat:
+              msg.params.item.reasoningFormat ?? this.reasoningFormatByItemId.get(msg.params.item.id),
+          }
+          this.reasoningFormatByItemId.delete(msg.params.item.id)
+          this.emit('item', { item: reasoningItem })
+          break
+        }
         this.emit('item', { item: msg.params?.item })
         break
       case 'turn/completed':
@@ -166,51 +218,45 @@ export class CodexClient extends EventEmitter {
   }
 
   async startThread() {
+    const threadConfig = {
+      cwd: this.cwd,
+      model: this.model,
+      ...(this.fastMode ? { serviceTier: 'fast' } : {}),
+      approvalPolicy: this.runProfile.codex.approvalPolicy,
+      sandbox: this.runProfile.codex.sandbox,
+      ...(this.runProfile.codex.developerInstructions
+        ? { developerInstructions: this.runProfile.codex.developerInstructions }
+        : {}),
+      experimentalRawEvents: false,
+      persistExtendedHistory: false,
+    }
+
     if (this.threadId) {
       const res = await this._request('thread/resume', {
         threadId: this.threadId,
-        cwd: this.cwd,
-        model: this.model,
-        ...(this.fastMode ? { serviceTier: 'fast' } : {}),
-        approvalPolicy: 'never',
-        sandbox: 'danger-full-access',
-        experimentalRawEvents: false,
-        persistExtendedHistory: false,
+        ...threadConfig,
       })
       this.threadId = res?.thread?.id ?? this.threadId
       return this.threadId
     }
-    const res = await this._request('thread/start', {
-      model: this.model,
-      cwd: this.cwd,
-      ...(this.fastMode ? { serviceTier: 'fast' } : {}),
-      approvalPolicy: 'never',
-      sandbox: 'danger-full-access',
-      experimentalRawEvents: false,
-      persistExtendedHistory: false,
-    })
+    const res = await this._request('thread/start', threadConfig)
     this.threadId = res?.thread?.id ?? this.threadId
     return this.threadId
   }
 
   async sendUserText(text) {
     if (!this.threadId) throw new Error('thread not started')
-    const systemPrompt = getAgentSystemPrompt({
-      mode: this.taskMode,
-      taskType: this.taskType,
-    })
-    const effectiveText = systemPrompt ? `${systemPrompt}\n\n---\n\n${text}` : text
     if (this.activeTurnId) {
       // Append to in-flight turn
       return this._request('turn/steer', {
         threadId: this.threadId,
         expectedTurnId: this.activeTurnId,
-        input: [{ type: 'text', text: effectiveText, text_elements: [] }],
+        input: [{ type: 'text', text, text_elements: [] }],
       })
     }
     return this._request('turn/start', {
       threadId: this.threadId,
-      input: [{ type: 'text', text: effectiveText, text_elements: [] }],
+      input: [{ type: 'text', text, text_elements: [] }],
       model: this.model,
       effort: this.effort,
       ...(this.fastMode ? { serviceTier: 'fast' } : {}),

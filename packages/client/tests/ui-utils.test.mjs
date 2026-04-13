@@ -28,6 +28,7 @@ describe('task dialog utils', () => {
         body: 'answer',
         at: '10:01',
         createdAt: '2026-01-01T10:01:00.000Z',
+        phase: 'final',
       },
       {
         id: 'u-2',
@@ -53,12 +54,12 @@ describe('task dialog utils', () => {
     expect(groups).toHaveLength(2)
     expect(groups[0].user?.id).toBe('u-1')
     expect(groups[0].final?.id).toBe('a-2')
-    expect(groups[0].thinking.map(message => message.id)).toEqual(['a-1'])
+    expect(groups[0].supporting.map(message => message.id)).toEqual(['a-1'])
     expect(groups[0].tail).toEqual([])
 
     expect(groups[1].user?.id).toBe('u-2')
     expect(groups[1].final).toBeNull()
-    expect(groups[1].thinking.map(message => message.id)).toEqual(['a-3'])
+    expect(groups[1].supporting.map(message => message.id)).toEqual(['a-3'])
     expect(groups[1].tail).toEqual([])
   })
 
@@ -79,7 +80,7 @@ describe('task dialog utils', () => {
 
     expect(groups).toHaveLength(1)
     expect(groups[0].user).toBeNull()
-    expect(groups[0].thinking[0].id).toBe('s-1')
+    expect(groups[0].supporting[0].id).toBe('s-1')
     expect(groups[0].tail).toEqual([])
   })
 
@@ -126,7 +127,7 @@ describe('task dialog utils', () => {
 
     expect(groups).toHaveLength(1)
     expect(groups[0].final).toBeNull()
-    expect(groups[0].thinking).toEqual([])
+    expect(groups[0].supporting).toEqual([])
     expect(groups[0].interrupted?.id).toBe('s-2')
     expect(groups[0].tail).toEqual([])
   })
@@ -166,9 +167,56 @@ describe('task dialog utils', () => {
 
     expect(groups).toHaveLength(1)
     expect(groups[0].final).toBeNull()
-    expect(groups[0].thinking).toEqual([])
+    expect(groups[0].supporting).toEqual([])
     expect(groups[0].interrupted?.id).toBe('s-2')
     expect(groups[0].tail).toEqual([])
+  })
+
+  it('only treats explicit final-phase agent text as the final answer', () => {
+    const groups = groupByTurn(
+      [
+        {
+          id: 'u-1',
+          role: 'user',
+          kind: 'text',
+          body: 'explain the fix',
+          at: '10:00',
+          createdAt: '2026-01-01T10:00:00.000Z',
+        },
+        {
+          id: 'a-1',
+          role: 'agent',
+          kind: 'text',
+          body: 'Preamble',
+          at: '10:00',
+          createdAt: '2026-01-01T10:00:01.000Z',
+          phase: 'commentary',
+        },
+        {
+          id: 'r-1',
+          role: 'agent',
+          kind: 'reasoning',
+          body: 'Visible reasoning summary',
+          at: '10:00',
+          createdAt: '2026-01-01T10:00:02.000Z',
+          provider: 'claude',
+          reasoningFormat: 'summary',
+        },
+        {
+          id: 'a-2',
+          role: 'agent',
+          kind: 'text',
+          body: 'Final answer',
+          at: '10:01',
+          createdAt: '2026-01-01T10:01:00.000Z',
+          phase: 'final',
+        },
+      ],
+      1
+    )
+
+    expect(groups[0].final?.id).toBe('a-2')
+    expect(groups[0].supporting.map(message => message.id)).toEqual(['a-1', 'r-1'])
   })
 
   it('formats worked-for durations for seconds, minutes, and hours', () => {

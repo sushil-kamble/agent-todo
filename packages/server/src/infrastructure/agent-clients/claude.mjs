@@ -3,8 +3,8 @@ import { EventEmitter } from 'node:events'
 import { delimiter, dirname } from 'node:path'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { getDefaultModel, sanitizeModel } from '#domains/agents/agent-config.mjs'
-import { sanitizeTaskType } from '#domains/agents/task-type-config.mjs'
-import { CLAUDE_EFFORT, CLAUDE_MODEL, getAgentSystemPrompt } from './config.mjs'
+import { CLAUDE_EFFORT, CLAUDE_MODEL } from './config.mjs'
+import { resolveAgentRunProfile } from './run-profile.mjs'
 
 /**
  * ClaudeClient: one instance per run. Wraps `@anthropic-ai/claude-agent-sdk`
@@ -16,6 +16,7 @@ import { CLAUDE_EFFORT, CLAUDE_MODEL, getAgentSystemPrompt } from './config.mjs'
  *   'turnStarted'   { turnId }
  *   'itemStarted'   { item }          // item: { type, id, command?, cwd?, phase? }
  *   'agentDelta'    { itemId, delta } // streaming assistant text
+ *   'reasoningDelta' { itemId, delta, provider, reasoningFormat }
  *   'commandDelta'  { itemId, delta } // streaming tool/command output
  *   'item'          { item }          // completed item (agentMessage | reasoning | commandExecution)
  *   'turnCompleted' { turn }          // { status }
@@ -41,8 +42,9 @@ export class ClaudeClient extends EventEmitter {
   constructor({ cwd, task, threadId = null }) {
     super()
     this.cwd = cwd
-    this.taskMode = task?.mode ?? 'code'
-    this.taskType = sanitizeTaskType(task?.task_type ?? task?.taskType)
+    this.runProfile = resolveAgentRunProfile(task)
+    this.taskMode = this.runProfile.mode
+    this.taskType = this.runProfile.taskType
     this.taskModel =
       sanitizeModel('claude', task?.model) ?? getDefaultModel('claude') ?? CLAUDE_MODEL
     this.taskEffort = task?.effort || CLAUDE_EFFORT
@@ -65,11 +67,6 @@ export class ClaudeClient extends EventEmitter {
   }
 
   start() {
-    const isAskMode = this.taskMode === 'ask'
-    const systemPrompt = getAgentSystemPrompt({
-      mode: this.taskMode,
-      taskType: this.taskType,
-    })
     const childEnv = buildClaudeProcessEnv(process.env)
     try {
       this.query = query({
@@ -84,12 +81,21 @@ export class ClaudeClient extends EventEmitter {
           model: this.taskModel,
           effort: this.taskEffort,
           ...(this.threadId ? { resume: this.threadId } : {}),
-          permissionMode: isAskMode ? 'default' : 'bypassPermissions',
-          allowDangerouslySkipPermissions: !isAskMode,
+          permissionMode: this.runProfile.claude.permissionMode,
+          allowDangerouslySkipPermissions: this.runProfile.claude.allowDangerouslySkipPermissions,
+          ...(this.runProfile.claude.tools ? { tools: this.runProfile.claude.tools } : {}),
+          ...(this.runProfile.claude.allowedTools
+            ? { allowedTools: this.runProfile.claude.allowedTools }
+            : {}),
+          ...(this.runProfile.claude.canUseTool
+            ? { canUseTool: this.runProfile.claude.canUseTool }
+            : {}),
           includePartialMessages: true,
           env: childEnv,
           settingSources: ['user', 'project', 'local'],
-          ...(systemPrompt ? { systemPrompt } : {}),
+          ...(this.runProfile.claude.systemPrompt
+            ? { systemPrompt: this.runProfile.claude.systemPrompt }
+            : {}),
           // Disable sandboxing so tools can access the host filesystem at the
           // project's cwd. Without this, user/project settings picked up via
           // settingSources can enable the sandbox, which containerises tool
@@ -228,6 +234,14 @@ export class ClaudeClient extends EventEmitter {
       } else if (block.type === 'thinking') {
         const itemId = randomUUID()
         this.blocks.set(index, { type: 'thinking', itemId, buffer: '' })
+        this.emit('itemStarted', {
+          item: {
+            type: 'reasoning',
+            id: itemId,
+            provider: 'claude',
+            reasoningFormat: 'summary',
+          },
+        })
       }
       // tool_use blocks are finalized from the `assistant` message where the
       // full input is available, so we don't need per-block tracking here.
@@ -245,7 +259,14 @@ export class ClaudeClient extends EventEmitter {
         block.buffer += delta.text
         this.emit('agentDelta', { itemId: block.itemId, delta: delta.text })
       } else if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
+        if (delta.thinking.length === 0) return
         block.buffer += delta.thinking
+        this.emit('reasoningDelta', {
+          itemId: block.itemId,
+          delta: delta.thinking,
+          provider: 'claude',
+          reasoningFormat: 'summary',
+        })
       }
       return
     }
@@ -271,6 +292,8 @@ export class ClaudeClient extends EventEmitter {
               type: 'reasoning',
               id: block.itemId,
               content: text,
+              provider: 'claude',
+              reasoningFormat: 'summary',
             },
           })
         }

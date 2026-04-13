@@ -98,6 +98,16 @@ async function playStep(client, step) {
       return
     }
 
+    case 'reasoningDelta': {
+      client.emit('reasoningDelta', {
+        itemId: step.itemId || createId('reasoning'),
+        delta: step.delta ?? '',
+        provider: step.provider || 'codex',
+        reasoningFormat: step.reasoningFormat || 'summary',
+      })
+      return
+    }
+
     case 'commandDelta': {
       client.emit('commandDelta', {
         itemId: step.itemId || createId('cmd'),
@@ -127,8 +137,36 @@ async function playStep(client, step) {
     case 'reasoning': {
       const itemId = step.itemId || createId('reasoning')
       const text = step.text ?? step.content ?? ''
+      const provider = step.provider || 'codex'
+      const reasoningFormat = step.reasoningFormat || 'summary'
+      if (step.emitItemStarted !== false) {
+        client.emit('itemStarted', {
+          item: {
+            type: 'reasoning',
+            id: itemId,
+            provider,
+            reasoningFormat,
+          },
+        })
+      }
+      if (Array.isArray(step.outputDeltas)) {
+        for (const delta of step.outputDeltas) {
+          client.emit('reasoningDelta', {
+            itemId,
+            delta,
+            provider,
+            reasoningFormat,
+          })
+        }
+      }
       client.emit('item', {
-        item: { type: 'reasoning', id: itemId, content: text },
+        item: {
+          type: 'reasoning',
+          id: itemId,
+          content: text,
+          provider,
+          reasoningFormat,
+        },
       })
       return
     }

@@ -9,6 +9,8 @@ export function toTaskCard(task: ServerTask): TaskCard {
     agent: task.agent,
     createdAt: task.created_at,
     runStatus: task.run_status ?? undefined,
+    workedTimeMs: task.worked_time_ms ?? null,
+    activeTurnStartedAt: task.active_turn_started_at ?? null,
     mode: task.mode ?? 'code',
     model: task.model ?? null,
     effort: task.effort ?? 'medium',

@@ -153,6 +153,9 @@ describe('run manager with fake agent', () => {
             {
               type: 'reasoning',
               itemId: 'reasoning-item',
+              provider: 'claude',
+              reasoningFormat: 'summary',
+              outputDeltas: ['Need to collect context before ', 'final answer'],
               text: 'Need to collect context before final answer',
             },
             {
@@ -184,11 +187,19 @@ describe('run manager with fake agent', () => {
 
     const rows = harness.messages.listMessages(run.id)
     const agentMessages = rows.filter(row => row.role === 'agent' && row.kind === 'text')
+    const reasoningMessage = rows.find(row => row.role === 'agent' && row.kind === 'reasoning')
     const commandMessage = rows.find(row => row.kind === 'command')
 
     expect(agentMessages.some(row => row.meta?.phase === 'commentary')).toBe(true)
     expect(agentMessages.some(row => row.meta?.phase === 'final')).toBe(true)
-    expect(agentMessages.some(row => row.meta?.source === 'reasoning')).toBe(true)
+    expect(reasoningMessage).toMatchObject({
+      content: 'Need to collect context before final answer',
+      meta: {
+        itemId: 'reasoning-item',
+        provider: 'claude',
+        reasoningFormat: 'summary',
+      },
+    })
 
     expect(commandMessage?.content).toBe('$ pnpm lint (exit 0)')
     expect(commandMessage?.meta).toMatchObject({
