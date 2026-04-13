@@ -1,4 +1,11 @@
-import { ArrowRightIcon, FolderIcon, PencilSimpleIcon, TrashIcon } from '@phosphor-icons/react'
+import {
+  ArrowRightIcon,
+  FolderIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+  ProhibitIcon,
+  TrashIcon,
+} from '@phosphor-icons/react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { AppTopBar } from '#/app/components/AppTopBar'
@@ -151,7 +158,8 @@ function BacklogsPage() {
             </div>
 
             <Button size="sm" onClick={() => openNewTask('backlog')}>
-              Create backlog item
+              <PlusIcon size={13} />
+              <span className="text-xs">Create backlog item</span>
             </Button>
           </div>
 
@@ -171,7 +179,8 @@ function BacklogsPage() {
                 are ready to become actionable tasks.
               </p>
               <Button className="mt-5" onClick={() => openNewTask('backlog')}>
-                Create backlog item
+                <PlusIcon size={13} />
+                <span className="text-xs">Create backlog item</span>
               </Button>
             </div>
           ) : filteredBacklog.length === 0 ? (
@@ -186,7 +195,10 @@ function BacklogsPage() {
                 const modelLabel = getModelLabel(task.agent, task.model)
                 const effortLabel = getEffortLabel(task.effort)
                 const modelSummary = `${modelLabel} (${effortLabel}${task.fastMode ? ', Fast' : ''})`
-                const projectLabel = formatProjectPathLabel(task.project)
+                const isProjectless = !task.project || task.project === 'untitled'
+                const projectLabel = isProjectless
+                  ? 'No project'
+                  : formatProjectPathLabel(task.project)
                 const taskType = task.taskType
                 const taskTypeLabel = taskType ? getTaskTypeLabel(taskType) : null
 
@@ -213,17 +225,6 @@ function BacklogsPage() {
                             {taskTypeLabel}
                           </span>
                         ) : null}
-                        <span
-                          className={`inline-flex min-w-0 max-w-42 items-center gap-1.5 border px-1.5 py-0.75 text-[0.58rem] font-medium ${agent.className}`}
-                          title={modelSummary}
-                        >
-                          <span className="shrink-0">
-                            <AgentIcon size={10} />
-                          </span>
-                          <span className="min-w-0 truncate leading-none tracking-[0.06em] uppercase">
-                            {modelSummary}
-                          </span>
-                        </span>
                       </div>
                     </div>
 
@@ -232,26 +233,51 @@ function BacklogsPage() {
                       onClick={() => openEditTask(task, 'backlog')}
                       className="block w-full cursor-pointer text-left"
                     >
-                      <div className="px-5 py-5">
-                        <h2 className="font-heading text-xl leading-tight tracking-tight text-foreground">
+                      <div className="px-4 py-4">
+                        <h2 className="font-heading text-lg leading-snug tracking-tight text-foreground">
                           {task.title}
                         </h2>
                       </div>
 
-                      <div className="flex items-center justify-between gap-2 border-t border-dashed border-border px-5 py-3 text-xs text-muted-foreground">
-                        <span className="flex min-w-0 items-center gap-1.5" title={task.project}>
-                          <FolderIcon size={12} />
+                      <div className="flex items-center justify-between gap-2 border-t border-dashed border-border px-4 py-2">
+                        <span
+                          className={[
+                            'inline-flex min-w-0 items-center gap-1 text-[0.62rem]',
+                            isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
+                          ].join(' ')}
+                          title={isProjectless ? 'No project assigned' : task.project}
+                        >
+                          {isProjectless ? (
+                            <ProhibitIcon size={12} weight="bold" />
+                          ) : (
+                            <FolderIcon size={12} weight="duotone" />
+                          )}
                           <span className="truncate">{projectLabel}</span>
                         </span>
-                        <span>{task.createdAt}</span>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
+                            {task.createdAt.slice(5)}
+                          </span>
+                          <span
+                            className={`inline-flex min-w-0 max-w-36 items-center gap-1 border px-1 py-0.5 text-[0.54rem] font-medium ${agent.className}`}
+                            title={modelSummary}
+                          >
+                            <span className="shrink-0">
+                              <AgentIcon size={9} />
+                            </span>
+                            <span className="min-w-0 truncate leading-none tracking-[0.05em] uppercase">
+                              {modelSummary}
+                            </span>
+                          </span>
+                        </div>
                       </div>
                     </button>
 
-                    <div className="mt-auto flex items-center justify-between gap-3 border-t border-border bg-background/60 px-5 py-3">
+                    <div className="mt-auto flex items-center justify-between gap-2 border-t border-border bg-background/60 px-4 py-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <AlertDialog>
                           <AlertDialogTrigger
-                            render={<Button type="button" variant="destructive" size="sm" />}
+                            render={<Button type="button" variant="destructive" size="xs" />}
                           >
                             <TrashIcon size={13} />
                             Delete
@@ -277,7 +303,7 @@ function BacklogsPage() {
                           </AlertDialogContent>
                         </AlertDialog>
                         <Button
-                          size="sm"
+                          size="xs"
                           variant="outline"
                           onClick={() => openEditTask(task, 'backlog')}
                         >
@@ -286,7 +312,7 @@ function BacklogsPage() {
                         </Button>
                       </div>
                       <Button
-                        size="sm"
+                        size="xs"
                         onClick={() => void moveToTodo(task)}
                         disabled={movingTaskId === task.id}
                       >

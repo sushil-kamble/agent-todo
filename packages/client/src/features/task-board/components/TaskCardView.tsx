@@ -77,6 +77,19 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
   const isAgentWorking =
     isInProgress && !!task.runStatus && ['starting', 'running', 'active'].includes(task.runStatus)
   const isAwaitingFollowUp = isInProgress && task.runStatus === 'idle'
+  const modelBadge = (
+    <span
+      className={`inline-flex min-w-0 max-w-36 items-center gap-1 border px-1 py-0.5 text-[0.54rem] font-medium ${agent.className}`}
+      title={modelSummary}
+    >
+      <span className="shrink-0">
+        <AgentIcon size={9} />
+      </span>
+      <span className="min-w-0 truncate leading-none tracking-[0.05em] uppercase">
+        {modelSummary}
+      </span>
+    </span>
+  )
 
   async function moveToBacklog() {
     if (column !== 'todo' || isOverlay || movingToBacklog) return
@@ -122,19 +135,17 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
       ].join(' ')}
     >
       {/* Top: drag handle + task configuration */}
-      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className="-ml-1 flex cursor-grab items-center gap-1 p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing"
-          aria-label="Drag task"
-        >
+      <div
+        {...attributes}
+        {...listeners}
+        className="flex cursor-grab items-center justify-between gap-2 border-b border-border px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground active:cursor-grabbing"
+      >
+        <div className="-ml-1 flex items-center gap-1 p-1">
           <DotsSixVerticalIcon size={14} weight="bold" />
           <span className="text-[0.58rem] tracking-[0.14em] uppercase">
             {task.id.toUpperCase()}
           </span>
-        </button>
+        </div>
 
         <div className="flex max-w-72 flex-wrap items-center justify-end gap-1.5">
           <span
@@ -152,17 +163,6 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
               {taskTypeLabel}
             </span>
           ) : null}
-          <span
-            className={`inline-flex min-w-0 max-w-42 items-center gap-1.5 border px-1.5 py-0.75 text-[0.58rem] font-medium ${agent.className}`}
-            title={modelSummary}
-          >
-            <span className="shrink-0">
-              <AgentIcon size={10} />
-            </span>
-            <span className="min-w-0 truncate leading-none tracking-[0.06em] uppercase">
-              {modelSummary}
-            </span>
-          </span>
         </div>
       </div>
 
@@ -186,38 +186,67 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
         </div>
       </button>
 
-      <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-border px-3 py-2">
-        <span
-          className={[
-            'flex min-w-0 items-center gap-1.5 text-[0.62rem]',
-            isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
-          ].join(' ')}
-          title={isProjectless ? 'No project assigned' : task.project}
-        >
-          {isProjectless ? (
-            <ProhibitIcon size={11} weight="bold" />
-          ) : (
-            <FolderIcon size={11} weight="duotone" />
-          )}
-          <span className="truncate">{projectLabel}</span>
-        </span>
-        <div className="flex items-center gap-2">
-          {column === 'todo' && !isOverlay ? (
-            <button
-              type="button"
-              onClick={() => void moveToBacklog()}
-              disabled={movingToBacklog}
-              className="inline-flex items-center gap-1 border border-border bg-background px-1.5 py-1 text-[0.58rem] tracking-[0.1em] text-muted-foreground uppercase transition-colors hover:border-foreground hover:text-foreground disabled:opacity-50"
+      {column === 'todo' ? (
+        <div className="mt-auto border-t border-dashed border-border px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
+              {task.createdAt.slice(5)}
+            </span>
+            {modelBadge}
+          </div>
+          <div className="-mx-3 my-2 border-t border-dashed border-border" />
+          <div className="flex items-center justify-between gap-2">
+            <span
+              className={[
+                'inline-flex min-w-0 items-center gap-1 text-[0.62rem]',
+                isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
+              ].join(' ')}
+              title={isProjectless ? 'No project assigned' : task.project}
             >
-              <ArchiveIcon size={10} weight="bold" />
-              <span>Backlog</span>
-            </button>
-          ) : null}
-          <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
-            {task.createdAt.slice(5)}
-          </span>
+              {isProjectless ? (
+                <ProhibitIcon size={11} weight="bold" />
+              ) : (
+                <FolderIcon size={11} weight="duotone" />
+              )}
+              <span className="truncate">{projectLabel}</span>
+            </span>
+            {!isOverlay ? (
+              <button
+                type="button"
+                onClick={() => void moveToBacklog()}
+                disabled={movingToBacklog}
+                className="inline-flex items-center gap-1 border border-border bg-background px-1.5 py-1 text-[0.58rem] tracking-widest text-muted-foreground uppercase transition-colors hover:border-foreground hover:text-foreground disabled:opacity-50"
+              >
+                <ArchiveIcon size={10} weight="bold" />
+                <span>Backlog</span>
+              </button>
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-border px-3 py-2">
+          <span
+            className={[
+              'inline-flex min-w-0 items-center gap-1 text-[0.62rem]',
+              isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
+            ].join(' ')}
+            title={isProjectless ? 'No project assigned' : task.project}
+          >
+            {isProjectless ? (
+              <ProhibitIcon size={11} weight="bold" />
+            ) : (
+              <FolderIcon size={11} weight="duotone" />
+            )}
+            <span className="truncate">{projectLabel}</span>
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
+              {task.createdAt.slice(5)}
+            </span>
+            {modelBadge}
+          </div>
+        </div>
+      )}
 
       {/* Agent status — left-edge indicator (sits inside the 1px border). */}
       {isAgentWorking && (

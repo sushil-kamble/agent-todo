@@ -1,10 +1,29 @@
-import { CaretRightIcon, CheckIcon, CopySimpleIcon, FolderIcon, XIcon } from '@phosphor-icons/react'
-import { type ComponentType, memo, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  CaretDownIcon,
+  CaretRightIcon,
+  FolderIcon,
+  ProhibitIcon,
+  XIcon,
+} from '@phosphor-icons/react'
+import { type ComponentType, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Agent, EffortLevel } from '#/entities/task/types'
 import { getEffortLabel, getModelLabel } from '#/features/agent-config/model/model-config'
+import {
+  type EditorInfo,
+  fetchAvailableEditors,
+  openInEditor,
+} from '#/features/editor-launcher/api'
+import { formatProjectPathLabel } from '#/shared/lib/utils'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '#/shared/ui/collapsible'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '#/shared/ui/dropdown-menu'
+import { AntiGravityIcon, CursorIcon, VSCodeIcon } from '#/shared/ui/icons'
 import { WORKING_VERBS } from '../model/constants'
 import { MD_COMPONENTS } from '../model/markdown'
 import type { ChatMessage, LiveMessage, TurnGroup } from '../model/types'
@@ -29,39 +48,88 @@ export function PanelHeader({ label, onClose }: { label: string; onClose: () => 
   )
 }
 
-export function ProjectPathChip({ path }: { path: string }) {
-  const [copied, setCopied] = useState(false)
+const EDITOR_ICON_MAP: Record<string, ComponentType<{ size?: number }>> = {
+  vscode: VSCodeIcon,
+  cursor: CursorIcon,
+  antigravity: AntiGravityIcon,
+}
 
-  async function copyPath() {
-    try {
-      await navigator.clipboard.writeText(path)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1500)
-    } catch (e) {
-      console.error('[task-dialog] failed to copy path', e)
+const EDITOR_DOWNLOAD_URLS: Record<string, string> = {
+  vscode: 'https://code.visualstudio.com/',
+  cursor: 'https://www.cursor.com/',
+  antigravity: 'https://antigravity.google/',
+}
+
+const ALL_EDITOR_IDS = ['vscode', 'cursor', 'antigravity'] as const
+
+/** Fetch available editors once, cache in module scope. */
+let _editorsPromise: Promise<EditorInfo[]> | null = null
+function getEditors() {
+  if (!_editorsPromise) _editorsPromise = fetchAvailableEditors().catch(() => [])
+  return _editorsPromise
+}
+
+export function ProjectPathChip({ path }: { path: string }) {
+  const isProjectless = !path || path === 'untitled'
+  const projectLabel = isProjectless ? 'No project' : formatProjectPathLabel(path)
+  const [availableEditors, setAvailableEditors] = useState<EditorInfo[]>([])
+
+  useEffect(() => {
+    if (!isProjectless) void getEditors().then(setAvailableEditors)
+  }, [isProjectless])
+
+  const availableIds = useMemo(() => new Set(availableEditors.map(e => e.id)), [availableEditors])
+
+  function handleEditorClick(editorId: string) {
+    if (availableIds.has(editorId)) {
+      void openInEditor(editorId, path)
+    } else {
+      const url = EDITOR_DOWNLOAD_URLS[editorId]
+      if (url) window.open(url, '_blank', 'noopener')
     }
   }
 
-  return (
-    <span className="inline-flex max-w-full items-center border border-border bg-muted text-[0.78rem] font-medium text-foreground">
-      <span className="flex min-w-0 items-center gap-1.5 px-2 py-0.5">
-        <FolderIcon size={13} weight="duotone" />
-        <span className="truncate">{path}</span>
-      </span>
-      <button
-        type="button"
-        onClick={copyPath}
-        className="flex h-full shrink-0 items-center justify-center border-l border-border px-2 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-        aria-label={`Copy directory path ${path}`}
-        title={copied ? 'Copied' : 'Copy path'}
+  if (isProjectless) {
+    return (
+      <span
+        className="inline-flex max-w-full items-center gap-1.5 text-[0.58rem] italic text-muted-foreground/50"
+        title="No project assigned"
       >
-        {copied ? (
-          <CheckIcon size={12} weight="bold" />
-        ) : (
-          <CopySimpleIcon size={12} weight="bold" />
-        )}
-      </button>
-    </span>
+        <ProhibitIcon size={10} weight="bold" />
+        <span className="truncate">{projectLabel}</span>
+      </span>
+    )
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="inline-flex max-w-full cursor-pointer items-center border border-border bg-muted text-[0.58rem] font-semibold tracking-[0.08em] text-foreground uppercase transition-colors hover:bg-background"
+        render={<button type="button" />}
+      >
+        <span className="flex min-w-0 items-center gap-1.5 px-1.5 py-0.5">
+          <FolderIcon size={10} weight="duotone" className="shrink-0" />
+          <span className="truncate">{projectLabel}</span>
+        </span>
+        <span className="flex shrink-0 items-center border-l border-border px-1 text-muted-foreground">
+          <CaretDownIcon size={9} weight="bold" />
+        </span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="bottom" sideOffset={4} className="w-auto">
+        {ALL_EDITOR_IDS.map(id => {
+          const Icon = EDITOR_ICON_MAP[id]
+          const installed = availableIds.has(id)
+          const label = availableEditors.find(e => e.id === id)?.label ?? id
+          const displayLabel = installed ? label : `Get ${label}`
+          return (
+            <DropdownMenuItem key={id} onClick={() => handleEditorClick(id)}>
+              <Icon size={13} />
+              <span className="whitespace-nowrap">{displayLabel}</span>
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -79,7 +147,7 @@ export function ModelConfigChip({
   const label = `${getModelLabel(agent, model)} (${getEffortLabel(effort)}${fastMode ? ', Fast' : ''})`
 
   return (
-    <span className="inline-flex max-w-full items-center border border-border bg-background px-2 py-0.5 text-[0.7rem] font-medium tracking-[0.08em] text-foreground uppercase">
+    <span className="inline-flex max-w-full items-center border border-border bg-background px-1.5 py-0.5 text-[0.58rem] font-semibold tracking-[0.08em] text-foreground uppercase">
       <span className="truncate">{label}</span>
     </span>
   )

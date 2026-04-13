@@ -7,6 +7,10 @@ import {
   getTaskModeBadgeClassName,
   getTaskModeLabel,
 } from '#/features/agent-config/model/task-config'
+import {
+  getTaskTypeBadgeClassName,
+  getTaskTypeLabel,
+} from '#/features/agent-config/model/task-type-config'
 import * as api from '#/features/run-console/api'
 import { ClaudeIcon, OpenAIIcon } from '#/shared/ui/icons'
 import type { LiveMessage } from '../model/types'
@@ -65,18 +69,6 @@ function getModeBadge(mode: TaskCard['mode']) {
   return {
     label: getTaskModeLabel(mode),
     className: getTaskModeBadgeClassName(mode),
-  }
-}
-
-function getHeaderMetaBadge(
-  status: ReturnType<typeof getHeaderRunState>,
-  mode: ReturnType<typeof getModeBadge>
-) {
-  if (!status) return null
-  return {
-    className: status.className,
-    statusLabel: status.label,
-    modeLabel: mode.label,
   }
 }
 
@@ -495,42 +487,48 @@ export function ChatPanel({
   const canSend = !readOnly && !!runId && runStatus === 'idle'
   const headerRunState = getHeaderRunState(runStatus)
   const modeBadge = getModeBadge(task.mode)
-  const headerMetaBadge = getHeaderMetaBadge(headerRunState, modeBadge)
 
   return (
     <section className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-4xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:h-[calc(100vh-3rem)]">
-      <div className="flex items-start justify-between gap-3 border-b border-border bg-card px-5 py-3">
+      <div className="flex items-start gap-3 border-b border-border bg-card px-5 py-3">
+        <span
+          className="mt-0.5 flex size-5 shrink-0 items-center justify-center border border-border bg-background text-foreground"
+          title={agentLabel}
+        >
+          <AgentIcon size={11} />
+        </span>
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                className="flex size-5 shrink-0 items-center justify-center border border-border bg-background text-foreground"
-                title={agentLabel}
-              >
-                <AgentIcon size={11} />
-              </span>
-              <p className="truncate text-sm font-medium leading-tight text-foreground">
-                {task.title}
-              </p>
-            </div>
-            {!readOnly && headerMetaBadge && (
-              <span
-                className={`inline-flex shrink-0 items-center gap-2 border px-2 py-0.5 text-[0.62rem] font-semibold tracking-[0.12em] uppercase ${headerMetaBadge.className}`}
-                title={`${headerMetaBadge.statusLabel} • ${headerMetaBadge.modeLabel}`}
-              >
-                <span>{headerMetaBadge.statusLabel}</span>
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="min-w-0 truncate text-sm font-medium leading-tight text-foreground">
+              {task.title}
+            </p>
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              {task.taskType && (
                 <span
-                  className="size-1.5 shrink-0 rounded-full bg-current opacity-80"
-                  aria-hidden="true"
-                />
-                <span>{headerMetaBadge.modeLabel}</span>
-              </span>
-            )}
-          </div>
-          <div className="mt-1.5 flex items-center justify-between gap-3 pl-7">
-            <div className="min-w-0 flex-1">
-              <ProjectPathChip path={task.project} />
+                  className={`inline-flex shrink-0 items-center border px-1.5 py-0.5 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${getTaskTypeBadgeClassName(task.taskType)}`}
+                  title={getTaskTypeLabel(task.taskType) ?? undefined}
+                >
+                  {getTaskTypeLabel(task.taskType)}
+                </span>
+              )}
+              {!readOnly && headerRunState && (
+                <span
+                  className={`inline-flex shrink-0 items-center border px-1.5 py-0.5 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${headerRunState.className}`}
+                >
+                  {headerRunState.label}
+                </span>
+              )}
+              {!readOnly && modeBadge && (
+                <span
+                  className={`inline-flex shrink-0 items-center border px-1.5 py-0.5 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${modeBadge.className}`}
+                >
+                  {modeBadge.label}
+                </span>
+              )}
             </div>
+          </div>
+          <div className="mt-1.5 flex items-center justify-end gap-2">
+            <ProjectPathChip path={task.project} />
             <ModelConfigChip
               agent={task.agent}
               model={task.model}

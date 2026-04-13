@@ -1,3 +1,50 @@
+export function VSCodeIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      fill="currentColor"
+      width={size}
+      height={size}
+      viewBox="0 0 100 100"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path d="M96.46 10.78L75.87.87a5 5 0 00-7.12 1.16L29.36 38.04 12.19 25.01a3.5 3.5 0 00-5.32 1.24L1.36 30.25c-1.82 1.65-1.82 4.51 0 6.17L16.25 50 1.36 63.58c-1.82 1.65-1.82 4.51 0 6.17l5.51 5.01a3.5 3.5 0 005.32 1.24L29.36 61.96l39.41 35.96a5 5 0 007.12 1.16L96.46 89.2A5 5 0 00100 83.59V16.41a5 5 0 00-3.54-4.63zM75.02 72.7L45.11 50l29.9-22.7v45.4z" />
+    </svg>
+  )
+}
+
+export function CursorIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      fill="currentColor"
+      fillRule="evenodd"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path d="M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z" />
+    </svg>
+  )
+}
+
+export function AntiGravityIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      fill="currentColor"
+      fillRule="evenodd"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path d="M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z" />
+    </svg>
+  )
+}
+
 export function ClaudeIcon({ size = 14 }: { size?: number }) {
   return (
     <svg
