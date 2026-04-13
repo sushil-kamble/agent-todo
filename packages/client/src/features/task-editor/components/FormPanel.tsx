@@ -782,9 +782,10 @@ function ModePicker({
   const availableModes = resolveAvailableTaskModes({ taskType, hasProject })
   const currentMode =
     TASK_MODE_OPTIONS.find(option => option.value === value) ?? TASK_MODE_OPTIONS[0]
+  const [open, setOpen] = useState(false)
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger className="flex h-9 w-full items-center justify-between gap-2 border border-border bg-card px-3 text-xs text-foreground transition-colors hover:border-foreground focus:border-foreground focus:outline-none">
         <span className="flex items-center gap-2">
           {currentMode?.value === 'code' ? (
@@ -799,7 +800,13 @@ function ModePicker({
       <DropdownMenuContent align="start" sideOffset={4}>
         <DropdownMenuGroup>
           <DropdownMenuLabel>Mode</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={value} onValueChange={v => onChange(v as TaskMode)}>
+          <DropdownMenuRadioGroup
+            value={value}
+            onValueChange={nextValue => {
+              onChange(nextValue as TaskMode)
+              setOpen(false)
+            }}
+          >
             {availableModes.map(option => (
               <DropdownMenuRadioItem key={option.value} value={option.value}>
                 <span className="flex flex-col gap-0.5">
@@ -826,9 +833,10 @@ function TaskTypePicker({
 }) {
   const availableTaskTypes = resolveAvailableTaskTypes({ hasProject })
   const summaryLabel = value ? getTaskTypeLabel(value) : 'Select a task type… (optional)'
+  const [open, setOpen] = useState(false)
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger className="flex h-9 w-full items-center justify-between gap-2 border border-border bg-card px-3 text-xs text-foreground transition-colors hover:border-foreground focus:border-foreground focus:outline-none">
         <span className={value ? 'font-medium' : 'text-muted-foreground'}>{summaryLabel}</span>
         <CaretDownIcon size={12} className="text-muted-foreground" />
@@ -838,9 +846,10 @@ function TaskTypePicker({
           <DropdownMenuLabel>Task type</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={value ?? '__none__'}
-            onValueChange={nextValue =>
+            onValueChange={nextValue => {
               onChange(nextValue === '__none__' ? null : (nextValue as TaskType))
-            }
+              setOpen(false)
+            }}
           >
             <DropdownMenuRadioItem value="__none__">
               <span className="flex flex-col gap-0.5">
