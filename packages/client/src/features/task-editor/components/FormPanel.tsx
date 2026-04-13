@@ -91,6 +91,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '#/shared/ui/tooltip'
 import { readStoredTaskConfig, writeStoredTaskConfig } from '../model/default-config-storage'
 
 type StoredConfigShape = ReturnType<typeof readStoredTaskConfig>
+type ProjectComboboxItem = {
+  value: string
+  label: string
+  path: string
+}
 
 type TaskCreationValidationInput = {
   title: string
@@ -319,6 +324,11 @@ export function FormPanel({
   const initialState = resolveInitialFormState(editingTask, storedConfig)
   const [projects, setProjects] = useState<Project[]>([])
   const projectOptions = projects.map(projectEntry => projectEntry.path)
+  const projectItems: ProjectComboboxItem[] = projectOptions.map(path => ({
+    value: path,
+    label: formatProjectPathLabel(path),
+    path,
+  }))
 
   useEffect(() => {
     fetchProjects().then(setProjects)
@@ -337,6 +347,7 @@ export function FormPanel({
   const [subs, setSubs] = useState<Subscriptions | null>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const projectInputRef = useRef<HTMLInputElement>(null)
+  const selectedProjectItem = projectItems.find(item => item.value === project) ?? null
   const hasProject = project.trim() !== '' && projectOptions.includes(project.trim())
   const isProjectLocked = isEdit && (editingColumn === 'in_progress' || editingColumn === 'done')
   const createTaskValidation = resolveTaskCreationValidation({
@@ -428,8 +439,7 @@ export function FormPanel({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    // Read from the input ref as fallback for free-typed text
-    const finalProject = (projectInputRef.current?.value ?? project).trim()
+    const finalProject = (selectedProjectItem?.value ?? project).trim()
     if (!title.trim()) {
       titleRef.current?.focus()
       return
@@ -534,11 +544,21 @@ export function FormPanel({
             </span>
             <div className="flex items-stretch gap-0">
               <Combobox
-                items={projectOptions}
-                inputValue={project}
-                value={projectOptions.includes(project) ? project : null}
-                onValueChange={val => !isProjectLocked && setProject(String(val ?? ''))}
-                onInputValueChange={inputVal => !isProjectLocked && setProject(inputVal)}
+                items={projectItems}
+                itemToStringLabel={item => item.label}
+                itemToStringValue={item => item.value}
+                isItemEqualToValue={(item, value) => item.value === value.value}
+                value={selectedProjectItem}
+                onValueChange={val => !isProjectLocked && setProject(val?.value ?? '')}
+                onInputValueChange={(inputVal, eventDetails) => {
+                  if (isProjectLocked) return
+                  if (
+                    eventDetails.reason === 'input-change' ||
+                    eventDetails.reason === 'input-clear'
+                  ) {
+                    setProject(inputVal)
+                  }
+                }}
               >
                 <ComboboxInput
                   ref={projectInputRef}
@@ -556,17 +576,15 @@ export function FormPanel({
                     <ComboboxEmpty>No matching projects</ComboboxEmpty>
                     <ComboboxList>
                       {item => (
-                        <ComboboxItem key={item} value={item} className="items-start">
+                        <ComboboxItem key={item.value} value={item} className="items-start">
                           <FolderOpenIcon
                             size={13}
                             className="mt-0.5 shrink-0 text-muted-foreground"
                           />
                           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span className="truncate font-medium">
-                              {formatProjectPathLabel(item)}
-                            </span>
+                            <span className="truncate font-medium">{item.label}</span>
                             <span className="truncate text-[0.65rem] text-muted-foreground">
-                              {item}
+                              {item.path}
                             </span>
                           </span>
                         </ComboboxItem>
