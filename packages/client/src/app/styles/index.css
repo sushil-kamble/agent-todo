@@ -133,6 +133,8 @@
   }
   html {
     @apply font-sans;
+    /* Match the current "feels right" desktop scale without per-component overrides. */
+    font-size: 110%;
     font-optical-sizing: auto;
     font-variation-settings:
       "slnt" 0,
