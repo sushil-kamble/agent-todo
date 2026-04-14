@@ -22,6 +22,7 @@ export function Board() {
   const { searchQuery } = useBoardSearch()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [dragOrigin, setDragOrigin] = useState<ColumnId | null>(null)
+  const [dragTarget, setDragTarget] = useState<ColumnId | null>(null)
 
   const filteredTasks = useMemo(() => {
     if (!searchQuery.trim()) return tasks
@@ -67,14 +68,20 @@ export function Board() {
   function handleDragStart(e: DragStartEvent) {
     const id = String(e.active.id)
     setActiveId(id)
-    setDragOrigin(findColumn(id))
+    const origin = findColumn(id)
+    setDragOrigin(origin)
+    setDragTarget(origin)
   }
 
   function handleDragOver(e: DragOverEvent) {
     const { active, over } = e
-    if (!over) return
+    if (!over) {
+      setDragTarget(null)
+      return
+    }
     const fromCol = findColumn(String(active.id))
     const toCol = findColumn(String(over.id))
+    setDragTarget(toCol)
     if (!fromCol || !toCol || fromCol === toCol) return
 
     setTasks(prev => {
@@ -97,6 +104,7 @@ export function Board() {
     const origin = dragOrigin
     setActiveId(null)
     setDragOrigin(null)
+    setDragTarget(null)
     if (!over) return
     const col = findColumn(activeIdStr)
     if (!col) return
@@ -126,11 +134,21 @@ export function Board() {
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveId(null)}
+      onDragCancel={() => {
+        setActiveId(null)
+        setDragOrigin(null)
+        setDragTarget(null)
+      }}
     >
       <div className="grid h-full min-h-0 grid-cols-3 gap-5">
         {COLUMNS.map((col, i) => (
-          <BoardColumn key={col.id} column={col} tasks={filteredTasks[col.id]} index={i} />
+          <BoardColumn
+            key={col.id}
+            column={col}
+            tasks={filteredTasks[col.id]}
+            index={i}
+            isDropTarget={dragTarget === col.id && dragOrigin !== col.id}
+          />
         ))}
       </div>
 

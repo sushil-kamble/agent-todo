@@ -1,5 +1,5 @@
 {
-  "defaultAgent": "claude",
+  "defaultAgent": "codex",
   "efforts": {
     "low": {
       "label": "Low",

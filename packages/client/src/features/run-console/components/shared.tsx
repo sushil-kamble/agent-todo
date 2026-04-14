@@ -417,16 +417,6 @@ function LiveChatBubble({
   }
 
   const isUser = message.role === 'user'
-  const mutedLabel =
-    !isUser && muted
-      ? message.kind === 'reasoning'
-        ? message.reasoningFormat === 'summary' || message.provider === 'claude'
-          ? 'Reasoning summary'
-          : 'Reasoning'
-        : message.phase === 'commentary'
-          ? 'Commentary'
-          : null
-      : null
   return (
     <div className={`flex min-w-0 gap-2 ${isUser ? 'justify-end' : ''}`}>
       {!muted && (
@@ -446,11 +436,6 @@ function LiveChatBubble({
         </span>
       )}
       <div className="flex min-w-0 max-w-[80%] flex-col items-start text-left">
-        {mutedLabel && (
-          <span className="mb-1 text-[0.55rem] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-            {mutedLabel}
-          </span>
-        )}
         <div
           className={[
             'min-w-0 max-w-full overflow-hidden border wrap-break-word',

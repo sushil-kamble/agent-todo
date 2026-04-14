@@ -234,7 +234,7 @@ function BacklogsPage() {
                       className="block w-full cursor-pointer text-left"
                     >
                       <div className="px-4 py-4">
-                        <h2 className="font-heading text-lg leading-snug tracking-tight text-foreground">
+                        <h2 className="font-heading line-clamp-5 text-lg leading-snug tracking-tight text-foreground">
                           {task.title}
                         </h2>
                       </div>

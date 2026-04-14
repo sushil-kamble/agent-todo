@@ -13,7 +13,7 @@ describe('task config storage', () => {
     }
 
     expect(readStoredTaskConfig(storage)).toEqual({
-      agent: 'claude',
+      agent: 'codex',
       mode: 'code',
       model: null,
       effort: 'medium',
@@ -93,7 +93,7 @@ describe('task config storage', () => {
     }
 
     expect(readStoredTaskConfig(storage)).toEqual({
-      agent: 'claude',
+      agent: 'codex',
       mode: 'code',
       model: null,
       effort: 'medium',

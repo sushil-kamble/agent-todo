@@ -640,16 +640,6 @@ export function FormPanel({
           </span>
           <div className="grid grid-cols-2 gap-2">
             <AgentChoice
-              value="claude"
-              current={agent}
-              onSelect={handleAgentChange}
-              label="Claude"
-              disabled={subs !== null && !subs.claude.available}
-              plan={subs?.claude.plan ?? undefined}
-              reason={subs?.claude.reason ?? undefined}
-              usage={subs?.claude.usage ?? null}
-            />
-            <AgentChoice
               value="codex"
               current={agent}
               onSelect={handleAgentChange}
@@ -658,6 +648,16 @@ export function FormPanel({
               plan={subs?.codex.plan ?? undefined}
               reason={subs?.codex.reason ?? undefined}
               usage={subs?.codex.usage ?? null}
+            />
+            <AgentChoice
+              value="claude"
+              current={agent}
+              onSelect={handleAgentChange}
+              label="Claude"
+              disabled={subs !== null && !subs.claude.available}
+              plan={subs?.claude.plan ?? undefined}
+              reason={subs?.claude.reason ?? undefined}
+              usage={subs?.claude.usage ?? null}
             />
           </div>
         </div>

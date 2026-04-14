@@ -10,6 +10,7 @@ type Props = {
   column: Column
   tasks: TaskCard[]
   index: number
+  isDropTarget?: boolean
 }
 
 const accent: Record<string, string> = {
@@ -45,10 +46,10 @@ function TaskCardSkeleton() {
 
 const SCROLL_BOTTOM_OFFSET = 80
 
-export function BoardColumn({ column, tasks, index }: Props) {
+export function BoardColumn({ column, tasks, index, isDropTarget = false }: Props) {
   const { openNewTask } = useBoardDialogs()
   const { isLoading } = useBoardTasks()
-  const { setNodeRef, isOver } = useDroppable({
+  const { setNodeRef } = useDroppable({
     id: column.id,
     data: { column: column.id },
   })
@@ -104,7 +105,7 @@ export function BoardColumn({ column, tasks, index }: Props) {
       className={[
         'flex min-h-0 flex-col border border-border bg-card/40 backdrop-blur-[2px]',
         'transition-colors',
-        isOver ? 'border-foreground bg-card' : '',
+        isDropTarget ? 'border-foreground bg-card' : '',
       ].join(' ')}
     >
       {/* Column header */}
