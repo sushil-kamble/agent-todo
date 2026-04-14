@@ -102,12 +102,7 @@ export function getWorkedTimeDuration(turns: TurnGroup[], inFlight: boolean, now
     if (Number.isNaN(startMs)) return total
 
     const isLastTurn = index === turns.length - 1
-    const endMs =
-      inFlight && isLastTurn
-        ? nowMs
-        : turn.endedAt
-          ? Date.parse(turn.endedAt)
-          : startMs
+    const endMs = inFlight && isLastTurn ? nowMs : turn.endedAt ? Date.parse(turn.endedAt) : startMs
 
     if (Number.isNaN(endMs)) return total
     return total + Math.max(0, endMs - startMs)

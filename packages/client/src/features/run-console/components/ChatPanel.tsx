@@ -1,21 +1,22 @@
 import { ACTIVE_RUN_STATUSES } from '@agent-todo/shared/constants/run-status'
-import { ArrowDownIcon, ArrowUpIcon, StopIcon, XIcon } from '@phosphor-icons/react'
+import { ArrowDownIcon, ArrowUpIcon, CaretRightIcon, StopIcon, XIcon } from '@phosphor-icons/react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentPhase } from '#/entities/run'
 import type { TaskCard } from '#/entities/task/types'
-import {
-  getTaskModeBadgeClassName,
-  getTaskModeLabel,
-} from '#/features/agent-config/model/task-config'
-import {
-  getTaskTypeBadgeClassName,
-  getTaskTypeLabel,
-} from '#/features/agent-config/model/task-type-config'
+import { getEffortLabel, getModelLabel } from '#/features/agent-config/model/model-config'
+import { getTaskModeLabel } from '#/features/agent-config/model/task-config'
+import { getTaskTypeLabel } from '#/features/agent-config/model/task-type-config'
 import * as api from '#/features/run-console/api'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '#/shared/ui/collapsible'
 import { ClaudeIcon, OpenAIIcon } from '#/shared/ui/icons'
 import type { LiveMessage } from '../model/types'
-import { formatTime, getWorkedTimeDuration, groupByTurn } from '../model/utils'
-import { ModelConfigChip, ProjectPathChip, TurnBlock, WorkedTimeChip } from './shared'
+import {
+  formatTime,
+  formatWorkedForDuration,
+  getWorkedTimeDuration,
+  groupByTurn,
+} from '../model/utils'
+import { ProjectPathChip, TurnBlock } from './shared'
 
 const USER_CANCELLED_EXECUTION = '--- User cancelled execution ---'
 const LOCAL_INTERRUPTED_MARKER_PREFIX = 'interrupt-local-'
@@ -71,11 +72,61 @@ function getHeaderRunState(status: string | null) {
   }
 }
 
-function getModeBadge(mode: TaskCard['mode']) {
-  return {
-    label: getTaskModeLabel(mode),
-    className: getTaskModeBadgeClassName(mode),
-  }
+function formatTaskModelSummary(task: TaskCard) {
+  return `${getModelLabel(task.agent, task.model)} (${getEffortLabel(task.effort)}${task.fastMode ? ', Fast' : ''})`
+}
+
+function formatAgentModelSummary(task: TaskCard, agentLabel: string) {
+  return `${agentLabel} / ${formatTaskModelSummary(task)}`
+}
+
+function formatModeTaskTypeSummary(task: TaskCard) {
+  const taskTypeLabel = task.taskType ? getTaskTypeLabel(task.taskType) : null
+  return taskTypeLabel
+    ? `${getTaskModeLabel(task.mode)} / ${taskTypeLabel}`
+    : getTaskModeLabel(task.mode)
+}
+
+function getTaskInfoSummary(task: TaskCard, agentLabel: string) {
+  const parts = [formatModeTaskTypeSummary(task), formatAgentModelSummary(task, agentLabel)]
+
+  return parts.filter((part): part is string => Boolean(part)).join(' · ')
+}
+
+function TaskInfoField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0 space-y-1">
+      <p className="text-[0.58rem] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+        {label}
+      </p>
+      <div className="min-w-0 text-[0.72rem] leading-snug text-foreground">{children}</div>
+    </div>
+  )
+}
+
+function TaskInfoPairValue({
+  primary,
+  secondary,
+  icon,
+}: {
+  primary: React.ReactNode
+  secondary?: React.ReactNode
+  icon?: React.ReactNode
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-1.5 text-[0.72rem] leading-snug text-foreground">
+        {icon ? <span className="shrink-0">{icon}</span> : null}
+        <span className="truncate">{primary}</span>
+        {secondary ? (
+          <>
+            <span className="shrink-0 text-muted-foreground">/</span>
+            <span className="truncate text-muted-foreground">{secondary}</span>
+          </>
+        ) : null}
+      </div>
+    </div>
+  )
 }
 
 export function ChatPanel({
@@ -167,20 +218,20 @@ export function ChatPanel({
               reasoningFormat?: 'summary' | 'raw'
               interruptedByUser?: boolean
             } | null
-              return {
-                id: `p-${m.seq}`,
-                role: m.role,
-                kind: m.kind,
-                body: m.content,
-                at: formatTime(m.created_at),
-                createdAt: m.created_at,
-                phase: meta?.phase,
-                itemId: meta?.itemId,
-                provider: meta?.provider,
-                reasoningFormat: meta?.reasoningFormat,
-                interruptedByUser:
-                  m.role === 'system' &&
-                  m.kind === 'error' &&
+            return {
+              id: `p-${m.seq}`,
+              role: m.role,
+              kind: m.kind,
+              body: m.content,
+              at: formatTime(m.created_at),
+              createdAt: m.created_at,
+              phase: meta?.phase,
+              itemId: meta?.itemId,
+              provider: meta?.provider,
+              reasoningFormat: meta?.reasoningFormat,
+              interruptedByUser:
+                m.role === 'system' &&
+                m.kind === 'error' &&
                 (meta?.interruptedByUser === true || m.content === USER_CANCELLED_EXECUTION),
             }
           })
@@ -532,11 +583,12 @@ export function ChatPanel({
     (ACTIVE_RUN_STATUSES.has(runStatus) || runStatus === 'idle')
   const canSend = !readOnly && !!runId && runStatus === 'idle'
   const headerRunState = getHeaderRunState(runStatus)
-  const modeBadge = getModeBadge(task.mode)
   const workedTimeMs = useMemo(
     () => getWorkedTimeDuration(turns, isRunActive, headerNowMs),
     [turns, isRunActive, headerNowMs]
   )
+  const taskInfoSummary = useMemo(() => getTaskInfoSummary(task, agentLabel), [task, agentLabel])
+  const workedTimeLabel = useMemo(() => formatWorkedForDuration(workedTimeMs), [workedTimeMs])
 
   useEffect(() => {
     if (!isRunActive) return
@@ -547,62 +599,88 @@ export function ChatPanel({
 
   return (
     <section className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex h-[calc(100vh-2rem)] w-full max-w-4xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:h-[calc(100vh-3rem)]">
-      <div className="flex items-start gap-3 border-b border-border bg-card px-5 py-3">
-        <span
-          className="mt-0.5 flex size-5 shrink-0 items-center justify-center border border-border bg-background text-foreground"
-          title={agentLabel}
-        >
-          <AgentIcon size={11} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <p className="min-w-0 truncate text-sm font-medium leading-tight text-foreground">
+      <div className="border-b border-border bg-card px-5 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium leading-tight text-foreground">
               {task.title}
             </p>
-            <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              {task.taskType && (
-                <span
-                  className={`inline-flex shrink-0 items-center border px-1.5 py-0.5 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${getTaskTypeBadgeClassName(task.taskType)}`}
-                  title={getTaskTypeLabel(task.taskType) ?? undefined}
-                >
-                  {getTaskTypeLabel(task.taskType)}
-                </span>
-              )}
-              {!readOnly && headerRunState && (
-                <span
-                  className={`inline-flex shrink-0 items-center border px-1.5 py-0.5 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${headerRunState.className}`}
-                >
-                  {headerRunState.label}
-                </span>
-              )}
-              {!readOnly && modeBadge && (
-                <span
-                  className={`inline-flex shrink-0 items-center border px-1.5 py-0.5 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${modeBadge.className}`}
-                >
-                  {modeBadge.label}
-                </span>
-              )}
-            </div>
           </div>
-          <div className="mt-1.5 flex items-center justify-end gap-2">
-            <WorkedTimeChip durationMs={workedTimeMs} />
-            <ProjectPathChip path={task.project} />
-            <ModelConfigChip
-              agent={task.agent}
-              model={task.model}
-              effort={task.effort}
-              fastMode={task.fastMode}
-            />
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {headerRunState && (
+              <span
+                className={`inline-flex shrink-0 items-center border px-1.5 py-0.5 text-[0.58rem] font-semibold tracking-[0.08em] uppercase ${headerRunState.className}`}
+              >
+                {headerRunState.label}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={close}
+              className="flex size-6 shrink-0 items-center justify-center border border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+              aria-label="Close"
+            >
+              <XIcon size={12} weight="bold" />
+            </button>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={close}
-          className="flex size-6 shrink-0 items-center justify-center border border-transparent text-muted-foreground hover:border-border hover:text-foreground"
-          aria-label="Close"
-        >
-          <XIcon size={12} weight="bold" />
-        </button>
+      </div>
+
+      <div className="border-b border-border bg-card/70">
+        <Collapsible defaultOpen={false}>
+          <CollapsibleTrigger className="group/task-info flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-background/40 aria-expanded:bg-background/20">
+            <CaretRightIcon
+              size={11}
+              weight="bold"
+              className="shrink-0 text-muted-foreground transition-transform duration-150 group-aria-expanded/task-info:rotate-90"
+            />
+            <span className="shrink-0 text-[0.58rem] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+              Task info
+            </span>
+            <span className="min-w-0 truncate text-[0.68rem] text-muted-foreground">
+              {taskInfoSummary}
+            </span>
+            {workedTimeLabel ? (
+              <span className="ml-auto shrink-0 text-[0.68rem] font-medium tabular-nums text-muted-foreground">
+                {workedTimeLabel}
+              </span>
+            ) : null}
+          </CollapsibleTrigger>
+
+          <CollapsibleContent className="border-t border-border bg-background/35 px-5 py-3">
+            <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
+              <TaskInfoField label="Agent / model">
+                <TaskInfoPairValue
+                  primary={agentLabel}
+                  secondary={formatTaskModelSummary(task)}
+                  icon={
+                    <span
+                      className="flex size-4 items-center justify-center border border-border bg-background text-foreground"
+                      title={agentLabel}
+                    >
+                      <AgentIcon size={9} />
+                    </span>
+                  }
+                />
+              </TaskInfoField>
+
+              <TaskInfoField label="Mode / task type">
+                <TaskInfoPairValue
+                  primary={getTaskModeLabel(task.mode)}
+                  secondary={task.taskType ? getTaskTypeLabel(task.taskType) : undefined}
+                />
+              </TaskInfoField>
+
+              <TaskInfoField label="Project">
+                <ProjectPathChip path={task.project} />
+              </TaskInfoField>
+
+              {workedTimeLabel && (
+                <TaskInfoField label="Worked time">{workedTimeLabel}</TaskInfoField>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       <div

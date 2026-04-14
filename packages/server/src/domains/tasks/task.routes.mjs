@@ -28,7 +28,7 @@ import {
 import { createProject } from '#domains/projects/project.repository.mjs'
 import { listMessages } from '#domains/runs/message.repository.mjs'
 import { getActiveRunForTask, getLatestRunForTask } from '#domains/runs/run.repository.mjs'
-import { ensureRunForTask, stopRunForTask } from '#domains/runs/run-manager.mjs'
+import { ensureRunForTask, preserveRunForTask, stopRunForTask } from '#domains/runs/run-manager.mjs'
 import { getTaskWorkedTime } from '#domains/runs/worked-time.mjs'
 import { normalizeProjectPath } from '#infra/filesystem/project-path.mjs'
 import { json, readBody } from '#infra/http/http.mjs'
@@ -199,19 +199,18 @@ export async function handleTaskRoutes(req, res, pathname) {
 
     const leftInProgress = prev.column_id === 'in_progress' && t.column_id !== 'in_progress'
     if (leftInProgress) {
-      await stopRunForTask(t.id)
+      await preserveRunForTask(t.id)
     }
 
-    // If this task is being placed in the in-progress column and it has a
-    // supported agent, ensure a live run exists. This covers both the initial
-    // move from todo -> in_progress and retries while the task is already
-    // in_progress but its previous run has failed.
+    // Moving into in-progress either starts a brand-new run, reattaches an
+    // idle preserved thread, or resumes an unfinished board-paused turn.
     let runId = null
-    const shouldEnsureRun =
+    const enteredInProgress =
+      prev.column_id !== 'in_progress' &&
       body.column_id === 'in_progress' &&
       t.column_id === 'in_progress' &&
       (t.agent === 'codex' || t.agent === 'claude')
-    if (shouldEnsureRun) {
+    if (enteredInProgress) {
       try {
         const run = await ensureRunForTask(t)
         runId = run?.id ?? null

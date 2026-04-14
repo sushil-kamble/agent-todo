@@ -9,7 +9,7 @@
 import { json, readBody, sseHeaders, sseSend } from '#infra/http/http.mjs'
 import { appendMessage, listMessages } from './message.repository.mjs'
 import { getRun } from './run.repository.mjs'
-import { emit, ensureLiveRun, getLiveRun, interruptRun } from './run-manager.mjs'
+import { dispatchRunInput, emit, ensureLiveRun, getLiveRun, interruptRun } from './run-manager.mjs'
 
 const USER_CANCELLED_EXECUTION = '--- User cancelled execution ---'
 
@@ -37,8 +37,7 @@ export async function handleRunRoutes(req, res, pathname) {
       createdAt: new Date().toISOString(),
     })
     try {
-      await entry.ready
-      await entry.client.sendUserText(text)
+      await dispatchRunInput(runId, text)
     } catch (e) {
       return json(res, 500, { error: e.message })
     }

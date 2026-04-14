@@ -187,7 +187,8 @@ export class CodexClient extends EventEmitter {
             ...msg.params.item,
             provider: 'codex',
             reasoningFormat:
-              msg.params.item.reasoningFormat ?? this.reasoningFormatByItemId.get(msg.params.item.id),
+              msg.params.item.reasoningFormat ??
+              this.reasoningFormatByItemId.get(msg.params.item.id),
           }
           this.reasoningFormatByItemId.delete(msg.params.item.id)
           this.emit('item', { item: reasoningItem })

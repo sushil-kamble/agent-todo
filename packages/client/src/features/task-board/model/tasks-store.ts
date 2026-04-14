@@ -29,7 +29,7 @@ type BoardTasksStore = {
 }
 
 export function createBoardTasksStore() {
-  return createStore<BoardTasksStore>((set, get) => ({
+  return createStore<BoardTasksStore>(set => ({
     tasks: createEmptyTasks(),
     isLoading: true,
     setTasks: updater =>
@@ -160,15 +160,6 @@ export function createBoardTasksStore() {
           column_id: toColumn,
           position,
         })
-
-        if (toColumn === 'in_progress' && runId) {
-          get().setTasks(current => ({
-            ...current,
-            in_progress: current.in_progress.map(task =>
-              task.id === taskId ? { ...task, runStatus: 'starting' } : task
-            ),
-          }))
-        }
 
         return runId
       } catch (error) {

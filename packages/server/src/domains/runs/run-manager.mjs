@@ -12,8 +12,14 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { getAgentClass } from '../agents/agent-registry.mjs'
 import { getTask } from '../tasks/task.repository.mjs'
-import { appendMessage } from './message.repository.mjs'
-import { createRun, getActiveRunForTask, getRun, updateRun } from './run.repository.mjs'
+import { appendMessage, listMessages } from './message.repository.mjs'
+import {
+  createRun,
+  getActiveRunForTask,
+  getLatestRunForTask,
+  getRun,
+  updateRun,
+} from './run.repository.mjs'
 
 const SCRATCH_DIR = join(homedir(), '.agent-todo', 'scratch')
 
@@ -30,14 +36,39 @@ const pendingBootstrap = new Map()
 const taskLocks = new Map()
 let resolveAgentClass = name => getAgentClass(name)
 const TERMINAL_RUN_STATUSES = new Set(['completed', 'failed', 'interrupted'])
+const EXECUTING_RUN_STATUSES = new Set(['starting', 'running', 'active'])
+const PRESERVED_RUN_STATUSES = new Set(['idle', 'paused'])
 const INTERRUPT_GRACE_MS = 150
+const CONTINUE_PAUSED_TURN_PROMPT = [
+  'Continue the previous unfinished request from this thread.',
+  'The task card temporarily left in-progress before you finished responding.',
+  'Resume from the existing context instead of restarting from the original task title, and continue from any partial work already completed.',
+].join('\n')
 
 function isTerminalRunStatus(status) {
   return TERMINAL_RUN_STATUSES.has(status ?? '')
 }
 
+function isExecutingRunStatus(status) {
+  return EXECUTING_RUN_STATUSES.has(status ?? '')
+}
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function setRunDispatching(runId, dispatching) {
+  const live = runs.get(runId)
+  if (!live) return
+  live.dispatching = dispatching
+}
+
+function buildBootstrapPrompt(task) {
+  const hasProject = task.project && task.project !== 'untitled'
+  const contextLine = hasProject
+    ? `Working directory: ${task.project}`
+    : 'General research task — no specific project directory'
+  return [contextLine, '', task.title].join('\n')
 }
 
 function closeLiveRun(runId, status) {
@@ -123,20 +154,21 @@ export function emit(runId, event) {
  */
 async function bootstrapRun(runId, task, client, bus, options = {}) {
   const sendBootstrapPrompt = options.sendBootstrapPrompt !== false
-  // Build a richer first message so the agent always knows its working context.
-  const hasProject = task.project && task.project !== 'untitled'
-  const contextLine = hasProject
-    ? `Working directory: ${task.project}`
-    : 'General research task — no specific project directory'
-  const prompt = [contextLine, '', task.title].join('\n')
+  const prompt = buildBootstrapPrompt(task)
   try {
     client.start()
     await client.initialize()
     await client.startThread()
     if (sendBootstrapPrompt) {
-      await client.sendUserText(prompt)
+      setRunDispatching(runId, true)
+      try {
+        await client.sendUserText(prompt)
+      } finally {
+        setRunDispatching(runId, false)
+      }
     }
   } catch (e) {
+    setRunDispatching(runId, false)
     const persisted = getRun(runId)
     if (persisted && persisted.status === 'interrupted') {
       try {
@@ -164,6 +196,7 @@ async function bootstrapRun(runId, task, client, bus, options = {}) {
 }
 
 function attachLiveRun(run, task, options = {}) {
+  const sendBootstrapPrompt = options.sendBootstrapPrompt !== false
   const AgentClass = resolveAgentClass(task.agent)
   const cwd = resolveTaskCwd(task.project)
   const client = new AgentClass({ cwd, task, threadId: run.thread_id ?? null })
@@ -187,6 +220,7 @@ function attachLiveRun(run, task, options = {}) {
     ended: false,
     terminalStatus: null,
     softInterrupting: false,
+    dispatching: false,
   })
   pendingBootstrap.set(run.id, ready)
 
@@ -197,7 +231,11 @@ function attachLiveRun(run, task, options = {}) {
     if (!live || live.terminalStatus) return
     // Thread/turn lifecycle is internal plumbing — we track it in run status
     // but never surface it in the chat transcript (no persistence, no SSE).
-    updateRun(run.id, { thread_id: threadId, status: 'running' })
+    if (sendBootstrapPrompt) {
+      updateRun(run.id, { thread_id: threadId, status: 'running' })
+      return
+    }
+    updateRun(run.id, { thread_id: threadId })
   })
 
   client.on('turnStarted', ({ turnId }) => {
@@ -368,11 +406,13 @@ function attachLiveRun(run, task, options = {}) {
       live?.terminalStatus ??
       (isTerminalRunStatus(persisted?.status)
         ? persisted.status
-        : live?.softInterrupting || persisted?.status === 'idle'
+        : live?.softInterrupting
           ? 'idle'
-          : code === 0
-            ? 'completed'
-            : 'failed')
+          : PRESERVED_RUN_STATUSES.has(persisted?.status ?? '')
+            ? persisted.status
+            : code === 0
+              ? 'completed'
+              : 'failed')
 
     if (live?.softInterrupting) {
       live.softInterrupting = false
@@ -430,13 +470,17 @@ export async function ensureRunForTask(task) {
   if (taskLocks.has(task.id)) return taskLocks.get(task.id)
 
   const promise = (async () => {
-    const existing = getActiveRunForTask(task.id)
+    const existing = getActiveRunForTask(task.id) ?? getRunForTaskHistory(task.id)
     if (existing && runs.has(existing.id)) return existing
     if (existing) {
-      const resumed = await ensureLiveRun(existing.id)
-      if (runs.has(existing.id)) return resumed
-      // row exists but process is gone and cannot be resumed — mark failed and start fresh
-      updateRun(existing.id, { status: 'failed' })
+      const run = await ensureLiveRun(existing.id, {
+        reviveTerminal: true,
+        status: 'idle',
+      })
+      if (existing.status === 'paused') {
+        await resumePausedRun(existing.id, task)
+      }
+      return run
     }
     const run = startRun(task)
     const ready = pendingBootstrap.get(run.id)
@@ -452,12 +496,29 @@ export async function ensureRunForTask(task) {
   }
 }
 
-export async function ensureLiveRun(runId) {
-  const live = runs.get(runId)
-  if (live) return getRun(runId)
+function getRunForTaskHistory(taskId) {
+  const active = getActiveRunForTask(taskId)
+  if (active) return active
+  return getLatestRunForTask(taskId)
+}
 
-  const persisted = getRun(runId)
-  if (!persisted || isTerminalRunStatus(persisted.status)) return persisted
+export async function ensureLiveRun(runId, options = {}) {
+  const reviveTerminal = options.reviveTerminal === true
+  const targetStatus = typeof options.status === 'string' ? options.status : null
+
+  const live = runs.get(runId)
+  if (live) {
+    if (targetStatus) updateRun(runId, { status: targetStatus })
+    return getRun(runId)
+  }
+
+  let persisted = getRun(runId)
+  if (!persisted) return persisted
+  if (targetStatus && persisted.status !== targetStatus) {
+    updateRun(runId, { status: targetStatus })
+    persisted = getRun(runId)
+  }
+  if (!persisted || (!reviveTerminal && isTerminalRunStatus(persisted.status))) return persisted
 
   const task = getTask(persisted.task_id)
   if (!task || (task.agent !== 'codex' && task.agent !== 'claude')) {
@@ -466,13 +527,110 @@ export async function ensureLiveRun(runId) {
 
   if (pendingBootstrap.has(runId)) {
     await pendingBootstrap.get(runId)
-    return getRun(runId)
+    if (runs.has(runId)) return getRun(runId)
+    persisted = getRun(runId)
+    if (!persisted) return persisted
+    if (targetStatus && persisted.status !== targetStatus) {
+      updateRun(runId, { status: targetStatus })
+      persisted = getRun(runId)
+    }
+    if (!persisted || (!reviveTerminal && isTerminalRunStatus(persisted.status))) return persisted
   }
 
   const run = attachLiveRun(persisted, task, { sendBootstrapPrompt: false })
   const ready = pendingBootstrap.get(run.id)
   if (ready) await ready
   return getRun(run.id)
+}
+
+export async function dispatchRunInput(runId, text) {
+  const entry = runs.get(runId)
+  if (!entry) throw new Error('run not active')
+
+  setRunDispatching(runId, true)
+  try {
+    await entry.ready
+    await entry.client.sendUserText(text)
+  } finally {
+    setRunDispatching(runId, false)
+  }
+  return getRun(runId)
+}
+
+function getPausedResumeRequest(runId, task) {
+  const messages = listMessages(runId).filter(message => message.kind !== 'status')
+  const firstUser = messages.find(message => message.role === 'user') ?? null
+  let lastUser = null
+  let hasActivityAfterLastUser = false
+
+  for (const message of messages) {
+    if (message.role === 'user') {
+      lastUser = message
+      hasActivityAfterLastUser = false
+      continue
+    }
+    if (lastUser) {
+      hasActivityAfterLastUser = true
+    }
+  }
+
+  if (!lastUser) {
+    return {
+      text: buildBootstrapPrompt(task),
+      mode: 'bootstrap',
+      lastUserSeq: null,
+    }
+  }
+
+  const shouldReplayBootstrap =
+    lastUser.seq === firstUser?.seq &&
+    lastUser.content === task.title &&
+    hasActivityAfterLastUser === false
+
+  if (shouldReplayBootstrap) {
+    return {
+      text: buildBootstrapPrompt(task),
+      mode: 'bootstrap',
+      lastUserSeq: lastUser.seq,
+    }
+  }
+
+  if (!hasActivityAfterLastUser) {
+    return {
+      text: lastUser.content,
+      mode: 'replay-last-user',
+      lastUserSeq: lastUser.seq,
+    }
+  }
+
+  return {
+    text: CONTINUE_PAUSED_TURN_PROMPT,
+    mode: 'continue',
+    lastUserSeq: lastUser.seq,
+  }
+}
+
+async function resumePausedRun(runId, task) {
+  if (!runs.has(runId)) return getRun(runId)
+
+  const resumeRequest = getPausedResumeRequest(runId, task)
+  const createdAt = new Date().toISOString()
+  const seq = appendMessage(runId, 'system', 'status', `auto-resume:${resumeRequest.mode}`, {
+    resumedFromPaused: true,
+    resumeMode: resumeRequest.mode,
+    lastUserSeq: resumeRequest.lastUserSeq,
+  })
+  emit(runId, {
+    type: 'message',
+    seq,
+    role: 'system',
+    kind: 'status',
+    content: `auto-resume:${resumeRequest.mode}`,
+    createdAt,
+  })
+
+  await dispatchRunInput(runId, resumeRequest.text)
+  return getRun(runId)
 }
 
 /**
@@ -530,4 +688,13 @@ export async function stopRunForTask(taskId, status = 'interrupted') {
   const active = getActiveRunForTask(taskId)
   if (!active) return null
   return stopRun(active.id, status)
+}
+
+export async function preserveRunForTask(taskId) {
+  const run = getActiveRunForTask(taskId)
+  if (!run) return null
+  const live = runs.get(run.id)
+  const nextStatus =
+    isExecutingRunStatus(run.status) || live?.dispatching === true ? 'paused' : 'idle'
+  return stopRun(run.id, nextStatus)
 }

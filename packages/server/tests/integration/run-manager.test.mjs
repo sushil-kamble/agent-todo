@@ -3,6 +3,7 @@ import {
   ensureLiveRun,
   ensureRunForTask,
   getLiveRun,
+  preserveRunForTask,
   resetRunManagerState,
   setAgentClassResolver,
   startRun,
@@ -287,5 +288,184 @@ describe('run manager with fake agent', () => {
     })
     expect(getLiveRun(persisted.id)).toBeTruthy()
     expect(getFakeAgentSendLog()).toEqual([])
+  })
+
+  it('detaches an idle run without changing its transcript state', async () => {
+    configureFakeAgentHarness({
+      defaultScript: createFakeRunScript({
+        turns: [[{ type: 'thread' }, { type: 'turnCompleted' }]],
+      }),
+    })
+
+    const task = harness.tasks.createTask(taskFactory({ id: 't-detach-idle' }))
+    const run = startRun(task)
+
+    await waitFor(() => harness.runs.getRun(run.id)?.status === 'idle')
+    const beforeMessages = harness.messages.listMessages(run.id)
+
+    await preserveRunForTask(task.id)
+
+    expect(getLiveRun(run.id)).toBeUndefined()
+    expect(harness.runs.getRun(run.id)?.status).toBe('idle')
+    expect(harness.messages.listMessages(run.id)).toEqual(beforeMessages)
+  })
+
+  it('parks an active run as paused when the task leaves in_progress', async () => {
+    configureFakeAgentHarness({
+      defaultScript: createFakeRunScript({
+        turns: [[{ type: 'thread' }, { type: 'delay', ms: 500 }]],
+        emitExitOnStop: true,
+      }),
+    })
+
+    const task = harness.tasks.createTask(taskFactory({ id: 't-park-active' }))
+    const run = startRun(task)
+
+    await preserveRunForTask(task.id)
+    await waitFor(() => getLiveRun(run.id) == null)
+
+    expect(harness.runs.getRun(run.id)?.status).toBe('paused')
+  })
+
+  it('replays the bootstrap request when a paused run never produced any agent output', async () => {
+    configureFakeAgentHarness({
+      scriptsByTaskId: {
+        't-replay-bootstrap': [
+          createFakeRunScript({
+            turns: [
+              [
+                { type: 'thread', threadId: 'thread-replay-bootstrap' },
+                { type: 'delay', ms: 500 },
+              ],
+            ],
+            emitExitOnStop: true,
+          }),
+          createFakeRunScript({
+            turns: [
+              [
+                { type: 'thread', threadId: 'thread-replay-bootstrap' },
+                { type: 'turnStarted', turnId: 'turn-bootstrap-replayed' },
+                { type: 'turnCompleted', status: 'completed' },
+              ],
+            ],
+          }),
+        ],
+      },
+    })
+
+    const task = harness.tasks.createTask(taskFactory({ id: 't-replay-bootstrap' }))
+    const run = startRun(task)
+
+    await preserveRunForTask(task.id)
+    await waitFor(() => getLiveRun(run.id) == null)
+    expect(harness.runs.getRun(run.id)?.status).toBe('paused')
+
+    await ensureRunForTask(task)
+    await waitFor(() => harness.runs.getRun(run.id)?.status === 'idle')
+
+    expect(getFakeAgentSendLog().map(log => log.text)).toEqual([
+      expect.stringContaining(task.title),
+      expect.stringContaining(task.title),
+    ])
+    expect(harness.messages.listMessages(run.id).filter(row => row.role === 'user')).toHaveLength(1)
+    expect(harness.runs.getRun(run.id)?.thread_id).toBe('thread-replay-bootstrap')
+  })
+
+  it('replays the last user follow-up when a paused run never responded to it', async () => {
+    configureFakeAgentHarness({
+      scriptsByTaskId: {
+        't-replay-follow-up': [
+          createFakeRunScript({
+            turns: [
+              [{ type: 'thread', threadId: 'thread-replay-follow-up' }, { type: 'turnCompleted' }],
+              [{ type: 'delay', ms: 500 }],
+            ],
+            emitExitOnStop: true,
+          }),
+          createFakeRunScript({
+            turns: [
+              [
+                { type: 'thread', threadId: 'thread-replay-follow-up' },
+                { type: 'turnStarted', turnId: 'turn-follow-up-replayed' },
+                { type: 'turnCompleted', status: 'completed' },
+              ],
+            ],
+          }),
+        ],
+      },
+    })
+
+    const task = harness.tasks.createTask(taskFactory({ id: 't-replay-follow-up' }))
+    const run = startRun(task)
+    const entry = getLiveRun(run.id)
+    await entry.ready
+    await entry.client.sendUserText('follow-up pending')
+    await preserveRunForTask(task.id)
+    await waitFor(() => getLiveRun(run.id) == null)
+
+    await ensureRunForTask(task)
+    await waitFor(() => harness.runs.getRun(run.id)?.status === 'idle')
+
+    expect(getFakeAgentSendLog().map(log => log.text)).toEqual([
+      expect.stringContaining(task.title),
+      'follow-up pending',
+    ])
+  })
+
+  it('uses a continuation prompt when a paused run already started responding to the last user request', async () => {
+    configureFakeAgentHarness({
+      scriptsByTaskId: {
+        't-continue-paused': [
+          createFakeRunScript({
+            turns: [
+              [{ type: 'thread', threadId: 'thread-continue-paused' }, { type: 'turnCompleted' }],
+              [
+                { type: 'turnStarted', turnId: 'turn-partial' },
+                {
+                  type: 'agentMessage',
+                  phase: 'commentary',
+                  text: 'Started working on the follow-up',
+                },
+                { type: 'delay', ms: 500 },
+              ],
+            ],
+            emitExitOnStop: true,
+          }),
+          createFakeRunScript({
+            turns: [
+              [
+                { type: 'thread', threadId: 'thread-continue-paused' },
+                { type: 'turnStarted', turnId: 'turn-follow-up-resumed' },
+                { type: 'turnCompleted', status: 'completed' },
+              ],
+            ],
+          }),
+        ],
+      },
+    })
+
+    const task = harness.tasks.createTask(taskFactory({ id: 't-continue-paused' }))
+    const run = startRun(task)
+    const entry = getLiveRun(run.id)
+    await entry.ready
+    await entry.client.sendUserText('finish the follow-up')
+    await waitFor(() =>
+      harness.messages
+        .listMessages(run.id)
+        .some(row => row.role === 'agent' && row.content === 'Started working on the follow-up')
+    )
+
+    await preserveRunForTask(task.id)
+    await waitFor(() => getLiveRun(run.id) == null)
+
+    await ensureRunForTask(task)
+    await waitFor(() => harness.runs.getRun(run.id)?.status === 'idle')
+
+    expect(getFakeAgentSendLog().map(log => log.text)).toEqual([
+      expect.stringContaining(task.title),
+      'finish the follow-up',
+      expect.stringContaining('Continue the previous unfinished request from this thread.'),
+    ])
+    expect(harness.runs.getRun(run.id)?.thread_id).toBe('thread-continue-paused')
   })
 })

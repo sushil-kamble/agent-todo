@@ -6,12 +6,14 @@ import {
   getLiveRun,
   resetRunManagerState,
   setAgentClassResolver,
+  startRun,
 } from '#domains/runs/run-manager.mjs'
 import { runFactory, taskFactory } from '../helpers/factories.mjs'
 import {
   configureFakeAgentHarness,
   createFakeRunScript,
   FakeAgentClient,
+  getFakeAgentSendLog,
 } from '../helpers/fake-run-script.mjs'
 import { startTestServer } from '../helpers/start-test-server.mjs'
 import { bootstrapTestDatabase } from '../helpers/test-db.mjs'
@@ -460,15 +462,9 @@ describe('task routes integration', () => {
     expect(getLiveRun(body.runId)).toBeTruthy()
   })
 
-  it('PATCH moving out of in_progress interrupts the active run immediately', async () => {
-    configureFakeAgentHarness({
-      defaultScript: createFakeRunScript({
-        turns: [[{ type: 'thread' }, { type: 'delay', ms: 500 }, { type: 'turnCompleted' }]],
-        emitExitOnStop: true,
-      }),
-    })
+  it('PATCH preserves an idle run across done -> in_progress without replaying the bootstrap prompt', async () => {
+    const task = harness.tasks.createTask(taskFactory({ id: 't-idle-history', column_id: 'todo' }))
 
-    const task = harness.tasks.createTask(taskFactory({ id: 't-stop-now', column_id: 'todo' }))
     const started = await server.json(`/api/tasks/${task.id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -476,19 +472,292 @@ describe('task routes integration', () => {
     })
 
     expect(started.status).toBe(200)
-    expect(started.body.runId).toBeTruthy()
+    await waitFor(() => harness.runs.getRun(started.body.runId)?.status === 'idle')
+
+    const movedToDone = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ column_id: 'done' }),
+    })
+
+    expect(movedToDone.status).toBe(200)
+    expect(movedToDone.body.task.column_id).toBe('done')
+    expect(harness.runs.getRun(started.body.runId)?.status).toBe('idle')
+    expect(getLiveRun(started.body.runId)).toBeFalsy()
+
+    const resumed = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ column_id: 'in_progress' }),
+    })
+
+    expect(resumed.status).toBe(200)
+    expect(resumed.body.runId).toBe(started.body.runId)
+    expect(resumed.body.task.run_status).toBe('idle')
+    expect(harness.runs.getRun(started.body.runId)?.status).toBe('idle')
     expect(getLiveRun(started.body.runId)).toBeTruthy()
+    expect(getFakeAgentSendLog().map(entry => entry.text)).toHaveLength(1)
+  })
+
+  it('PATCH moving out of in_progress parks the active run and resumes it on done -> in_progress', async () => {
+    configureFakeAgentHarness({
+      scriptsByTaskId: {
+        't-stop-now': [
+          createFakeRunScript({
+            turns: [
+              [
+                { type: 'thread', threadId: 'thread-stop-now' },
+                { type: 'delay', ms: 500 },
+              ],
+            ],
+            emitExitOnStop: true,
+          }),
+          createFakeRunScript({
+            turns: [
+              [
+                { type: 'thread', threadId: 'thread-stop-now' },
+                { type: 'turnStarted', turnId: 'turn-stop-now-resumed' },
+                { type: 'turnCompleted', status: 'completed' },
+              ],
+            ],
+          }),
+        ],
+      },
+    })
+
+    const task = harness.tasks.createTask(
+      taskFactory({ id: 't-stop-now', column_id: 'in_progress' })
+    )
+    const run = startRun(task)
+    expect(getLiveRun(run.id)).toBeTruthy()
 
     const stopped = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ column_id: 'done' }),
+    })
+
+    expect(stopped.status).toBe(200)
+    expect(stopped.body.task.column_id).toBe('done')
+    await waitFor(() => getLiveRun(run.id) == null)
+    expect(harness.runs.getRun(run.id)?.status).toBe('paused')
+
+    const resumed = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ column_id: 'in_progress' }),
+    })
+
+    expect(resumed.status).toBe(200)
+    expect(resumed.body.runId).toBe(run.id)
+    expect(resumed.body.task.run_status).toBe('idle')
+    expect(harness.runs.getRun(run.id)?.status).toBe('idle')
+    expect(getLiveRun(run.id)).toBeTruthy()
+    expect(getFakeAgentSendLog().map(entry => entry.text)).toEqual([
+      expect.stringContaining(task.title),
+      expect.stringContaining('Working directory:'),
+    ])
+  })
+
+  it('PATCH moving out of in_progress parks the active run and resumes it on todo -> in_progress', async () => {
+    configureFakeAgentHarness({
+      scriptsByTaskId: {
+        't-stop-todo': [
+          createFakeRunScript({
+            turns: [
+              [
+                { type: 'thread', threadId: 'thread-stop-todo' },
+                { type: 'delay', ms: 500 },
+              ],
+            ],
+            emitExitOnStop: true,
+          }),
+          createFakeRunScript({
+            turns: [
+              [
+                { type: 'thread', threadId: 'thread-stop-todo' },
+                { type: 'turnStarted', turnId: 'turn-stop-todo-resumed' },
+                { type: 'turnCompleted', status: 'completed' },
+              ],
+            ],
+          }),
+        ],
+      },
+    })
+
+    const task = harness.tasks.createTask(
+      taskFactory({ id: 't-stop-todo', column_id: 'in_progress' })
+    )
+    const run = startRun(task)
+    expect(getLiveRun(run.id)).toBeTruthy()
+
+    const movedToTodo = await server.json(`/api/tasks/${task.id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ column_id: 'todo' }),
     })
 
+    expect(movedToTodo.status).toBe(200)
+    expect(movedToTodo.body.task.column_id).toBe('todo')
+    await waitFor(() => getLiveRun(run.id) == null)
+    expect(harness.runs.getRun(run.id)?.status).toBe('paused')
+
+    const resumed = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ column_id: 'in_progress' }),
+    })
+
+    expect(resumed.status).toBe(200)
+    expect(resumed.body.runId).toBe(run.id)
+    expect(resumed.body.task.run_status).toBe('idle')
+    expect(harness.runs.getRun(run.id)?.status).toBe('idle')
+    expect(getLiveRun(run.id)).toBeTruthy()
+    expect(getFakeAgentSendLog().map(entry => entry.text)).toEqual([
+      expect.stringContaining(task.title),
+      expect.stringContaining('Working directory:'),
+    ])
+  })
+
+  it('PATCH reopens a user-stopped run as idle when it returns to in_progress', async () => {
+    configureFakeAgentHarness({
+      defaultScript: createFakeRunScript({
+        turns: [[{ type: 'thread' }, { type: 'delay', ms: 500 }, { type: 'turnCompleted' }]],
+        emitTurnCompletedOnInterrupt: true,
+        emitExitOnInterrupt: true,
+      }),
+    })
+
+    const task = harness.tasks.createTask(
+      taskFactory({ id: 't-stopped-history', column_id: 'in_progress' })
+    )
+    const run = startRun(task)
+    expect(getLiveRun(run.id)).toBeTruthy()
+
+    const stopped = await server.json(`/api/runs/${run.id}/stop`, {
+      method: 'POST',
+    })
+
     expect(stopped.status).toBe(200)
-    expect(stopped.body.task.column_id).toBe('todo')
-    await waitFor(() => getLiveRun(started.body.runId) == null)
-    expect(harness.runs.getRun(started.body.runId)?.status).toBe('interrupted')
+    await waitFor(() => getLiveRun(run.id) == null)
+    expect(harness.runs.getRun(run.id)?.status).toBe('idle')
+
+    const movedToDone = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ column_id: 'done' }),
+    })
+
+    expect(movedToDone.status).toBe(200)
+    expect(harness.runs.getRun(run.id)?.status).toBe('idle')
+
+    const resumed = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ column_id: 'in_progress' }),
+    })
+
+    expect(resumed.status).toBe(200)
+    expect(resumed.body.runId).toBe(run.id)
+    expect(resumed.body.task.run_status).toBe('idle')
+    expect(harness.runs.getRun(run.id)?.status).toBe('idle')
+    expect(getLiveRun(run.id)).toBeTruthy()
+    expect(getFakeAgentSendLog().map(entry => entry.text)).toHaveLength(1)
+  })
+
+  it('PATCH resumes the last follow-up when a task leaves in_progress before that follow-up completes', async () => {
+    configureFakeAgentHarness({
+      scriptsByTaskId: {
+        't-follow-up-paused': [
+          createFakeRunScript({
+            turns: [
+              [{ type: 'thread', threadId: 'thread-follow-up-paused' }, { type: 'turnCompleted' }],
+              [{ type: 'delay', ms: 500 }],
+            ],
+            emitExitOnStop: true,
+          }),
+          createFakeRunScript({
+            turns: [
+              [
+                { type: 'thread', threadId: 'thread-follow-up-paused' },
+                { type: 'turnStarted', turnId: 'turn-follow-up-resumed' },
+                { type: 'turnCompleted', status: 'completed' },
+              ],
+            ],
+          }),
+        ],
+      },
+    })
+
+    const task = harness.tasks.createTask(
+      taskFactory({ id: 't-follow-up-paused', column_id: 'in_progress' })
+    )
+    const run = startRun(task)
+    await waitFor(() => harness.runs.getRun(run.id)?.status === 'idle')
+
+    const followUpPromise = server.json(`/api/runs/${run.id}/messages`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'finish the missing piece' }),
+    })
+
+    const movedToDone = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ column_id: 'done' }),
+    })
+
+    const followUpResult = await followUpPromise
+
+    expect(movedToDone.status).toBe(200)
+    expect(followUpResult.status).toBe(200)
+    await waitFor(() => getLiveRun(run.id) == null)
+    expect(harness.runs.getRun(run.id)?.status).toBe('paused')
+
+    const resumed = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ column_id: 'in_progress' }),
+    })
+
+    expect(resumed.status).toBe(200)
+    expect(resumed.body.runId).toBe(run.id)
+    expect(resumed.body.task.run_status).toBe('idle')
+    expect(getFakeAgentSendLog().map(entry => entry.text)).toEqual([
+      expect.stringContaining(task.title),
+      'finish the missing piece',
+      'finish the missing piece',
+    ])
+  })
+
+  it('PATCH reopens a failed run as idle without replaying the original task title', async () => {
+    const task = harness.tasks.createTask(
+      taskFactory({ id: 't-failed-history', column_id: 'todo' })
+    )
+    const failedRun = harness.runs.createRun(
+      runFactory(task.id, {
+        id: 'r-failed-history',
+        thread_id: 'thread-failed-history',
+        status: 'failed',
+      })
+    )
+    harness.messages.appendMessage(failedRun.id, 'user', 'text', task.title)
+    harness.messages.appendMessage(failedRun.id, 'agent', 'text', 'Previous response', {
+      phase: 'final',
+    })
+
+    const resumed = await server.json(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ column_id: 'in_progress' }),
+    })
+
+    expect(resumed.status).toBe(200)
+    expect(resumed.body.runId).toBe(failedRun.id)
+    expect(resumed.body.task.run_status).toBe('idle')
+    expect(harness.runs.getRun(failedRun.id)?.status).toBe('idle')
+    expect(getLiveRun(failedRun.id)).toBeTruthy()
+    expect(getFakeAgentSendLog()).toEqual([])
   })
 
   it('PATCH invalid id returns 404', async () => {

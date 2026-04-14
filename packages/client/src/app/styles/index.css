@@ -2,12 +2,13 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 /* Fonts loaded via Google Fonts CDN in __root.tsx */
-/* Google Sans Flex (body) + Instrument Serif (headings) */
+/* Google Sans Flex for the app UI + Allura for the monogram */
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --font-heading: "Google Sans Flex", ui-sans-serif, system-ui, sans-serif;
+  --font-logo: "Allura", "Snell Roundhand", "Apple Chancery", "Segoe Script", cursive;
   --font-serif: "Google Sans Flex", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --font-sans: "Google Sans Flex", ui-sans-serif, system-ui, sans-serif;
@@ -158,6 +159,11 @@
     font-weight: 500;
     letter-spacing: -0.02em;
   }
+  .font-logo {
+    font-family: var(--font-logo);
+    font-weight: 400;
+    letter-spacing: 0;
+  }
 }
 
 @layer utilities {
@@ -168,11 +174,7 @@
     box-shadow: 6px 6px 0 color-mix(in oklab, var(--primary) 18%, transparent);
   }
   .bg-paper {
-    background-image: radial-gradient(
-      circle at 1px 1px,
-      rgba(38, 37, 30, 0.07) 1px,
-      transparent 0
-    );
+    background-image: radial-gradient(circle at 1px 1px, rgba(38, 37, 30, 0.07) 1px, transparent 0);
     background-size: 20px 20px;
   }
   .bg-grid {
