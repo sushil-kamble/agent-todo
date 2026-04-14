@@ -428,7 +428,7 @@ function LiveChatBubble({
           : null
       : null
   return (
-    <div className={`flex min-w-0 gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div className={`flex min-w-0 gap-2 ${isUser ? 'justify-end' : ''}`}>
       {!muted && (
         <span
           className={[
@@ -445,9 +445,7 @@ function LiveChatBubble({
           )}
         </span>
       )}
-      <div
-        className={`flex min-w-0 max-w-[80%] flex-col ${isUser ? 'items-end text-right' : 'items-start text-left'}`}
-      >
+      <div className="flex min-w-0 max-w-[80%] flex-col items-start text-left">
         {mutedLabel && (
           <span className="mb-1 text-[0.55rem] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
             {mutedLabel}
@@ -500,7 +498,7 @@ export function ChatBubble({
 }) {
   const isUser = message.role === 'user'
   return (
-    <div className={`flex gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div className={`flex gap-2 ${isUser ? 'justify-end' : ''}`}>
       <span
         className={[
           'flex size-6 shrink-0 items-center justify-center border',
@@ -515,9 +513,7 @@ export function ChatBubble({
           <AgentIcon size={11} />
         )}
       </span>
-      <div
-        className={`max-w-[80%] ${isUser ? 'items-end text-right' : 'items-start text-left'} flex flex-col`}
-      >
+      <div className="flex max-w-[80%] flex-col items-start text-left">
         <div
           className={[
             'border px-3 py-2 text-sm leading-snug',
