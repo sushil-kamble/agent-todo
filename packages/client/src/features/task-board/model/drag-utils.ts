@@ -8,6 +8,14 @@ export type DropLocation = {
   index: number
 }
 
+export function getAllowedDropColumns(origin: ColumnId | null): ColumnId[] {
+  if (origin === 'backlog') {
+    return ['backlog', 'todo', 'in_progress']
+  }
+
+  return BOARD_COLUMN_IDS
+}
+
 export function findTaskColumn(tasks: TasksByColumn, id: string): ColumnId | null {
   if (BOARD_COLUMN_IDS.includes(id as ColumnId)) {
     return id as ColumnId
@@ -20,14 +28,20 @@ export function findTaskColumn(tasks: TasksByColumn, id: string): ColumnId | nul
   return null
 }
 
-export function resolveDropLocation(tasks: TasksByColumn, overId: string): DropLocation | null {
+export function resolveDropLocation(
+  tasks: TasksByColumn,
+  overId: string,
+  allowedColumns: ColumnId[] = BOARD_COLUMN_IDS
+): DropLocation | null {
   if (BOARD_COLUMN_IDS.includes(overId as ColumnId)) {
     const column = overId as ColumnId
+    if (!allowedColumns.includes(column)) return null
     return { column, index: tasks[column].length }
   }
 
   const column = findTaskColumn(tasks, overId)
   if (!column) return null
+  if (!allowedColumns.includes(column)) return null
 
   const index = tasks[column].findIndex(task => task.id === overId)
   if (index === -1) return null

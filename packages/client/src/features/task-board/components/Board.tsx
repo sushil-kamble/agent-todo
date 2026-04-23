@@ -1,4 +1,5 @@
 import {
+  type CollisionDetection,
   closestCorners,
   DndContext,
   type DragEndEvent,
@@ -7,20 +8,29 @@ import {
   type DragStartEvent,
   KeyboardSensor,
   PointerSensor,
+  pointerWithin,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { COLUMNS, type ColumnId, type TaskCard } from '#/entities/task/types'
 import { useBoardSearch, useBoardTasks } from '#/features/task-board/model'
 import {
   findTaskColumn,
+  getAllowedDropColumns,
   insertTaskAtDropLocation,
   reorderTasksInColumn,
   resolveDropLocation,
 } from '#/features/task-board/model/drag-utils'
+import {
+  getMainBoardContentState,
+  getRemainingBoardLoaderMs,
+  type MainBoardContentState,
+} from '#/features/task-board/model/empty-state'
 import { BacklogPanel } from './BacklogPanel'
+import { BoardEmptyState } from './BoardEmptyState'
+import { BoardLoadingState } from './BoardLoadingState'
 import { BoardColumn } from './Column'
 import { TaskCardView } from './TaskCardView'
 
@@ -29,12 +39,94 @@ type BoardProps = {
   onBacklogOpenChange: (open: boolean) => void
 }
 
+const BACKLOG_PANEL_WIDTH_PX = 384
+const BOARD_REVEAL_FADE_MS = 320
+
+function renderBoardColumns({
+  columns,
+  dragOrigin,
+  dragTarget,
+  filteredTasks,
+}: {
+  columns: typeof COLUMNS
+  dragOrigin: ColumnId | null
+  dragTarget: ColumnId | null
+  filteredTasks: Record<ColumnId, TaskCard[]>
+}) {
+  return (
+    <div className="grid h-full min-h-0 flex-1 grid-cols-3 items-stretch gap-5">
+      {columns.map((column, index) => (
+        <BoardColumn
+          key={column.id}
+          column={column}
+          tasks={filteredTasks[column.id]}
+          index={index}
+          isDropTarget={dragTarget === column.id && dragOrigin !== column.id}
+        />
+      ))}
+    </div>
+  )
+}
+
 export function Board({ backlogOpen, onBacklogOpenChange }: BoardProps) {
-  const { tasks, setTasks, persistMove } = useBoardTasks()
+  const { tasks, isLoading, setTasks, persistMove } = useBoardTasks()
   const { searchQuery } = useBoardSearch()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [dragOrigin, setDragOrigin] = useState<ColumnId | null>(null)
   const [dragTarget, setDragTarget] = useState<ColumnId | null>(null)
+  const [isHydrated, setIsHydrated] = useState(false)
+  const [loadingStartedAt] = useState(() => Date.now())
+  const [hasCompletedInitialReveal, setHasCompletedInitialReveal] = useState(false)
+  const [isLoaderMounted, setIsLoaderMounted] = useState(true)
+  const [isLoaderVisible, setIsLoaderVisible] = useState(true)
+  const [isResolvedContentVisible, setIsResolvedContentVisible] = useState(false)
+  const [resolvedContentState, setResolvedContentState] = useState<Exclude<
+    MainBoardContentState,
+    'loading'
+  > | null>(null)
+
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
+  const boardContentState = getMainBoardContentState({
+    isHydrated,
+    isLoading,
+    tasks,
+  })
+
+  useEffect(() => {
+    if (hasCompletedInitialReveal) {
+      if (boardContentState !== 'loading') {
+        setResolvedContentState(boardContentState)
+      }
+      return
+    }
+
+    if (boardContentState === 'loading') return
+
+    const remainingLoaderMs = getRemainingBoardLoaderMs({ loadingStartedAt })
+    let revealFrameId = 0
+    let hideLoaderTimerId = 0
+
+    const revealTimerId = window.setTimeout(() => {
+      setResolvedContentState(boardContentState)
+      revealFrameId = window.requestAnimationFrame(() => {
+        setIsResolvedContentVisible(true)
+        setIsLoaderVisible(false)
+      })
+      hideLoaderTimerId = window.setTimeout(() => {
+        setIsLoaderMounted(false)
+        setHasCompletedInitialReveal(true)
+      }, BOARD_REVEAL_FADE_MS)
+    }, remainingLoaderMs)
+
+    return () => {
+      window.clearTimeout(revealTimerId)
+      window.clearTimeout(hideLoaderTimerId)
+      if (revealFrameId) window.cancelAnimationFrame(revealFrameId)
+    }
+  }, [boardContentState, hasCompletedInitialReveal, loadingStartedAt])
 
   const filteredTasks = useMemo(() => {
     if (!searchQuery.trim()) return tasks
@@ -60,6 +152,7 @@ export function Board({ backlogOpen, onBacklogOpenChange }: BoardProps) {
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
+  const allowedDropColumns = getAllowedDropColumns(dragOrigin)
 
   const active = activeId
     ? (Object.values(tasks)
@@ -83,7 +176,7 @@ export function Board({ backlogOpen, onBacklogOpenChange }: BoardProps) {
     }
 
     const fromColumn = findTaskColumn(tasks, activeId)
-    const location = resolveDropLocation(tasks, overId)
+    const location = resolveDropLocation(tasks, overId, allowedDropColumns)
     setDragTarget(location?.column ?? null)
 
     if (!fromColumn || !location || fromColumn === location.column) return
@@ -105,7 +198,7 @@ export function Board({ backlogOpen, onBacklogOpenChange }: BoardProps) {
     if (!currentColumn) return
 
     if (origin === currentColumn) {
-      const dropLocation = resolveDropLocation(tasks, overId)
+      const dropLocation = resolveDropLocation(tasks, overId, allowedDropColumns)
       if (!dropLocation || dropLocation.column !== currentColumn) return
 
       const nextIndex =
@@ -129,10 +222,62 @@ export function Board({ backlogOpen, onBacklogOpenChange }: BoardProps) {
     }
   }
 
+  const collisionDetection: CollisionDetection = args => {
+    const permittedContainers = args.droppableContainers.filter(container => {
+      return resolveDropLocation(tasks, String(container.id), allowedDropColumns) !== null
+    })
+
+    if (backlogOpen && args.pointerCoordinates && typeof window !== 'undefined') {
+      const sidebarLeft = Math.max(0, window.innerWidth - BACKLOG_PANEL_WIDTH_PX)
+      if (args.pointerCoordinates.x >= sidebarLeft) {
+        const backlogContainers = permittedContainers.filter(container => {
+          return resolveDropLocation(tasks, String(container.id), ['backlog']) !== null
+        })
+
+        if (backlogContainers.length > 0) {
+          const backlogPointerHits = pointerWithin({
+            ...args,
+            droppableContainers: backlogContainers,
+          })
+          if (backlogPointerHits.length > 0) return backlogPointerHits
+
+          const backlogCornerHits = closestCorners({
+            ...args,
+            droppableContainers: backlogContainers,
+          })
+          if (backlogCornerHits.length > 0) return backlogCornerHits
+        }
+      }
+    }
+
+    const pointerHits = pointerWithin({
+      ...args,
+      droppableContainers: permittedContainers,
+    })
+    if (pointerHits.length > 0) return pointerHits
+
+    return closestCorners({
+      ...args,
+      droppableContainers: permittedContainers,
+    })
+  }
+
+  const resolvedBoardContent =
+    resolvedContentState === 'empty' ? (
+      <BoardEmptyState />
+    ) : resolvedContentState === 'board' ? (
+      renderBoardColumns({
+        columns: COLUMNS,
+        dragOrigin,
+        dragTarget,
+        filteredTasks,
+      })
+    ) : null
+
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
@@ -142,18 +287,28 @@ export function Board({ backlogOpen, onBacklogOpenChange }: BoardProps) {
         setDragTarget(null)
       }}
     >
-      <div className="flex min-h-0 flex-1">
-        <div className="grid h-full min-h-0 flex-1 grid-cols-3 gap-5 items-stretch">
-          {COLUMNS.map((column, index) => (
-            <BoardColumn
-              key={column.id}
-              column={column}
-              tasks={filteredTasks[column.id]}
-              index={index}
-              isDropTarget={dragTarget === column.id && dragOrigin !== column.id}
-            />
-          ))}
-        </div>
+      <div className="relative flex h-full min-h-0 flex-1">
+        {resolvedBoardContent ? (
+          <div
+            className={[
+              'flex h-full min-h-0 flex-1 self-stretch transition-opacity duration-300 ease-out motion-reduce:transition-none',
+              isResolvedContentVisible ? 'opacity-100' : 'pointer-events-none opacity-0',
+            ].join(' ')}
+          >
+            {resolvedBoardContent}
+          </div>
+        ) : null}
+
+        {isLoaderMounted ? (
+          <div
+            className={[
+              'absolute inset-0 flex h-full min-h-0 w-full transition-opacity duration-300 ease-out motion-reduce:transition-none',
+              isLoaderVisible ? 'opacity-100' : 'pointer-events-none opacity-0',
+            ].join(' ')}
+          >
+            <BoardLoadingState />
+          </div>
+        ) : null}
       </div>
 
       <BacklogPanel

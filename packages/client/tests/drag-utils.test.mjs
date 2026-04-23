@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   findTaskColumn,
+  getAllowedDropColumns,
   insertTaskAtDropLocation,
   reorderTasksInColumn,
   resolveDropLocation,
@@ -40,6 +41,11 @@ describe('drag utils', () => {
       column: 'done',
       index: 1,
     })
+  })
+
+  it('disallows dragging backlog items into completed', () => {
+    expect(getAllowedDropColumns('backlog')).toEqual(['backlog', 'todo', 'in_progress'])
+    expect(resolveDropLocation(createTasks(), 'done', getAllowedDropColumns('backlog'))).toBe(null)
   })
 
   it('moves backlog cards into todo at the requested position', () => {

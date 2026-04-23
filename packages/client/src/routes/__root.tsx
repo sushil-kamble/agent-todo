@@ -2,7 +2,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-r
 import { Footer } from '#/app/components/Footer'
 import { BoardProvider } from '#/features/task-board/model/provider'
 import { TaskDialog } from '#/features/task-editor/components/TaskDialog'
-import { themeInitScript } from '#/features/theme/model/theme'
+import { themeCriticalStyle, themeInitScript } from '#/features/theme/model/theme'
 import { TooltipProvider } from '#/shared/ui/tooltip'
 import appCss from '../app/styles/index.css?url'
 
@@ -49,6 +49,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
+        <style>{themeCriticalStyle}</style>
         {/* No-flash theme init — static trusted constant, runs before paint */}
         <script>{themeInitScript}</script>
       </head>

@@ -11,6 +11,30 @@ import {
   type UpdateTaskInput,
 } from './types'
 
+const TASKS_CACHE_KEY = 'agent-todo-board-tasks'
+
+function readCachedTasks() {
+  if (typeof window === 'undefined') return null
+
+  try {
+    const raw = window.sessionStorage.getItem(TASKS_CACHE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as TasksByColumn
+  } catch {
+    return null
+  }
+}
+
+function writeCachedTasks(tasks: TasksByColumn) {
+  if (typeof window === 'undefined') return
+
+  try {
+    window.sessionStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(tasks))
+  } catch {
+    // ignore cache write failures
+  }
+}
+
 type BoardTasksStore = {
   tasks: TasksByColumn
   isLoading: boolean
@@ -29,8 +53,13 @@ type BoardTasksStore = {
 }
 
 export function createBoardTasksStore() {
-  return createStore<BoardTasksStore>(set => ({
-    tasks: createEmptyTasks(),
+  const cachedTasks = readCachedTasks()
+
+  return createStore<BoardTasksStore>((set, get) => ({
+    tasks: cachedTasks ?? createEmptyTasks(),
+    // Always resolve the first visible board state from a fresh refresh cycle.
+    // Cached tasks remain useful as a fallback if the request fails, but they
+    // should not bypass the initial loading presentation on page load.
     isLoading: true,
     setTasks: updater =>
       set(state => ({
@@ -39,6 +68,7 @@ export function createBoardTasksStore() {
     refresh: async () => {
       try {
         const tasks = await api.fetchTasks()
+        writeCachedTasks(tasks)
         set({ tasks })
       } catch (error) {
         console.error('[board] fetchTasks failed', error)
@@ -102,10 +132,14 @@ export function createBoardTasksStore() {
       })
 
       set(state => ({
-        tasks: {
-          ...state.tasks,
-          [column]: [task, ...state.tasks[column]],
-        },
+        tasks: (() => {
+          const nextTasks = {
+            ...state.tasks,
+            [column]: [task, ...state.tasks[column]],
+          }
+          writeCachedTasks(nextTasks)
+          return nextTasks
+        })(),
       }))
     },
     updateTask: async (taskId, updates, fromColumn, toColumn) => {
@@ -129,29 +163,37 @@ export function createBoardTasksStore() {
         }
 
         if (fromColumn === column) {
+          const nextTasks = {
+            ...state.tasks,
+            [column]: state.tasks[column].map(entry => (entry.id === taskId ? task : entry)),
+          }
+          writeCachedTasks(nextTasks)
           return {
-            tasks: {
-              ...state.tasks,
-              [column]: state.tasks[column].map(entry => (entry.id === taskId ? task : entry)),
-            },
+            tasks: nextTasks,
           }
         }
 
+        const nextTasks = {
+          ...withoutOriginal,
+          [column]: [task, ...withoutOriginal[column].filter(entry => entry.id !== taskId)],
+        }
+        writeCachedTasks(nextTasks)
         return {
-          tasks: {
-            ...withoutOriginal,
-            [column]: [task, ...withoutOriginal[column].filter(entry => entry.id !== taskId)],
-          },
+          tasks: nextTasks,
         }
       })
     },
     removeTask: async (taskId, column) => {
       await api.deleteTask(taskId)
       set(state => ({
-        tasks: {
-          ...state.tasks,
-          [column]: state.tasks[column].filter(task => task.id !== taskId),
-        },
+        tasks: (() => {
+          const nextTasks = {
+            ...state.tasks,
+            [column]: state.tasks[column].filter(task => task.id !== taskId),
+          }
+          writeCachedTasks(nextTasks)
+          return nextTasks
+        })(),
       }))
     },
     persistMove: async (taskId, toColumn, position) => {
@@ -160,6 +202,7 @@ export function createBoardTasksStore() {
           column_id: toColumn,
           position,
         })
+        writeCachedTasks(get().tasks)
 
         return runId
       } catch (error) {

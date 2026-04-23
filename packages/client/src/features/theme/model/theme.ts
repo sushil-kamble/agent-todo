@@ -3,6 +3,10 @@ import { useEffect, useState } from 'react'
 export type Theme = 'light' | 'dark'
 
 const STORAGE_KEY = 'agent-todo-theme'
+const LIGHT_BACKGROUND = '#f2f1ed'
+const LIGHT_FOREGROUND = '#26251e'
+const DARK_BACKGROUND = '#26251e'
+const DARK_FOREGROUND = '#f2f1ed'
 
 function readStoredTheme(): Theme {
   if (typeof window === 'undefined') return 'light'
@@ -11,10 +15,25 @@ function readStoredTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+function applyThemeSurface(theme: Theme) {
+  const background = theme === 'dark' ? DARK_BACKGROUND : LIGHT_BACKGROUND
+  const foreground = theme === 'dark' ? DARK_FOREGROUND : LIGHT_FOREGROUND
+  const root = document.documentElement
+
+  root.style.backgroundColor = background
+  root.style.color = foreground
+
+  if (document.body) {
+    document.body.style.backgroundColor = background
+    document.body.style.color = foreground
+  }
+}
+
 function applyTheme(theme: Theme) {
   const root = document.documentElement
   root.classList.toggle('dark', theme === 'dark')
   root.style.colorScheme = theme
+  applyThemeSurface(theme)
 }
 
 export function useTheme() {
@@ -38,4 +57,6 @@ export function useTheme() {
   return { theme, toggleTheme }
 }
 
-export const themeInitScript = `(function(){try{var k='${STORAGE_KEY}';var s=localStorage.getItem(k);var t=(s==='light'||s==='dark')?s:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var r=document.documentElement;if(t==='dark')r.classList.add('dark');r.style.colorScheme=t;}catch(e){}})();`
+export const themeCriticalStyle = `html,body{background:${LIGHT_BACKGROUND};color:${LIGHT_FOREGROUND}}html.dark,html.dark body{background:${DARK_BACKGROUND};color:${DARK_FOREGROUND}}`
+
+export const themeInitScript = `(function(){try{var k='${STORAGE_KEY}';var s=localStorage.getItem(k);var t=(s==='light'||s==='dark')?s:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var r=document.documentElement;var bg=t==='dark'?'${DARK_BACKGROUND}':'${LIGHT_BACKGROUND}';var fg=t==='dark'?'${DARK_FOREGROUND}':'${LIGHT_FOREGROUND}';if(t==='dark')r.classList.add('dark');r.style.colorScheme=t;r.style.backgroundColor=bg;r.style.color=fg;if(document.body){document.body.style.backgroundColor=bg;document.body.style.color=fg;}}catch(e){}})();`

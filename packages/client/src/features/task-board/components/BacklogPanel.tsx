@@ -50,7 +50,13 @@ export function BacklogPanel({ isDropTarget = false, open, onOpenChange }: Backl
         initialFocus={false}
         className="w-[24rem] border-border bg-background sm:max-w-[24rem]"
       >
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div
+          ref={setNodeRef}
+          className={[
+            'flex min-h-0 flex-1 flex-col transition-colors',
+            isDropTarget ? 'bg-card/30' : '',
+          ].join(' ')}
+        >
           <SheetHeader className="gap-3 border-b border-border">
             <div className="space-y-1">
               <SheetTitle>Backlog</SheetTitle>
@@ -92,13 +98,7 @@ export function BacklogPanel({ isDropTarget = false, open, onOpenChange }: Backl
             </div>
           </SheetHeader>
 
-          <div
-            ref={setNodeRef}
-            className={[
-              'flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 transition-colors',
-              isDropTarget ? 'bg-card/30' : '',
-            ].join(' ')}
-          >
+          <div className={['flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4'].join(' ')}>
             {isLoading ? (
               <div className="flex flex-col gap-3">
                 {['backlog-skeleton-1', 'backlog-skeleton-2', 'backlog-skeleton-3'].map(id => (
