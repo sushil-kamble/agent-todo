@@ -47,7 +47,7 @@ function TaskCardSkeleton() {
 const SCROLL_BOTTOM_OFFSET = 80
 
 export function BoardColumn({ column, tasks, index, isDropTarget = false }: Props) {
-  const { openNewTask } = useBoardDialogs()
+  const { openCreateTaskDialog } = useBoardDialogs()
   const { isLoading } = useBoardTasks()
   const { setNodeRef } = useDroppable({
     id: column.id,
@@ -103,7 +103,7 @@ export function BoardColumn({ column, tasks, index, isDropTarget = false }: Prop
   return (
     <section
       className={[
-        'flex min-h-0 flex-col border border-border bg-card/40 backdrop-blur-[2px]',
+        'flex h-full min-h-0 flex-col self-stretch border border-border bg-card/40 backdrop-blur-[2px]',
         'transition-colors',
         isDropTarget ? 'border-foreground bg-card' : '',
       ].join(' ')}
@@ -123,7 +123,7 @@ export function BoardColumn({ column, tasks, index, isDropTarget = false }: Prop
         {canAddTask ? (
           <button
             type="button"
-            onClick={() => openNewTask(column.id)}
+            onClick={() => openCreateTaskDialog()}
             className="flex size-6 items-center justify-center border border-border bg-background text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
             aria-label={`Add task to ${column.label}`}
           >
@@ -157,7 +157,7 @@ export function BoardColumn({ column, tasks, index, isDropTarget = false }: Prop
         {canAddTask ? (
           <button
             type="button"
-            onClick={() => openNewTask(column.id)}
+            onClick={() => openCreateTaskDialog()}
             className="group/add mt-1 flex items-center justify-center gap-1.5 border border-dashed border-border bg-transparent py-2.5 text-[0.62rem] tracking-[0.16em] text-muted-foreground uppercase transition-colors hover:border-foreground hover:text-foreground"
           >
             <PlusIcon size={11} weight="bold" />

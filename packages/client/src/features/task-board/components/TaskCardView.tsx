@@ -46,6 +46,7 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
   const { openEditTask } = useBoardDialogs()
   const { updateTask } = useBoardTasks()
   const [movingToBacklog, setMovingToBacklog] = useState(false)
+  const [movingToTodo, setMovingToTodo] = useState(false)
   const sortable = useSortable({
     id: task.id,
     data: { column, task },
@@ -114,6 +115,32 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
       console.error('[board] moveToBacklog failed', error)
     } finally {
       setMovingToBacklog(false)
+    }
+  }
+
+  async function moveToTodo() {
+    if (column !== 'backlog' || isOverlay || movingToTodo) return
+    setMovingToTodo(true)
+    try {
+      await updateTask(
+        task.id,
+        {
+          title: task.title,
+          project: task.project,
+          agent: task.agent,
+          mode: task.mode,
+          model: task.model,
+          effort: task.effort,
+          fastMode: task.fastMode,
+          taskType: task.taskType,
+        },
+        'backlog',
+        'todo'
+      )
+    } catch (error) {
+      console.error('[board] moveToTodo failed', error)
+    } finally {
+      setMovingToTodo(false)
     }
   }
 
@@ -219,6 +246,42 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
               >
                 <ArchiveIcon size={10} weight="bold" />
                 <span>Backlog</span>
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : column === 'backlog' ? (
+        <div className="mt-auto border-t border-dashed border-border px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <span
+              className={[
+                'inline-flex min-w-0 items-center gap-1 text-[0.62rem]',
+                isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
+              ].join(' ')}
+              title={isProjectless ? 'No project assigned' : task.project}
+            >
+              {isProjectless ? (
+                <ProhibitIcon size={11} weight="bold" />
+              ) : (
+                <FolderIcon size={11} weight="duotone" />
+              )}
+              <span className="truncate">{projectLabel}</span>
+            </span>
+            <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
+              {task.createdAt.slice(5)}
+            </span>
+          </div>
+          <div className="-mx-3 my-2 border-t border-dashed border-border" />
+          <div className="flex items-center justify-between gap-2">
+            {modelBadge}
+            {!isOverlay ? (
+              <button
+                type="button"
+                onClick={() => void moveToTodo()}
+                disabled={movingToTodo}
+                className="inline-flex items-center gap-1 border border-border bg-background px-1.5 py-1 text-[0.58rem] tracking-widest text-muted-foreground uppercase transition-colors hover:border-foreground hover:text-foreground disabled:opacity-50"
+              >
+                <span>Move to todo</span>
               </button>
             ) : null}
           </div>

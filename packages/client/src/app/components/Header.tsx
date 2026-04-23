@@ -4,7 +4,7 @@ import { useBoardDialogs } from '#/features/task-board/model/provider'
 import { Button } from '#/shared/ui/button'
 
 export function Header() {
-  const { openNewTask } = useBoardDialogs()
+  const { openCreateTaskDialog } = useBoardDialogs()
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-350 items-center justify-between px-8">
@@ -23,7 +23,7 @@ export function Header() {
               2 agents online
             </span>
           </div>
-          <Button size="sm" onClick={() => openNewTask('todo')}>
+          <Button size="sm" onClick={() => openCreateTaskDialog()}>
             <span className="text-[0.68rem] tracking-[0.12em] uppercase">New task</span>
           </Button>
         </nav>

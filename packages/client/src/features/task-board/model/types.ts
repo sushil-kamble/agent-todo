@@ -9,6 +9,7 @@ import type {
 
 export type TasksByColumn = Record<ColumnId, TaskCard[]>
 export type TasksUpdater = TasksByColumn | ((current: TasksByColumn) => TasksByColumn)
+export type TaskCreateKind = 'task' | 'backlog'
 
 export type CreateTaskInput = {
   title: string

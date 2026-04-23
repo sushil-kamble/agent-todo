@@ -7,9 +7,9 @@ export function TaskDialog() {
   const { addTask, refresh, updateTask, removeTask } = useBoardTasks()
   const {
     dialogOpen,
-    dialogColumn,
+    createKind,
     dialogView,
-    closeNewTask,
+    closeCreateDialog,
     editingTask,
     editingColumn,
     closeEditTask,
@@ -17,22 +17,27 @@ export function TaskDialog() {
 
   const isEdit = !!editingTask
   const isOpen = dialogOpen || isEdit
+  const createColumn = createKind === 'backlog' ? 'backlog' : 'todo'
   const close = isEdit
     ? () => {
         closeEditTask()
         void refresh()
       }
-    : closeNewTask
+    : closeCreateDialog
 
   useEffect(() => {
     if (!isOpen) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      e.stopImmediatePropagation()
+      close()
     }
-    window.addEventListener('keydown', handler)
+    window.addEventListener('keydown', handler, true)
     document.body.style.overflow = 'hidden'
     return () => {
-      window.removeEventListener('keydown', handler)
+      window.removeEventListener('keydown', handler, true)
       document.body.style.overflow = ''
     }
   }, [isOpen, close])
@@ -60,14 +65,15 @@ export function TaskDialog() {
 
       {mode === 'form' && (
         <FormPanel
+          createKind={createKind ?? 'task'}
           isEdit={isEdit}
-          createColumn={dialogColumn}
+          createColumn={createColumn}
           editingTask={editingTask}
           editingColumn={editingColumn}
           close={close}
           onCreate={input => {
             addTask(input)
-            closeNewTask()
+            closeCreateDialog()
           }}
           onUpdate={(id, updates, fromColumn, toColumn) => {
             updateTask(id, updates, fromColumn, toColumn)

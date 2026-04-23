@@ -1,17 +1,18 @@
 import { createStore } from 'zustand/vanilla'
 import type { ColumnId, TaskCard } from '#/entities/task/types'
-import { readTaskIdFromUrl, writeTaskIdToUrl } from './types'
+import { readTaskIdFromUrl, type TaskCreateKind, writeTaskIdToUrl } from './types'
 
 type DialogView = 'auto' | 'form' | 'chat'
 
 type BoardDialogStore = {
   dialogOpen: boolean
-  dialogColumn: ColumnId
+  createKind: TaskCreateKind | null
   selectedTaskId: string | null
   editingColumn: ColumnId | null
   dialogView: DialogView
-  openNewTask: (column?: ColumnId) => void
-  closeNewTask: () => void
+  openCreateTaskDialog: () => void
+  openCreateBacklogDialog: () => void
+  closeCreateDialog: () => void
   openEditTask: (task: TaskCard, column: ColumnId) => void
   openTaskThread: (task: TaskCard, column: ColumnId) => void
   closeEditTask: () => void
@@ -23,20 +24,28 @@ type BoardDialogStore = {
 export function createBoardDialogStore() {
   return createStore<BoardDialogStore>(set => ({
     dialogOpen: false,
-    dialogColumn: 'todo',
+    createKind: null,
     selectedTaskId: readTaskIdFromUrl(),
     editingColumn: null,
     dialogView: 'auto',
-    openNewTask: (column = 'todo') =>
+    openCreateTaskDialog: () =>
       set({
-        dialogColumn: column,
+        createKind: 'task',
         dialogOpen: true,
         dialogView: 'form',
       }),
-    closeNewTask: () => set({ dialogOpen: false, dialogView: 'auto' }),
+    openCreateBacklogDialog: () =>
+      set({
+        createKind: 'backlog',
+        dialogOpen: true,
+        dialogView: 'form',
+      }),
+    closeCreateDialog: () => set({ createKind: null, dialogOpen: false, dialogView: 'auto' }),
     openEditTask: (task, column) => {
       writeTaskIdToUrl(task.id)
       set({
+        createKind: null,
+        dialogOpen: false,
         selectedTaskId: task.id,
         editingColumn: column,
         dialogView: 'auto',
@@ -45,6 +54,8 @@ export function createBoardDialogStore() {
     openTaskThread: (task, column) => {
       writeTaskIdToUrl(task.id)
       set({
+        createKind: null,
+        dialogOpen: false,
         selectedTaskId: task.id,
         editingColumn: column,
         dialogView: 'chat',

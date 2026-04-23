@@ -10,14 +10,26 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useMemo, useState } from 'react'
-import { COLUMNS, type ColumnId, MAIN_BOARD_COLUMN_IDS, type TaskCard } from '#/entities/task/types'
+import { COLUMNS, type ColumnId, type TaskCard } from '#/entities/task/types'
 import { useBoardSearch, useBoardTasks } from '#/features/task-board/model'
+import {
+  findTaskColumn,
+  insertTaskAtDropLocation,
+  reorderTasksInColumn,
+  resolveDropLocation,
+} from '#/features/task-board/model/drag-utils'
+import { BacklogPanel } from './BacklogPanel'
 import { BoardColumn } from './Column'
 import { TaskCardView } from './TaskCardView'
 
-export function Board() {
+type BoardProps = {
+  backlogOpen: boolean
+  onBacklogOpenChange: (open: boolean) => void
+}
+
+export function Board({ backlogOpen, onBacklogOpenChange }: BoardProps) {
   const { tasks, setTasks, persistMove } = useBoardTasks()
   const { searchQuery } = useBoardSearch()
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -31,17 +43,17 @@ export function Board() {
     return {
       ...tasks,
       ...Object.fromEntries(
-        COLUMNS.map(col => [
-          col.id,
-          tasks[col.id].filter(
-            t =>
-              t.title?.toLowerCase().includes(query) ||
-              t.id?.toLowerCase().includes(query) ||
-              t.project?.toLowerCase().includes(query)
+        COLUMNS.map(column => [
+          column.id,
+          tasks[column.id].filter(
+            task =>
+              task.title?.toLowerCase().includes(query) ||
+              task.id?.toLowerCase().includes(query) ||
+              task.project?.toLowerCase().includes(query)
           ),
         ])
       ),
-    } as Record<ColumnId, TaskCard[]>
+    } satisfies Record<ColumnId, TaskCard[]>
   }, [tasks, searchQuery])
 
   const sensors = useSensors(
@@ -49,81 +61,71 @@ export function Board() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  const findColumn = (id: string): ColumnId | null => {
-    if (MAIN_BOARD_COLUMN_IDS.includes(id as (typeof MAIN_BOARD_COLUMN_IDS)[number])) {
-      return id as ColumnId
-    }
-    for (const col of COLUMNS) {
-      if (tasks[col.id].some(t => t.id === id)) return col.id
-    }
-    return null
-  }
-
   const active = activeId
     ? (Object.values(tasks)
         .flat()
-        .find(t => t.id === activeId) as TaskCard | undefined)
+        .find(task => task.id === activeId) as TaskCard | undefined)
     : undefined
 
-  function handleDragStart(e: DragStartEvent) {
-    const id = String(e.active.id)
+  function handleDragStart(event: DragStartEvent) {
+    const id = String(event.active.id)
     setActiveId(id)
-    const origin = findColumn(id)
+    const origin = findTaskColumn(tasks, id)
     setDragOrigin(origin)
     setDragTarget(origin)
   }
 
-  function handleDragOver(e: DragOverEvent) {
-    const { active, over } = e
-    if (!over) {
+  function handleDragOver(event: DragOverEvent) {
+    const overId = event.over ? String(event.over.id) : null
+    if (!overId || !activeId) {
       setDragTarget(null)
       return
     }
-    const fromCol = findColumn(String(active.id))
-    const toCol = findColumn(String(over.id))
-    setDragTarget(toCol)
-    if (!fromCol || !toCol || fromCol === toCol) return
 
-    setTasks(prev => {
-      const fromItems = prev[fromCol]
-      const toItems = prev[toCol]
-      const movingIdx = fromItems.findIndex(t => t.id === active.id)
-      if (movingIdx === -1) return prev
-      const moving = fromItems[movingIdx]
-      return {
-        ...prev,
-        [fromCol]: fromItems.filter(t => t.id !== active.id),
-        [toCol]: [...toItems, moving],
-      }
-    })
+    const fromColumn = findTaskColumn(tasks, activeId)
+    const location = resolveDropLocation(tasks, overId)
+    setDragTarget(location?.column ?? null)
+
+    if (!fromColumn || !location || fromColumn === location.column) return
+
+    setTasks(current => insertTaskAtDropLocation(current, activeId, fromColumn, location))
   }
 
-  function handleDragEnd(e: DragEndEvent) {
-    const { active, over } = e
-    const activeIdStr = String(active.id)
+  function handleDragEnd(event: DragEndEvent) {
+    const overId = event.over ? String(event.over.id) : null
+    const draggedTaskId = String(event.active.id)
     const origin = dragOrigin
     setActiveId(null)
     setDragOrigin(null)
     setDragTarget(null)
-    if (!over) return
-    const col = findColumn(activeIdStr)
-    if (!col) return
-    const items = tasks[col]
-    const oldIdx = items.findIndex(t => t.id === active.id)
-    const newIdx = items.findIndex(t => t.id === over.id)
 
-    const finalCol = col
-    let finalIdx = oldIdx
-    if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
-      setTasks(prev => ({ ...prev, [col]: arrayMove(prev[col], oldIdx, newIdx) }))
-      finalIdx = newIdx
+    if (!overId || !origin) return
+
+    const currentColumn = findTaskColumn(tasks, draggedTaskId)
+    if (!currentColumn) return
+
+    if (origin === currentColumn) {
+      const dropLocation = resolveDropLocation(tasks, overId)
+      if (!dropLocation || dropLocation.column !== currentColumn) return
+
+      const nextIndex =
+        overId === currentColumn ? tasks[currentColumn].length - 1 : dropLocation.index
+      const reorderedTasks = reorderTasksInColumn(tasks, currentColumn, draggedTaskId, nextIndex)
+
+      if (reorderedTasks !== tasks) {
+        setTasks(reorderedTasks)
+      }
+
+      const finalIndex = reorderedTasks[currentColumn].findIndex(task => task.id === draggedTaskId)
+      if (finalIndex !== -1) {
+        void persistMove(draggedTaskId, currentColumn, finalIndex)
+      }
+      return
     }
 
-    // Persist column transitions (this is what kicks off codex on in_progress).
-    if (origin && origin !== finalCol) {
-      void persistMove(activeIdStr, finalCol, Math.max(0, finalIdx))
-    } else if (origin === finalCol && oldIdx !== newIdx) {
-      void persistMove(activeIdStr, finalCol, Math.max(0, finalIdx))
+    const finalIndex = tasks[currentColumn].findIndex(task => task.id === draggedTaskId)
+    if (finalIndex !== -1) {
+      void persistMove(draggedTaskId, currentColumn, finalIndex)
     }
   }
 
@@ -140,21 +142,33 @@ export function Board() {
         setDragTarget(null)
       }}
     >
-      <div className="grid h-full min-h-0 grid-cols-3 gap-5">
-        {COLUMNS.map((col, i) => (
-          <BoardColumn
-            key={col.id}
-            column={col}
-            tasks={filteredTasks[col.id]}
-            index={i}
-            isDropTarget={dragTarget === col.id && dragOrigin !== col.id}
-          />
-        ))}
+      <div className="flex min-h-0 flex-1">
+        <div className="grid h-full min-h-0 flex-1 grid-cols-3 gap-5 items-stretch">
+          {COLUMNS.map((column, index) => (
+            <BoardColumn
+              key={column.id}
+              column={column}
+              tasks={filteredTasks[column.id]}
+              index={index}
+              isDropTarget={dragTarget === column.id && dragOrigin !== column.id}
+            />
+          ))}
+        </div>
       </div>
+
+      <BacklogPanel
+        open={backlogOpen}
+        onOpenChange={onBacklogOpenChange}
+        isDropTarget={dragTarget === 'backlog' && dragOrigin !== 'backlog'}
+      />
 
       <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' }}>
         {active ? (
-          <TaskCardView task={active} column={findColumn(active.id) ?? 'todo'} isOverlay />
+          <TaskCardView
+            task={active}
+            column={findTaskColumn(tasks, active.id) ?? 'todo'}
+            isOverlay
+          />
         ) : null}
       </DragOverlay>
     </DndContext>

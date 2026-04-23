@@ -50,6 +50,7 @@ import {
 } from '#/features/agent-config/model/task-type-config'
 import { addProject, fetchProjects, resolveDirectoryPath } from '#/features/project-picker/api'
 import { PanelHeader } from '#/features/run-console/components/shared'
+import type { TaskCreateKind } from '#/features/task-board/model/types'
 import { formatProjectPathLabel } from '#/shared/lib/utils'
 import {
   AlertDialog,
@@ -175,10 +176,38 @@ export function resolveTaskCreationValidation({
   }
 }
 
-function getCreateTaskTooltipCopy(missing: string[]) {
+function getCreateTaskTooltipCopy(missing: string[], createKind: TaskCreateKind) {
   if (missing.length === 0) return null
-  if (missing.length === 1) return `${missing[0]} is required before creating a task.`
-  return `${missing.join(', ')} are required before creating a task.`
+  const targetLabel = createKind === 'backlog' ? 'backlog' : 'task'
+  if (missing.length === 1) return `${missing[0]} is required before creating ${targetLabel}.`
+  return `${missing.join(', ')} are required before creating ${targetLabel}.`
+}
+
+export function resolveFormCopy({
+  createKind,
+  isEdit,
+  editingColumn,
+}: {
+  createKind: TaskCreateKind
+  isEdit: boolean
+  editingColumn: ColumnId | null
+}) {
+  if (!isEdit) {
+    return createKind === 'backlog'
+      ? {
+          panelTitle: 'Add Backlog',
+          submitLabel: 'Create Backlog',
+        }
+      : {
+          panelTitle: 'Add Task',
+          submitLabel: 'Create Task',
+        }
+  }
+
+  return {
+    panelTitle: editingColumn === 'backlog' ? 'Edit Backlog' : 'Edit Task',
+    submitLabel: 'Save Changes',
+  }
 }
 
 export function resolveAgentSelectionAfterSubscriptions(
@@ -263,6 +292,7 @@ export function resolveModelSelectionState({
 }
 
 export function FormPanel({
+  createKind,
   isEdit,
   createColumn,
   editingTask,
@@ -273,6 +303,7 @@ export function FormPanel({
   onDelete,
   onMoveToBacklog,
 }: {
+  createKind: TaskCreateKind
   isEdit: boolean
   createColumn: ColumnId
   editingTask: TaskCard | null
@@ -361,8 +392,9 @@ export function FormPanel({
     effort,
     subs,
   })
-  const createTaskTooltip = getCreateTaskTooltipCopy(createTaskValidation.missing)
+  const createTaskTooltip = getCreateTaskTooltipCopy(createTaskValidation.missing, createKind)
   const isSubmitDisabled = createTaskValidation.disabled
+  const formCopy = resolveFormCopy({ createKind, isEdit, editingColumn })
 
   useEffect(() => {
     fetchSubscriptions().then(setSubs)
@@ -487,7 +519,7 @@ export function FormPanel({
       onSubmit={handleSubmit}
       className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden border border-foreground bg-background shadow-[8px_8px_0_0_oklch(0.18_0.012_80/0.18)] duration-200 ease-out sm:max-h-[calc(100vh-3rem)]"
     >
-      <PanelHeader label={title.trim() || (isEdit ? 'Edit task' : 'New task')} onClose={close} />
+      <PanelHeader label={formCopy.panelTitle} onClose={close} />
 
       <div className="space-y-5 overflow-y-auto px-5 py-5">
         <div>
@@ -747,14 +779,16 @@ export function FormPanel({
             <Button type="submit" size="sm" disabled={isSubmitDisabled}>
               {isEdit ? <FloppyDiskIcon size={14} /> : null}
               <span className="text-[0.68rem] tracking-[0.12em] uppercase">
-                {isEdit ? 'Save changes' : 'Create task'}
+                {formCopy.submitLabel}
               </span>
             </Button>
           ) : (
             <Tooltip>
               <TooltipTrigger render={<span className="inline-flex" />}>
                 <Button type="submit" size="sm" disabled={isSubmitDisabled}>
-                  <span className="text-[0.68rem] tracking-[0.12em] uppercase">Create task</span>
+                  <span className="text-[0.68rem] tracking-[0.12em] uppercase">
+                    {formCopy.submitLabel}
+                  </span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" sideOffset={8}>

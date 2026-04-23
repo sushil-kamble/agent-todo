@@ -17,7 +17,7 @@ export const Route = createFileRoute('/about')({
 
 function About() {
   const { tasks } = useBoardTasks()
-  const { openNewTask } = useBoardDialogs()
+  const { openCreateTaskDialog } = useBoardDialogs()
   const [searchQuery, setSearchQuery] = useState('')
 
   return (
@@ -25,7 +25,7 @@ function About() {
       <AppTopBar
         addLabel="Add task"
         backlogCount={tasks.backlog?.length ?? 0}
-        onAddTask={() => openNewTask('todo')}
+        onAddTask={() => openCreateTaskDialog()}
         searchPlaceholder="Search tasks…"
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}

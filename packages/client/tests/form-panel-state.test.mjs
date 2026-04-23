@@ -5,6 +5,7 @@ import {
   resolveAvailableTaskModes,
   resolveAvailableTaskTypes,
   resolveConstrainedTaskMode,
+  resolveFormCopy,
   resolveInitialFormState,
   resolveModelSelectionState,
   resolveTaskCreationValidation,
@@ -296,6 +297,34 @@ describe('task creation validation', () => {
     expect(result).toEqual({
       missing: [],
       disabled: false,
+    })
+  })
+})
+
+describe('form copy', () => {
+  it('uses explicit task creation labels', () => {
+    expect(
+      resolveFormCopy({
+        createKind: 'task',
+        isEdit: false,
+        editingColumn: null,
+      })
+    ).toEqual({
+      panelTitle: 'Add Task',
+      submitLabel: 'Create Task',
+    })
+  })
+
+  it('uses explicit backlog creation labels', () => {
+    expect(
+      resolveFormCopy({
+        createKind: 'backlog',
+        isEdit: false,
+        editingColumn: null,
+      })
+    ).toEqual({
+      panelTitle: 'Add Backlog',
+      submitLabel: 'Create Backlog',
     })
   })
 })

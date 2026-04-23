@@ -1,5 +1,4 @@
 import { ACTIVE_RUN_STATUSES } from '@agent-todo/shared/constants/run-status'
-import { useRouter } from '@tanstack/react-router'
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef } from 'react'
 import { useStore } from 'zustand'
 import type { ColumnId, TaskCard } from '#/entities/task/types'
@@ -18,6 +17,25 @@ type BoardStores = {
 
 const BoardStoresContext = createContext<BoardStores | null>(null)
 
+export function resolveBoardShortcutAction(event: {
+  altKey: boolean
+  ctrlKey: boolean
+  metaKey: boolean
+  key: string
+  target: EventTarget | null
+}) {
+  if (event.metaKey || event.ctrlKey || event.altKey) return null
+
+  const target = event.target as HTMLElement | null
+  const tag = target?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return null
+
+  const key = event.key.toLowerCase()
+  if (key === 'n') return 'task'
+  if (key === 'b') return 'backlog-panel'
+  return null
+}
+
 function findTaskSelection(tasks: TasksByColumn, taskId: string | null) {
   if (!taskId) return null
 
@@ -30,7 +48,6 @@ function findTaskSelection(tasks: TasksByColumn, taskId: string | null) {
 }
 
 function BoardStoreEffects() {
-  const router = useRouter()
   const { tasksStore, dialogStore } = useBoardStores()
   const refresh = useStore(tasksStore, state => state.refresh)
   const syncActiveTaskStatuses = useStore(tasksStore, state => state.syncActiveTaskStatuses)
@@ -40,7 +57,7 @@ function BoardStoreEffects() {
   const dialogOpen = useStore(dialogStore, state => state.dialogOpen)
   const selectedTaskId = useStore(dialogStore, state => state.selectedTaskId)
   const editingColumn = useStore(dialogStore, state => state.editingColumn)
-  const openNewTask = useStore(dialogStore, state => state.openNewTask)
+  const openCreateTaskDialog = useStore(dialogStore, state => state.openCreateTaskDialog)
   const setEditingColumn = useStore(dialogStore, state => state.setEditingColumn)
   const clearEditingSelection = useStore(dialogStore, state => state.clearEditingSelection)
   const syncSelectionFromLocation = useStore(dialogStore, state => state.syncSelectionFromLocation)
@@ -104,29 +121,16 @@ function BoardStoreEffects() {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return
-
-      const target = event.target as HTMLElement | null
-      const tag = target?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
-
-      const key = event.key.toLowerCase()
-
-      if (key === 'n') {
+      const action = resolveBoardShortcutAction(event)
+      if (action === 'task') {
         event.preventDefault()
-        openNewTask(window.location.pathname === '/backlogs' ? 'backlog' : 'todo')
-        return
-      }
-
-      if (key === 'v') {
-        event.preventDefault()
-        void router.navigate({ to: window.location.pathname === '/backlogs' ? '/' : '/backlogs' })
+        openCreateTaskDialog()
       }
     }
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [openNewTask, router])
+  }, [openCreateTaskDialog])
 
   return null
 }
@@ -193,12 +197,13 @@ export function useBoardSearch() {
 export function useBoardDialogs() {
   const { dialogStore, tasksStore } = useBoardStores()
   const dialogOpen = useStore(dialogStore, state => state.dialogOpen)
-  const dialogColumn = useStore(dialogStore, state => state.dialogColumn)
+  const createKind = useStore(dialogStore, state => state.createKind)
   const selectedTaskId = useStore(dialogStore, state => state.selectedTaskId)
   const editingColumn = useStore(dialogStore, state => state.editingColumn)
   const dialogView = useStore(dialogStore, state => state.dialogView)
-  const openNewTask = useStore(dialogStore, state => state.openNewTask)
-  const closeNewTask = useStore(dialogStore, state => state.closeNewTask)
+  const openCreateTaskDialog = useStore(dialogStore, state => state.openCreateTaskDialog)
+  const openCreateBacklogDialog = useStore(dialogStore, state => state.openCreateBacklogDialog)
+  const closeCreateDialog = useStore(dialogStore, state => state.closeCreateDialog)
   const openEditTask = useStore(dialogStore, state => state.openEditTask)
   const openTaskThread = useStore(dialogStore, state => state.openTaskThread)
   const closeEditTask = useStore(dialogStore, state => state.closeEditTask)
@@ -211,10 +216,11 @@ export function useBoardDialogs() {
 
   return {
     dialogOpen,
-    dialogColumn,
+    createKind,
     dialogView,
-    openNewTask,
-    closeNewTask,
+    openCreateTaskDialog,
+    openCreateBacklogDialog,
+    closeCreateDialog,
     editingTask,
     editingColumn,
     openEditTask,

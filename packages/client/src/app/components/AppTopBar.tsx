@@ -1,6 +1,5 @@
 import {
   ArchiveIcon,
-  HouseIcon,
   MagnifyingGlassIcon,
   MoonIcon,
   PlusIcon,
@@ -15,9 +14,9 @@ import { Button } from '#/shared/ui/button'
 
 type AppTopBarProps = {
   addLabel: string
-  backlogActive?: boolean
-  backlogCount: number
+  backlogCount?: number
   onAddTask: () => void
+  onOpenBacklog?: () => void
   searchPlaceholder: string
   searchQuery: string
   setSearchQuery: (value: string) => void
@@ -25,16 +24,15 @@ type AppTopBarProps = {
 
 export function AppTopBar({
   addLabel,
-  backlogActive = false,
-  backlogCount,
+  backlogCount = 0,
   onAddTask,
+  onOpenBacklog,
   searchPlaceholder,
   searchQuery,
   setSearchQuery,
 }: AppTopBarProps) {
   const { theme, toggleTheme } = useTheme()
   const searchRef = useRef<HTMLInputElement>(null)
-  const homeActive = !backlogActive
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -76,32 +74,6 @@ export function AppTopBar({
             )}
           </button>
 
-          <Link
-            to="/"
-            className={[
-              'flex h-8 items-center gap-1.5 border px-3 text-xs font-medium transition-colors',
-              homeActive
-                ? 'border-primary bg-primary text-primary-foreground shadow-primary-hard'
-                : 'border-border bg-card text-foreground hover:border-primary/40 hover:bg-primary/6 hover:text-foreground',
-            ].join(' ')}
-          >
-            <HouseIcon size={13} weight="bold" />
-            <span>Home</span>
-          </Link>
-
-          <Link
-            to="/backlogs"
-            className={[
-              'flex h-8 items-center gap-1.5 border px-3 text-xs font-medium transition-colors',
-              backlogActive
-                ? 'border-primary bg-primary text-primary-foreground shadow-primary-hard'
-                : 'border-border bg-card text-foreground hover:border-primary/40 hover:bg-primary/6 hover:text-foreground',
-            ].join(' ')}
-          >
-            <ArchiveIcon size={13} weight="bold" />
-            <span>Backlogs ({backlogCount})</span>
-          </Link>
-
           <div className="flex h-8 items-center gap-2 border border-border bg-card px-2.5 text-muted-foreground focus-within:border-foreground/60 focus-within:bg-background">
             <MagnifyingGlassIcon size={13} weight="regular" />
             <input
@@ -128,8 +100,18 @@ export function AppTopBar({
             )}
           </div>
 
+          {onOpenBacklog ? (
+            <Button size="sm" variant="outline" onClick={onOpenBacklog}>
+              <ArchiveIcon data-icon="inline-start" size={13} weight="bold" />
+              <span className="text-xs">Backlog</span>
+              <span className="border border-border bg-background px-1.5 text-[0.62rem] text-muted-foreground">
+                {backlogCount}
+              </span>
+            </Button>
+          ) : null}
+
           <Button size="sm" onClick={onAddTask}>
-            <PlusIcon size={13} />
+            <PlusIcon data-icon="inline-start" size={13} />
             <span className="text-xs">{addLabel}</span>
           </Button>
         </div>
