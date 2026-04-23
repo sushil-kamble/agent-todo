@@ -36,4 +36,14 @@ describe('AppTopBar', () => {
     expect(markup).not.toContain('href="/backlogs"')
     expect(markup).toContain('Backlog')
   })
+
+  it('can render a Home CTA without search or add-task controls', () => {
+    const markup = renderToStaticMarkup(
+      <AppTopBar showAddTask={false} showHomeCta showSearch={false} />
+    )
+
+    expect(markup).toContain('>Home<')
+    expect(markup).not.toContain('Search tasks')
+    expect(markup).not.toContain('Add task')
+  })
 })

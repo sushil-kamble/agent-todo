@@ -49,6 +49,7 @@ function findTaskSelection(tasks: TasksByColumn, taskId: string | null) {
 
 function BoardStoreEffects() {
   const { tasksStore, dialogStore } = useBoardStores()
+  const hasLoadedOnce = useStore(tasksStore, state => state.hasLoadedOnce)
   const refresh = useStore(tasksStore, state => state.refresh)
   const syncActiveTaskStatuses = useStore(tasksStore, state => state.syncActiveTaskStatuses)
   const tasks = useStore(tasksStore, state => state.tasks)
@@ -63,8 +64,9 @@ function BoardStoreEffects() {
   const syncSelectionFromLocation = useStore(dialogStore, state => state.syncSelectionFromLocation)
 
   useEffect(() => {
+    if (hasLoadedOnce) return
     void refresh()
-  }, [refresh])
+  }, [hasLoadedOnce, refresh])
 
   useEffect(() => {
     const activeTaskIds = tasks.in_progress
@@ -163,6 +165,7 @@ function useBoardStores() {
 export function useBoardTasks() {
   const { tasksStore } = useBoardStores()
   const tasks = useStore(tasksStore, state => state.tasks)
+  const hasLoadedOnce = useStore(tasksStore, state => state.hasLoadedOnce)
   const isLoading = useStore(tasksStore, state => state.isLoading)
   const setTasks = useStore(tasksStore, state => state.setTasks)
   const refresh = useStore(tasksStore, state => state.refresh)
@@ -173,6 +176,7 @@ export function useBoardTasks() {
 
   return {
     tasks,
+    hasLoadedOnce,
     isLoading,
     setTasks,
     refresh,

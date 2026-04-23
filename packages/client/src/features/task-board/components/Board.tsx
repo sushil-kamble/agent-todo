@@ -69,21 +69,33 @@ function renderBoardColumns({
 }
 
 export function Board({ backlogOpen, onBacklogOpenChange }: BoardProps) {
-  const { tasks, isLoading, setTasks, persistMove } = useBoardTasks()
+  const { tasks, hasLoadedOnce, isLoading, setTasks, persistMove } = useBoardTasks()
   const { searchQuery } = useBoardSearch()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [dragOrigin, setDragOrigin] = useState<ColumnId | null>(null)
   const [dragTarget, setDragTarget] = useState<ColumnId | null>(null)
-  const [isHydrated, setIsHydrated] = useState(false)
+  const shouldSkipInitialLoading = hasLoadedOnce && !isLoading
+  const initialResolvedContentState = shouldSkipInitialLoading
+    ? (getMainBoardContentState({
+        isHydrated: true,
+        isLoading,
+        tasks,
+      }) as Exclude<MainBoardContentState, 'loading'>)
+    : null
+  const [isHydrated, setIsHydrated] = useState(() => shouldSkipInitialLoading)
   const [loadingStartedAt] = useState(() => Date.now())
-  const [hasCompletedInitialReveal, setHasCompletedInitialReveal] = useState(false)
-  const [isLoaderMounted, setIsLoaderMounted] = useState(true)
-  const [isLoaderVisible, setIsLoaderVisible] = useState(true)
-  const [isResolvedContentVisible, setIsResolvedContentVisible] = useState(false)
+  const [hasCompletedInitialReveal, setHasCompletedInitialReveal] = useState(
+    () => shouldSkipInitialLoading
+  )
+  const [isLoaderMounted, setIsLoaderMounted] = useState(() => !shouldSkipInitialLoading)
+  const [isLoaderVisible, setIsLoaderVisible] = useState(() => !shouldSkipInitialLoading)
+  const [isResolvedContentVisible, setIsResolvedContentVisible] = useState(
+    () => shouldSkipInitialLoading
+  )
   const [resolvedContentState, setResolvedContentState] = useState<Exclude<
     MainBoardContentState,
     'loading'
-  > | null>(null)
+  > | null>(() => initialResolvedContentState)
 
   useEffect(() => {
     setIsHydrated(true)

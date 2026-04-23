@@ -1,5 +1,6 @@
 import {
   ArchiveIcon,
+  HouseIcon,
   MagnifyingGlassIcon,
   MoonIcon,
   PlusIcon,
@@ -13,28 +14,36 @@ import { useTheme } from '#/features/theme/model/theme'
 import { Button } from '#/shared/ui/button'
 
 type AppTopBarProps = {
-  addLabel: string
+  addLabel?: string
   backlogCount?: number
-  onAddTask: () => void
+  onAddTask?: () => void
   onOpenBacklog?: () => void
-  searchPlaceholder: string
-  searchQuery: string
-  setSearchQuery: (value: string) => void
+  searchPlaceholder?: string
+  searchQuery?: string
+  setSearchQuery?: (value: string) => void
+  showAddTask?: boolean
+  showHomeCta?: boolean
+  showSearch?: boolean
 }
 
 export function AppTopBar({
-  addLabel,
+  addLabel = 'Add task',
   backlogCount = 0,
   onAddTask,
   onOpenBacklog,
-  searchPlaceholder,
-  searchQuery,
+  searchPlaceholder = 'Search tasks…',
+  searchQuery = '',
   setSearchQuery,
+  showAddTask = true,
+  showHomeCta = false,
+  showSearch = true,
 }: AppTopBarProps) {
   const { theme, toggleTheme } = useTheme()
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    if (!showSearch) return
+
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== '/') return
       const target = event.target as HTMLElement
@@ -46,7 +55,7 @@ export function AppTopBar({
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [showSearch])
 
   return (
     <div className="shrink-0 border-b border-border bg-background">
@@ -74,31 +83,40 @@ export function AppTopBar({
             )}
           </button>
 
-          <div className="flex h-8 items-center gap-2 border border-border bg-card px-2.5 text-muted-foreground focus-within:border-foreground/60 focus-within:bg-background">
-            <MagnifyingGlassIcon size={13} weight="regular" />
-            <input
-              ref={searchRef}
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder={searchPlaceholder}
-              className="w-48 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
-            />
-            {searchQuery ? (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
-                aria-label="Clear search"
-              >
-                <XIcon size={12} weight="bold" />
-              </button>
-            ) : (
-              <kbd className="border border-border bg-background px-1 text-[0.58rem] text-muted-foreground">
-                /
-              </kbd>
-            )}
-          </div>
+          {showHomeCta ? (
+            <Button size="sm" variant="outline" render={<Link to="/" />}>
+              <HouseIcon data-icon="inline-start" size={13} weight="bold" />
+              <span className="text-xs">Home</span>
+            </Button>
+          ) : null}
+
+          {showSearch ? (
+            <div className="flex h-8 items-center gap-2 border border-border bg-card px-2.5 text-muted-foreground focus-within:border-foreground/60 focus-within:bg-background">
+              <MagnifyingGlassIcon size={13} weight="regular" />
+              <input
+                ref={searchRef}
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery?.(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="w-48 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery?.('')}
+                  className="flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
+                  aria-label="Clear search"
+                >
+                  <XIcon size={12} weight="bold" />
+                </button>
+              ) : (
+                <kbd className="border border-border bg-background px-1 text-[0.58rem] text-muted-foreground">
+                  /
+                </kbd>
+              )}
+            </div>
+          ) : null}
 
           {onOpenBacklog ? (
             <Button size="sm" variant="outline" onClick={onOpenBacklog}>
@@ -110,10 +128,12 @@ export function AppTopBar({
             </Button>
           ) : null}
 
-          <Button size="sm" onClick={onAddTask}>
-            <PlusIcon data-icon="inline-start" size={13} />
-            <span className="text-xs">{addLabel}</span>
-          </Button>
+          {showAddTask && onAddTask ? (
+            <Button size="sm" onClick={onAddTask}>
+              <PlusIcon data-icon="inline-start" size={13} />
+              <span className="text-xs">{addLabel}</span>
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>

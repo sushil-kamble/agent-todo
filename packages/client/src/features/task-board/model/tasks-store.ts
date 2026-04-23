@@ -37,6 +37,7 @@ function writeCachedTasks(tasks: TasksByColumn) {
 
 type BoardTasksStore = {
   tasks: TasksByColumn
+  hasLoadedOnce: boolean
   isLoading: boolean
   setTasks: (updater: TasksUpdater) => void
   refresh: () => Promise<void>
@@ -57,6 +58,7 @@ export function createBoardTasksStore() {
 
   return createStore<BoardTasksStore>((set, get) => ({
     tasks: cachedTasks ?? createEmptyTasks(),
+    hasLoadedOnce: false,
     // Always resolve the first visible board state from a fresh refresh cycle.
     // Cached tasks remain useful as a fallback if the request fails, but they
     // should not bypass the initial loading presentation on page load.
@@ -69,11 +71,11 @@ export function createBoardTasksStore() {
       try {
         const tasks = await api.fetchTasks()
         writeCachedTasks(tasks)
-        set({ tasks })
+        set({ tasks, hasLoadedOnce: true })
       } catch (error) {
         console.error('[board] fetchTasks failed', error)
       } finally {
-        set({ isLoading: false })
+        set({ isLoading: false, hasLoadedOnce: true })
       }
     },
     syncActiveTaskStatuses: async taskIds => {

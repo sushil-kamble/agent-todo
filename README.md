@@ -1,157 +1,145 @@
 # agent-todo
 
-`agent-todo` is a local-first task board for running coding work through AI agents inside a real project.
+**A local-first kanban board for the work you hand to AI agents.**
 
-It is designed for teams and individual developers who want more than an ad hoc chat window. Tasks live on a board, runs stay attached to their task, project context is explicit, and the full execution transcript remains available for review.
+Agent Todo turns coding prompts into structured tasks on a real board. Assign an agent, pick a model, point it at a local project — then step away while it runs. Every run keeps its transcript, so you can review, follow up, or re-run from the same card.
 
-## Why use it
+---
 
-Most AI coding workflows fall apart in predictable ways:
+## Why it exists
 
-- useful prompts get lost in chat history
-- long-running work has no clear owner or status
-- model choice and execution mode are not tracked
-- analysis and implementation get mixed together
-- there is no reliable record of what the agent actually did
+Most AI coding workflows fall apart the same way:
 
-`agent-todo` gives that work a structure:
+- Useful prompts get lost inside long chat threads.
+- Long-running work has no clear owner or status.
+- Model, effort, and mode choices aren't tracked.
+- Analysis and implementation get tangled together.
+- There's no reliable record of what the agent actually did.
 
-- create tasks instead of one-off prompts
-- assign the right agent and mode for each job
-- run against a selected local project directory
-- move work through backlog, active work, and completion
-- review the full transcript after the run
+Agent Todo gives that work a shape:
 
-## Features
+- Create **tasks** instead of one-off prompts.
+- Assign the right **agent**, **model**, and **mode** per task.
+- Run against a **selected local project directory**.
+- Move cards through **Backlog → Todo → In Progress → Completed**.
+- Open the **live console** during the run, review the full transcript after.
 
-- Kanban board for active work and a backlog for queued tasks
-- Task editor with agent, model, task type, and mode selection
-- `ask` mode for read-only analysis and `code` mode for implementation work
-- Live run console with streamed progress and execution output
-- Support for both `codex` and `claude` agent flows
-- Search across tasks
-- Local project selection, with fallback to `~/.agent-todo/scratch` when no project is chosen
+---
 
-## Examples of when it is useful
+## Features at a glance
 
-### 1. Queue parallel code work
+- **Kanban board** with a backlog panel for queued ideas.
+- **Two agents out of the box**: Claude Code and Codex.
+- **Ask mode** for read-only analysis · **Code mode** for implementation.
+- **Per-task controls**: model, effort tier (Low → Max), Fast mode, task type.
+- **Live run console** with streamed thoughts, tool calls, and shell output.
+- **Task-scoped transcripts** — every run is attached to its card.
+- **Local project picker** with a safe `~/.agent-todo/scratch` fallback.
+- **Keyboard shortcuts**: `N` new task, `B` backlog, `/` search, `Esc` close.
+- **Light / dark themes** with no-flash theme boot.
 
-You need to move several workstreams forward at once:
+---
 
-- refactor a feature module
-- investigate a failing test suite
-- audit a subsystem and write a recommendation
+## Quick start
 
-Instead of juggling separate terminal sessions and prompt threads, create three tasks, assign the right agent and mode to each one, and review the results from one place.
+### 1. Prerequisites
 
-### 2. Separate analysis from implementation
+- **Node.js `>=22.5.0`**
+- **pnpm** — install with `npm install -g pnpm` if you don't have it
+- At least one agent CLI installed locally, if you want to execute tasks:
+  - [`claude`](https://docs.anthropic.com/claude/docs/claude-code) (Claude Code)
+  - [`codex`](https://github.com/openai/codex) (OpenAI Codex)
 
-Use `ask` mode to investigate questions such as:
+You can open the board and create tasks without an agent installed — you just can't run them.
 
-- "Trace how authentication works in this repo"
-- "Find why drag-and-drop highlighting is inconsistent"
-- "Compare our Claude integration with another implementation"
-
-Then turn the result into a follow-up `code` task once the direction is clear.
-
-### 3. Keep prompt-heavy work under control
-
-If a large feature request would normally turn into an unwieldy conversation, store it as a task, attach the right project context, refine it over time, and run it when it is ready.
-
-### 4. Run agent work against a real local project
-
-When a task depends on file access, project structure, or direct edits, the agent can run in the selected project directory instead of a detached workspace.
-
-## Tech stack
-
-- Monorepo managed with `pnpm`
-- Node.js `>=22.5.0`
-- Client: TanStack Start, Vite, React 19, TypeScript
-- Server: Node ESM HTTP backend with agent orchestration
-- Shared package for contracts, config, constants, runtime helpers, and validation
-
-## Getting started
-
-### Prerequisites
-
-- Node.js `>=22.5.0`
-- `pnpm`
-- A locally available supported agent setup if you want to execute tasks (`codex` and/or `claude`)
-
-### Install dependencies
+### 2. Install
 
 ```bash
+git clone https://github.com/sushil-kamble/agent-todo.git
+cd agent-todo
 pnpm install
 ```
 
-## Running the project
-
-### Development mode
-
-Start the client and server together:
+### 3. Run in development
 
 ```bash
 pnpm dev
 ```
 
-This starts:
+This starts both halves of the app:
 
-- client on `http://localhost:3000`
-- server on `http://localhost:8787`
+- Client → <http://localhost:3000>
+- Server → <http://localhost:8787>
 
-If you only want one side:
+Need only one side?
 
 ```bash
 pnpm dev:client
 pnpm dev:server
 ```
 
-### Run the built app
-
-Build the project first:
+### 4. Or run the built app
 
 ```bash
 pnpm build
-```
-
-Then start the app:
-
-```bash
 pnpm start
 ```
 
-By default, the root CLI serves the app at `http://localhost:3737` and opens the browser automatically.
+The root CLI serves the app at <http://localhost:3737> and opens your browser.
 
-You can also control the port and browser behavior:
+Customize the port or skip the browser launch:
 
 ```bash
 pnpm start -- --port 4000 --no-open
 ```
 
-### Preview the client build
-
-If you only want to preview the built frontend:
+To preview just the built client:
 
 ```bash
 pnpm preview
 ```
 
-## Basic workflow
+---
 
-1. Open the board.
-2. Add a task or move one from backlog into active work.
-3. Select the project directory the agent should use.
-4. Choose an agent and mode.
-5. Run the task.
-6. Review the live console and transcript.
-7. Update, re-run, or move the task based on the result.
+## Your first task
 
-## Project structure
+1. Open the board at <http://localhost:3000> (dev) or <http://localhost:3737> (built).
+2. Click **Add task** (or press `N`).
+3. Pick a **project directory** — or leave it empty to use the scratch workspace.
+4. Choose the **agent**, **model**, **effort**, and **mode** (Ask vs Code).
+5. Drag the card to **In Progress** (or hit run from the editor) to kick it off.
+6. Watch the **live console** stream the agent's work.
+7. Move the card to **Completed** when you're happy, or send a follow-up message on the same transcript.
+
+> **Tip.** Use **Ask mode** first to scope a change ("Trace how auth works in this repo"). Convert the result into a **Code mode** task once the direction is clear.
+
+---
+
+## When it earns its keep
+
+- **Parallel workstreams.** Queue three tasks (refactor a module, investigate a failing test, audit a subsystem) and review them from one place instead of juggling terminal tabs.
+- **Separating analysis from implementation.** Ask mode answers the question; a follow-up Code mode task ships the change.
+- **Large prompts that outgrow a chat.** Park the request as a task, refine it over time, and run it when it's actually ready.
+- **Work that needs real files.** The agent runs inside your project directory — reading real imports, editing real files — not a detached sandbox.
+
+---
+
+## Tech stack
+
+- Monorepo managed with **pnpm**
+- **Node.js `>=22.5.0`**
+- **Client**: TanStack Start, Vite, React 19, TypeScript, Tailwind v4
+- **Server**: Node ESM HTTP backend with agent orchestration
+- **Shared**: contracts, config, constants, runtime helpers, validation
+
+---
+
+## Project layout
 
 ```text
 .
 ├── bin
-│   └── agent-todo.mjs         # root CLI entry
+│   └── agent-todo.mjs         # root CLI entry (used by `pnpm start`)
 ├── packages
 │   ├── client                 # TanStack Start / Vite / React app
 │   ├── server                 # Node HTTP backend + agent orchestration
@@ -160,41 +148,40 @@ pnpm preview
     └── e2e                    # cross-package end-to-end tests
 ```
 
-More specifically:
+Inside each package:
 
-- `packages/client/src/app`: router wiring, shell, app-level components, styles
-- `packages/client/src/features`: task board, task editor, run console, theme, agent config
-- `packages/client/src/entities`: frontend entity-facing types and mappers
-- `packages/client/src/shared`: reusable UI primitives, shared helpers, API aggregation
-- `packages/server/src/domains`: tasks, runs, projects, agents, business logic
-- `packages/server/src/infrastructure`: DB, HTTP helpers, filesystem helpers, static serving, agent clients
-- `packages/shared/src`: contracts, config, constants, runtime helpers, validation
+- `packages/client/src/app` — router wiring, shell, app-level components, styles
+- `packages/client/src/features` — task board, task editor, run console, theme, agent config
+- `packages/client/src/entities` — frontend entity types and mappers
+- `packages/client/src/shared` — reusable UI primitives, helpers, API aggregation
+- `packages/server/src/domains` — tasks, runs, projects, agents, business logic
+- `packages/server/src/infrastructure` — DB, HTTP, filesystem, static serving, agent clients
+- `packages/shared/src` — contracts, config, constants, runtime helpers, validation
+
+---
 
 ## Common commands
 
 ```bash
-pnpm dev
-pnpm dev:client
-pnpm dev:server
-pnpm build
-pnpm preview
-pnpm start
-pnpm test
-pnpm typecheck
-pnpm biome:check
-pnpm check:ci
+pnpm dev            # run client + server in parallel
+pnpm dev:client     # client only
+pnpm dev:server     # server only
+pnpm build          # build shared + client for production
+pnpm preview        # preview the built client
+pnpm start          # serve the built app via the root CLI
+
+pnpm test           # run all package test suites
+pnpm typecheck      # typecheck every package
+pnpm biome:check    # lint + format check
+pnpm format         # apply Biome autofixes
+pnpm check:ci       # typecheck + biome + tests (what CI runs)
 ```
 
-## Testing
-
-Run all package-local test suites with:
-
-```bash
-pnpm test
-```
+---
 
 ## Notes
 
-- Use `code` mode for tasks that may edit files.
-- Use `ask` mode for read-only analysis.
-- `packages/client/src/routeTree.gen.ts` is generated output and should not be edited manually.
+- Use `code` mode for tasks that may **edit files**.
+- Use `ask` mode for **read-only** analysis — it will not write files or mutate git state.
+- If no project is selected, runs fall back to `~/.agent-todo/scratch`.
+- `packages/client/src/routeTree.gen.ts` is generated output — don't edit it manually.
