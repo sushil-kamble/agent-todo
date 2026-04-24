@@ -378,7 +378,7 @@ describe('model selection state', () => {
     expect(
       resolveModelSelectionState({
         agent: 'codex',
-        selectedModelSlug: 'gpt-5.4',
+        selectedModelSlug: 'gpt-5.5',
         preferredEffort: 'high',
         preferredFastMode: true,
       })
@@ -393,12 +393,12 @@ describe('model selection state', () => {
     expect(
       resolveModelSelectionState({
         agent: 'claude',
-        selectedModelSlug: 'claude-opus-4-6',
+        selectedModelSlug: 'claude-opus-4-7',
         preferredEffort: 'max',
         preferredFastMode: true,
       })
     ).toEqual({
-      model: 'claude-opus-4-6',
+      model: 'claude-opus-4-7',
       effort: 'max',
       fastMode: false,
     })

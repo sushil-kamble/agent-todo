@@ -133,7 +133,7 @@ describe('task routes integration', () => {
         title: 'Fast supported',
         project: 'server',
         agent: 'codex',
-        model: 'gpt-5.4',
+        model: 'gpt-5.5',
         fastMode: true,
       }),
     })

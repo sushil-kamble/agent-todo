@@ -10,11 +10,11 @@
       "promptKey": "feature_dev",
       "recommendations": {
         "claude": {
-          "model": "claude-opus-4-6",
+          "model": "claude-opus-4-7",
           "effort": "medium"
         },
         "codex": {
-          "model": "gpt-5.4",
+          "model": "gpt-5.5",
           "effort": "high"
         }
       }
@@ -28,11 +28,11 @@
       "promptKey": "feature_plan",
       "recommendations": {
         "claude": {
-          "model": "claude-opus-4-6",
-          "effort": "high"
+          "model": "claude-opus-4-7",
+          "effort": "xhigh"
         },
         "codex": {
-          "model": "gpt-5.4",
+          "model": "gpt-5.5",
           "effort": "xhigh"
         }
       }
@@ -46,11 +46,11 @@
       "promptKey": "code_review",
       "recommendations": {
         "claude": {
-          "model": "claude-opus-4-6",
-          "effort": "high"
+          "model": "claude-opus-4-7",
+          "effort": "xhigh"
         },
         "codex": {
-          "model": "gpt-5.4",
+          "model": "gpt-5.5",
           "effort": "xhigh"
         }
       }
@@ -68,7 +68,7 @@
           "effort": "high"
         },
         "codex": {
-          "model": "gpt-5.4",
+          "model": "gpt-5.5",
           "effort": "high"
         }
       }
@@ -86,7 +86,7 @@
           "effort": "high"
         },
         "codex": {
-          "model": "gpt-5.4",
+          "model": "gpt-5.5",
           "effort": "high"
         }
       }

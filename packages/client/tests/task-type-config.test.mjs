@@ -47,16 +47,32 @@ describe('shared task type config', () => {
 
   it('returns the configured recommendation for each runtime agent', () => {
     expect(getTaskTypeRecommendation('feature_plan', 'claude')).toEqual({
-      model: 'claude-opus-4-6',
-      effort: 'high',
-    })
-    expect(getTaskTypeRecommendation('feature_plan', 'codex')).toEqual({
-      model: 'gpt-5.4',
+      model: 'claude-opus-4-7',
       effort: 'xhigh',
     })
+    expect(
+      TASK_TYPE_OPTIONS.map(option => getTaskTypeRecommendation(option.value, 'claude').model)
+    ).toEqual([
+      'claude-opus-4-7',
+      'claude-opus-4-7',
+      'claude-opus-4-7',
+      'claude-sonnet-4-6',
+      'claude-sonnet-4-6',
+    ])
+    expect(getTaskTypeRecommendation('feature_plan', 'codex')).toEqual({
+      model: 'gpt-5.5',
+      effort: 'xhigh',
+    })
+    expect(
+      TASK_TYPE_OPTIONS.map(option => getTaskTypeRecommendation(option.value, 'codex').model)
+    ).toEqual(['gpt-5.5', 'gpt-5.5', 'gpt-5.5', 'gpt-5.5', 'gpt-5.5'])
     expect(getTaskTypeRecommendation('write_tests', 'claude')).toEqual({
       model: 'claude-sonnet-4-6',
       effort: 'high',
+    })
+    expect(getTaskTypeRecommendation('code_review', 'claude')).toEqual({
+      model: 'claude-opus-4-7',
+      effort: 'xhigh',
     })
   })
 })

@@ -22,7 +22,7 @@ describe('agent client configuration', () => {
       },
     })
 
-    expect(client.model).toBe('gpt-5.4')
+    expect(client.model).toBe('gpt-5.5')
     expect(client.effort).toBe('high')
     expect(client.fastMode).toBe(true)
   })
@@ -48,7 +48,7 @@ describe('agent client configuration', () => {
       cwd: '/tmp/project',
       task: {
         mode: 'code',
-        model: 'gpt-5.4',
+        model: 'gpt-5.5',
         effort: 'high',
         fastMode: true,
       },
@@ -65,7 +65,7 @@ describe('agent client configuration', () => {
     expect(requests[0]).toMatchObject({
       method: 'thread/start',
       params: {
-        model: 'gpt-5.4',
+        model: 'gpt-5.5',
         serviceTier: 'fast',
       },
     })
@@ -111,7 +111,7 @@ describe('agent client configuration', () => {
       cwd: '/tmp/project',
       task: {
         mode: 'code',
-        model: 'gpt-5.4',
+        model: 'gpt-5.5',
         effort: 'high',
       },
     })
@@ -206,7 +206,7 @@ describe('agent client configuration', () => {
     expect(requests[0]).toMatchObject({
       method: 'thread/start',
       params: {
-        model: 'gpt-5.4',
+        model: 'gpt-5.5',
         sandbox: 'danger-full-access',
         approvalPolicy: 'never',
       },
