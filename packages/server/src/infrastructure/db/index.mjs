@@ -8,7 +8,7 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
-const DEFAULT_DB_PATH = join(homedir(), '.agent-todo', 'agent-todo.db')
+const DEFAULT_DB_PATH = join(homedir(), '.agentodo', 'agentodo.db')
 
 const DB_SCHEMA = `
 PRAGMA journal_mode = WAL;

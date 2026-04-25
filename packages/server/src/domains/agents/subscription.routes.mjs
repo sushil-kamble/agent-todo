@@ -436,7 +436,7 @@ async function fetchCodexUsage(credentials, fetchImpl = globalThis.fetch) {
   const headers = {
     Authorization: `Bearer ${credentials.accessToken}`,
     Accept: 'application/json',
-    'User-Agent': 'agent-todo/1.0',
+    'User-Agent': 'agentodo/1.0',
   }
   const accountId = getCodexAccountId(credentials)
   if (accountId) headers['ChatGPT-Account-Id'] = accountId
@@ -470,7 +470,7 @@ async function fetchClaudeUsage(accessToken, fetchImpl = globalThis.fetch) {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         'anthropic-beta': 'oauth-2025-04-20',
-        'User-Agent': 'agent-todo/1.0',
+        'User-Agent': 'agentodo/1.0',
       },
       signal: controller.signal,
     })

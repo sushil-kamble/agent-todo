@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.2.97
+        version: 0.2.97(zod@3.25.76)
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.4.10
@@ -141,9 +145,6 @@ importers:
 
   packages/server:
     dependencies:
-      '@agent-todo/shared':
-        specifier: workspace:*
-        version: link:../shared
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.97
         version: 0.2.97(zod@3.25.76)

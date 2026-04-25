@@ -7,4 +7,4 @@ export {
   TASK_TYPE_OPTIONS,
   taskTypeAllowsMode,
   taskTypeRequiresProject,
-} from '@agent-todo/shared/runtime/task-types'
+} from '../../../../shared/src/runtime/task-types.mjs'

@@ -9,12 +9,7 @@ export function BrandLogo({ className, size = 'md' }: BrandLogoProps) {
   const compact = size === 'sm'
 
   return (
-    <span
-      className={cn(
-        'inline-flex shrink-0 select-none items-center gap-3',
-        className
-      )}
-    >
+    <span className={cn('inline-flex shrink-0 select-none items-center gap-3', className)}>
       <span
         className={cn(
           'relative inline-flex shrink-0 items-center justify-center border border-foreground bg-card text-foreground',
@@ -31,7 +26,7 @@ export function BrandLogo({ className, size = 'md' }: BrandLogoProps) {
           viewBox="0 0 100 100"
           fill="none"
         >
-          <title>Agent Todo logo</title>
+          <title>agentodo logo</title>
           <text
             x="49"
             y="68"

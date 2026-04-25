@@ -21,7 +21,7 @@ import {
   updateRun,
 } from './run.repository.mjs'
 
-const SCRATCH_DIR = join(homedir(), '.agent-todo', 'scratch')
+const SCRATCH_DIR = join(homedir(), '.agentodo', 'scratch')
 
 function resolveTaskCwd(project) {
   if (project && project !== 'untitled') return project

@@ -211,7 +211,7 @@ export class CodexClient extends EventEmitter {
 
   async initialize() {
     await this._request('initialize', {
-      clientInfo: { name: 'agent-todo', title: 'Agent Todo', version: '0.1.0' },
+      clientInfo: { name: 'agentodo', title: 'agentodo', version: '0.1.0' },
       capabilities: { experimentalApi: false, optOutNotificationMethods: [] },
     })
     this._notify('initialized', {})

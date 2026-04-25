@@ -16,11 +16,11 @@ export async function startServer() {
   const app = createApp()
   const port = Number(process.env.PORT) || 8787
   const server = app.listen(port, () => {
-    console.log(`[agent-todo server] listening on :${port}`)
+    console.log(`[agentodo server] listening on :${port}`)
   })
 
   function shutdown() {
-    console.log('[agent-todo server] shutting down...')
+    console.log('[agentodo server] shutting down...')
     resetRunManagerState()
     server.close(() => {
       closeDatabase()

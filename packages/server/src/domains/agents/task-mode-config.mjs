@@ -3,4 +3,4 @@ export {
   isTaskMode,
   modeRequiresProject,
   TASK_MODES,
-} from '@agent-todo/shared/runtime/task-modes'
+} from '../../../../shared/src/runtime/task-modes.mjs'

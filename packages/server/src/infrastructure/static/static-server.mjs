@@ -36,7 +36,11 @@ const MIME_TYPES = {
  * Check whether a production build exists.
  */
 export function hasProductionBuild() {
-  return existsSync(CLIENT_DIR) && existsSync(join(DIST_DIR, 'server', 'server.js'))
+  return existsSync(CLIENT_DIR)
+}
+
+function hasSSRBundle() {
+  return existsSync(join(DIST_DIR, 'server', 'server.js'))
 }
 
 /**
@@ -86,26 +90,45 @@ export async function loadSSRHandler() {
  * Converts node IncomingMessage → Web Request → SSR → pipe Web Response back.
  */
 export async function handleSSR(req, res) {
-  const handler = await loadSSRHandler()
-  const protocol = req.socket.encrypted ? 'https' : 'http'
-  const host = req.headers.host || 'localhost'
-  const url = new URL(req.url, `${protocol}://${host}`)
+  if (hasSSRBundle()) {
+    try {
+      const handler = await loadSSRHandler()
+      const protocol = req.socket.encrypted ? 'https' : 'http'
+      const host = req.headers.host || 'localhost'
+      const url = new URL(req.url, `${protocol}://${host}`)
 
-  const webRequest = new Request(url.href, {
-    method: req.method,
-    headers: Object.fromEntries(Object.entries(req.headers).filter(([, v]) => v != null)),
-    body: req.method !== 'GET' && req.method !== 'HEAD' ? Readable.toWeb(req) : undefined,
-    duplex: 'half',
-  })
+      const webRequest = new Request(url.href, {
+        method: req.method,
+        headers: Object.fromEntries(Object.entries(req.headers).filter(([, v]) => v != null)),
+        body: req.method !== 'GET' && req.method !== 'HEAD' ? Readable.toWeb(req) : undefined,
+        duplex: 'half',
+      })
 
-  const webResponse = await handler(webRequest)
-
-  res.writeHead(webResponse.status, Object.fromEntries(webResponse.headers.entries()))
-
-  if (webResponse.body) {
-    const nodeStream = Readable.fromWeb(webResponse.body)
-    nodeStream.pipe(res)
-  } else {
-    res.end()
+      const webResponse = await handler(webRequest)
+      res.writeHead(webResponse.status, Object.fromEntries(webResponse.headers.entries()))
+      if (webResponse.body) {
+        const nodeStream = Readable.fromWeb(webResponse.body)
+        nodeStream.pipe(res)
+      } else {
+        res.end()
+      }
+      return
+    } catch {
+      // Fall through to SPA fallback
+    }
   }
+
+  // SPA fallback: serve client/index.html for any unmatched route
+  const indexPath = join(CLIENT_DIR, 'index.html')
+  if (existsSync(indexPath)) {
+    res.writeHead(200, {
+      'Content-Type': 'text/html',
+      'Cache-Control': 'no-cache',
+    })
+    createReadStream(indexPath).pipe(res)
+    return
+  }
+
+  res.writeHead(404, { 'Content-Type': 'text/plain' })
+  res.end('Not Found')
 }

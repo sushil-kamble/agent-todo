@@ -62,7 +62,7 @@ export function AppTopBar({
       <div className="mx-auto flex h-14 w-full max-w-350 items-center justify-between px-8">
         <Link
           to="/"
-          aria-label="Agent Todo home"
+          aria-label="agentodo home"
           className="flex items-center text-foreground no-underline transition-opacity hover:opacity-90"
         >
           <BrandLogo size="sm" />

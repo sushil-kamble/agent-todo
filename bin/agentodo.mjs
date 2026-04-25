@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * CLI entry point for agent-todo.
+ * CLI entry point for agentodo.
  *
  * Usage:
- *   npx agent-todo [--port 3737] [--no-open]
+ *   npx agentodo [--port 3737] [--no-open]
  */
 
 import { execFileSync } from 'node:child_process'
@@ -15,8 +15,6 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
 
-// ── Arg parsing (zero deps) ────────────────────────────────────────
-
 function parseArgs(argv) {
   const args = { port: 3737, open: true }
   for (let i = 2; i < argv.length; i++) {
@@ -26,10 +24,10 @@ function parseArgs(argv) {
       args.open = false
     } else if (argv[i] === '--help' || argv[i] === '-h') {
       console.log(`
-  agent-todo — AI-powered task board
+  agentodo — AI-powered task board
 
   Usage:
-    npx agent-todo [options]
+    npx agentodo [options]
 
   Options:
     --port <number>   Port to listen on (default: 3737)
@@ -41,8 +39,6 @@ function parseArgs(argv) {
   }
   return args
 }
-
-// ── Browser open (cross-platform, zero deps) ───────────────────────
 
 function openBrowser(url) {
   const cmds = {
@@ -59,18 +55,14 @@ function openBrowser(url) {
   }
 }
 
-// ── Boot ────────────────────────────────────────────────────────────
-
 const args = parseArgs(process.argv)
 
-// Verify the build exists
 const clientDir = resolve(ROOT, 'packages', 'client', 'dist', 'client')
 if (!existsSync(clientDir)) {
   console.error('\n  Build not found. Run `npm run build` first, then try again.\n')
   process.exit(1)
 }
 
-// Set port before importing server (modules may read process.env)
 process.env.PORT = String(args.port)
 
 const { createApp } = await import(
@@ -86,7 +78,7 @@ const app = createApp()
 app.listen(args.port, () => {
   const url = `http://localhost:${args.port}`
   console.log()
-  console.log(`  agent-todo is running at ${url}`)
+  console.log(`  agentodo is running at ${url}`)
   console.log()
 
   if (args.open) openBrowser(url)

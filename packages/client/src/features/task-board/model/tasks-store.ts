@@ -11,7 +11,7 @@ import {
   type UpdateTaskInput,
 } from './types'
 
-const TASKS_CACHE_KEY = 'agent-todo-board-tasks'
+const TASKS_CACHE_KEY = 'agentodo-board-tasks'
 
 function readCachedTasks() {
   if (typeof window === 'undefined') return null

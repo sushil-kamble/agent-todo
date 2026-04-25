@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 export type Theme = 'light' | 'dark'
 
-const STORAGE_KEY = 'agent-todo-theme'
+const STORAGE_KEY = 'agentodo-theme'
 const LIGHT_BACKGROUND = '#f2f1ed'
 const LIGHT_FOREGROUND = '#26251e'
 const DARK_BACKGROUND = '#26251e'

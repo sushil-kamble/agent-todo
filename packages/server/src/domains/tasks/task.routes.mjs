@@ -8,7 +8,6 @@
  * GET    /api/tasks/:id/run  — get the active run for a task
  */
 import { randomUUID } from 'node:crypto'
-import { BOARD_COLUMN_IDS } from '@agent-todo/shared/constants/board-columns'
 import {
   DEFAULT_AGENT,
   getDefaultEffort,
@@ -32,6 +31,7 @@ import { ensureRunForTask, preserveRunForTask, stopRunForTask } from '#domains/r
 import { getTaskWorkedTime } from '#domains/runs/worked-time.mjs'
 import { normalizeProjectPath } from '#infra/filesystem/project-path.mjs'
 import { json, readBody } from '#infra/http/http.mjs'
+import { BOARD_COLUMN_IDS } from '../../../../shared/src/runtime/board-columns.mjs'
 import {
   createTask,
   deleteTask,

@@ -8,4 +8,4 @@ export {
   sanitizeEffort,
   sanitizeFastMode,
   sanitizeModel,
-} from '@agent-todo/shared/runtime/agents'
+} from '../../../../shared/src/runtime/agents.mjs'

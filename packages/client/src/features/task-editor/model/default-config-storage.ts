@@ -17,7 +17,7 @@ export type StoredTaskConfig = {
   fastMode: boolean
 }
 
-export const TASK_CONFIG_STORAGE_KEY = 'agent-todo-task-config'
+export const TASK_CONFIG_STORAGE_KEY = 'agentodo-task-config'
 
 const DEFAULT_TASK_CONFIG: StoredTaskConfig = {
   agent: DEFAULT_AGENT,

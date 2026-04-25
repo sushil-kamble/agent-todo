@@ -1,6 +1,6 @@
 {
-  "short_name": "TanStack App",
-  "name": "Create TanStack App Sample",
+  "short_name": "agentodo",
+  "name": "agentodo",
   "icons": [
     {
       "src": "favicon.svg",

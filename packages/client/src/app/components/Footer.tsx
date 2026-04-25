@@ -11,7 +11,7 @@ export function Footer() {
       <div className="mx-auto flex w-full max-w-350 flex-wrap items-center justify-between gap-3 px-8 py-3">
         <Link
           to="/"
-          aria-label="Agent Todo home"
+          aria-label="agentodo home"
           className="flex items-center text-foreground no-underline transition-opacity hover:opacity-90"
         >
           <BrandLogo size="sm" />
