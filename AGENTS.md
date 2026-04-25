@@ -1,6 +1,10 @@
 # agentodo
 
-Guidance for AI coding agents (Codex, Claude, others) working in this repo. The deeper architecture and publishing-model notes live in [`CLAUDE.md`](./CLAUDE.md) — read it before non-trivial work.
+Guidance for AI coding agents (Codex, Claude, others) working in this repo. **`CLAUDE.md` is the canonical playbook** — read it before non-trivial work, especially the "Operating model" and "Release playbook" sections. This file is the short-form briefing.
+
+## How the user works with this repo
+
+You are the operator. The user prompts; you commit, push, release, and verify. Do not ask the user to run release or git commands themselves — execute the playbooks in `CLAUDE.md` autonomously and report what changed. The only times to pause for the user are: ambiguous intent, destructive actions outside the standard playbooks, or environment problems that need their credentials.
 
 ## Purpose
 
@@ -69,8 +73,42 @@ The published tarball is the root package shipping pre-built artifacts; consumer
 - Scratch workspace: `~/.agentodo/scratch`
 - Browser localStorage keys: `agentodo-*`
 
-## Release flow
+## Committing
 
-Automated via `.github/workflows/publish.yml`. Pushing a `v*` tag triggers a build and `npm publish --provenance` (the workflow validates the tag matches `package.json` version). CI on `main` and PRs runs `typecheck`, `biome:check`, `test`, and `build`.
+- Run `pnpm typecheck && pnpm biome:check && pnpm test` before committing. Fix failures; never `--no-verify`.
+- Inspect `git status` before staging. Avoid `git add -A` blind — `.kilocode/`, `.temp/`, scratch tarballs leak in.
+- Short imperative subjects (`Fix X`, `Add Y`, `Refresh lockfile after Z`). No Conventional Commits prefix. Body only when *why* isn't obvious.
+- Commit at logical checkpoints; push to `origin main` once green. Never leave a dirty tree at the end of a turn.
+- If you change root `package.json` deps, run `pnpm install --lockfile-only` and commit `pnpm-lock.yaml` in the same commit — otherwise CI breaks with `ERR_PNPM_OUTDATED_LOCKFILE`.
 
-Sequence: update `CHANGELOG.md`, bump `version`, `pnpm build` + `npm pack` to inspect, commit, `git tag vX.Y.Z && git push origin main vX.Y.Z`, then `gh release create vX.Y.Z` after the workflow succeeds. See `CONTRIBUTING.md` for full details.
+## Release flow (do this autonomously when asked)
+
+Automated via `.github/workflows/publish.yml`. Pushing a `v*` tag triggers `npm publish --provenance --access public`. The workflow validates that the tag matches `package.json` version.
+
+Bump kind: **patch** for fixes, **minor** for new features, **major** for breaking changes (CLI flags, DB schema, `~/.agentodo/` layout). Below 1.0.0 still respects the spirit of semver.
+
+Run, in order:
+
+1. `git status` clean? `npm view agentodo version` to know the current published version.
+2. Update `CHANGELOG.md`: move `[Unreleased]` items into a new `[X.Y.Z] - YYYY-MM-DD` section, add the compare-link footer.
+3. Bump `version` in root `package.json` only.
+4. `pnpm build && npm pack` — inspect tarball file count and size against the previous release.
+5. Smoke-boot the tarball against an empty data dir (see `CLAUDE.md` for the exact recipe). `/api/tasks` must return `{"tasks":[]}` and `/` must return 200.
+6. Commit (`Release vX.Y.Z`), push `main`, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
+7. `gh run watch --workflow=publish.yml --exit-status`.
+8. `npm view agentodo version` confirms the new version is live.
+9. `gh release create vX.Y.Z` with notes from the changelog entry.
+
+If the publish workflow fails: read the log, fix on `main`, then **delete the tag** (`git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z`) and re-tag from the fix commit. Do **not** bump to the next version to skirt a failed publish — fix the root cause.
+
+CI (`.github/workflows/ci.yml`) runs `typecheck`, `biome:check`, `test`, `build` on push to `main` and on PRs.
+
+## Tarball discipline
+
+- New root `dependencies` only when required at `npx agentodo` boot — build-only tooling stays in workspace `devDependencies`.
+- Don't add heavyweight deps without a `du -sh node_modules` measurement and the user's sign-off.
+- New runtime files outside `bin/`, `packages/*/src`, `packages/client/dist` need a `files` whitelist update in `package.json`.
+
+## Secrets and tokens
+
+Never commit, log, or echo a token. The npm publish secret lives in repo Actions secrets as `NPM_TOKEN`. Set or rotate via `gh secret set NPM_TOKEN --repo sushil-kamble/agent-todo` (prompts privately). If the user pastes a token in plain chat, set it as a secret immediately and tell them to rotate it.

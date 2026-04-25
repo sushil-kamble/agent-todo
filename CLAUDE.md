@@ -142,28 +142,132 @@ Schema lives inline in `infrastructure/db/index.mjs`. There is no migration fram
 - **Generated files**: `packages/client/src/routeTree.gen.ts` is generated. Don't edit it; don't lint-fix it (Biome already excludes it).
 - **Comments**: lean. The codebase uses short header comments per file describing purpose. Don't add comments that just describe what the next line does.
 
-## Release flow
+## Operating model — read this before touching the repo
 
-Releases are automated by `.github/workflows/publish.yml`. Pushing a `v*` git tag triggers a build and `npm publish --provenance --access public` against the registry. The workflow refuses to publish if the tag doesn't match the `version` in `package.json`, so version bumps and tags must agree.
+You are operating this repo end-to-end on the user's behalf. The user does not run release commands themselves. You are responsible for committing, pushing, releasing, and verifying. The user prompts; you execute the playbooks below verbatim unless they explicitly override.
 
-Standard release sequence:
+### When to commit
 
-1. Move `[Unreleased]` items in `CHANGELOG.md` into a new version section.
-2. Bump `version` in root `package.json` to match.
-3. `pnpm build` locally and `npm pack` to inspect the tarball — confirm only expected files ship and the size hasn't ballooned.
-4. Commit, then `git tag vX.Y.Z && git push origin main vX.Y.Z`.
-5. The publish workflow runs on the tag push. Watch it via `gh run list --workflow=publish.yml`.
-6. After the workflow succeeds, `gh release create vX.Y.Z` with notes derived from the changelog entry.
+Commit at meaningful checkpoints (a logical change is complete, not "after every edit"). Always commit your own changes before declaring a task done — never leave the working tree dirty for the next session. Push to `origin main` once committed unless the user asked for a PR-based flow.
 
-Manual fallback if the workflow is unavailable: `npm publish` from a local checkout (auth as `sushil_kamble`) — same end result, no provenance attestation.
+Required pre-commit gates (run them; do not skip):
 
-CI (`.github/workflows/ci.yml`) runs `typecheck`, `biome:check`, `test`, and `build` on every push to `main` and on PRs.
+```bash
+pnpm typecheck
+pnpm biome:check
+pnpm test
+```
 
-Tarball discipline: it must stay small and dep-light. Adding a top-level `dependency` adds it to every consumer's `node_modules` — only do it for things the running app needs at runtime. The `@anthropic-ai/claude-agent-sdk` is the dominant install-size cost (~210 MB of transitive deps); avoid adding similar heavyweights without checking install impact.
+If any fails, fix it before committing. Don't bypass with `--no-verify`. Don't `git add -A` without checking what's about to be staged — `.kilocode/`, `.temp/`, scratch tarballs, and other dev artifacts have leaked in before. Inspect `git status` first.
+
+### Commit message style
+
+Short imperative subject, no Conventional Commits prefix, no trailing period:
+
+```
+Refresh pnpm-lock.yaml after hoisting SSR deps to root
+Fix seedIfEmpty inserting a maintainer-local project path
+Wire up GitHub Actions for CI and npm publish
+```
+
+Body only when *why* isn't obvious from the diff. Skip co-author trailers unless the user specifically asks for them.
+
+### Release playbook (do this autonomously when the user says "release", "ship it", "publish vX.Y.Z", or similar)
+
+Releases are automated by `.github/workflows/publish.yml`: pushing a `v*` tag triggers `npm publish --provenance --access public`. The workflow refuses to publish if the tag and `package.json` version disagree.
+
+Pick the version bump using semver:
+
+- **patch** (`0.1.1 → 0.1.2`): bug fixes, doc tweaks, internal refactors with no behavior change for consumers.
+- **minor** (`0.1.x → 0.2.0`): new features, additive API surface, anything users might want to know about.
+- **major** (`0.x → 1.0` or `1.x → 2.0`): breaking changes to the CLI flags, the on-disk DB schema, the `~/.agentodo/` layout, or any other user-visible contract.
+
+Below `1.0.0` we still respect the spirit of semver — don't ship breaking changes in a patch.
+
+Steps (run in order, fix failures before continuing):
+
+```bash
+# 1. Verify clean tree and current published version
+git status
+npm view agentodo version
+
+# 2. Update CHANGELOG.md — move [Unreleased] entries into a new
+#    [X.Y.Z] - YYYY-MM-DD section, add the compare-link footer,
+#    keep the [Unreleased] header in place for next time.
+
+# 3. Bump version in root package.json (no other package.json files).
+
+# 4. Build and inspect the tarball locally — confirm file count and size
+#    haven't ballooned vs prior release.
+pnpm build
+npm pack
+tar -tzf agentodo-X.Y.Z.tgz | sort
+ls -lh agentodo-X.Y.Z.tgz
+
+# 5. Sanity-boot the packed tarball against an empty data dir
+#    (catches publish-model regressions like .ts imports or missing files)
+rm -rf /tmp/agentodo-pack-test ~/.agentodo
+mkdir /tmp/agentodo-pack-test && cd /tmp/agentodo-pack-test
+npm init -y >/dev/null && npm install /absolute/path/to/agentodo-X.Y.Z.tgz
+npx agentodo --no-open --port 3739 &
+sleep 4
+curl -sf http://localhost:3739/api/tasks   # expect {"tasks":[]}
+curl -sf -o /dev/null -w "%{http_code}\n" http://localhost:3739/   # expect 200
+kill %1; cd -
+
+# 6. Commit and push the version bump + changelog
+git add CHANGELOG.md package.json
+git commit -m "Release vX.Y.Z"
+git push origin main
+
+# 7. Tag and push the tag — this is what triggers the publish workflow
+git tag vX.Y.Z
+git push origin vX.Y.Z
+
+# 8. Watch the workflow to completion
+gh run watch --workflow=publish.yml --exit-status
+
+# 9. Verify the new version is live on the registry
+npm view agentodo version    # should now equal X.Y.Z
+
+# 10. Cut the GitHub release with notes derived from the changelog entry
+gh release create vX.Y.Z --title "vX.Y.Z — <one-line summary>" --notes "<changelog body>"
+```
+
+If step 8 fails: read the workflow log with `gh run view <run-id> --log-failed`, fix the cause on `main`, delete the tag locally and remotely (`git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z`), then re-tag and re-push. Never bump to a higher version just to "get past" a failed publish — fix the root cause first.
+
+Manual publish fallback (only if Actions is broken): `npm whoami` to confirm auth as `sushil_kamble`, then `npm publish --access public`. Skip provenance in this case.
+
+### Tarball discipline
+
+The tarball must stay small and dep-light. Run `npm pack` and inspect the listing for any layout-affecting change. Hard rules:
+
+- A new top-level `dependency` must be required by something that runs on `npx agentodo` boot. Build-only tooling goes in `devDependencies` of the workspace that needs it, never the root.
+- `@anthropic-ai/claude-agent-sdk` already costs ~210 MB of transitive install — don't add more heavyweights without explicit user sign-off and a measurement (`du -sh node_modules` before/after).
+- New runtime files outside `bin/` and the existing `packages/*/src` and `packages/client/dist` paths require a `files` whitelist update.
+
+### CI
+
+`.github/workflows/ci.yml` runs `pnpm install --frozen-lockfile`, then `typecheck`, `biome:check`, `test`, `build` on push to `main` and on PRs. If you add a root `dependency` (or change any `package.json` specifier), you **must** refresh the lockfile in the same commit:
+
+```bash
+pnpm install --lockfile-only
+git add pnpm-lock.yaml
+```
+
+Otherwise CI fails with `ERR_PNPM_OUTDATED_LOCKFILE` and the publish workflow fails the same way. Run `pnpm install --frozen-lockfile` locally as a final check before pushing.
+
+### When CI or the publish workflow fails
+
+- Pull the failure with `gh run view <run-id> --log-failed`.
+- Fix on `main` with a follow-up commit.
+- Don't disable, skip, or mark-allowed-to-fail any check to make it green. The check exists because something broke once; ask the user before removing one.
 
 ## Things that have bitten us before
 
-- **Hardcoded user-specific values in seeds or defaults.** `seedIfEmpty()` previously inserted a task whose project path was the maintainer's local directory. Don't reintroduce. New users get an empty board.
+- **Hardcoded user-specific values in seeds or defaults.** `seedIfEmpty()` previously inserted a task whose project path was the maintainer's local directory. New users get an empty board — keep it that way.
 - **Workspace-specific imports in server source.** Reverts the publish model. Use relative paths or the `#domains/`, `#infra/`, `#app/`, `#testing/` subpath imports.
 - **`.ts` imports from server source.** Works in `pnpm dev` (Node strips types), fails after `npm install` (Node refuses to strip types under `node_modules`). Mirror to `.mjs` instead.
 - **Forgetting to update `files` whitelist when adding new runtime artifacts.** They silently disappear from the tarball. Always `npm pack` and inspect the listing for non-trivial layout changes.
+- **Lockfile drift after editing root `package.json`.** Causes `ERR_PNPM_OUTDATED_LOCKFILE` in CI and the publish workflow. Always commit `pnpm-lock.yaml` alongside any `package.json` change.
+- **Sensitive values in chat or commits.** Never echo, log, or commit npm tokens, GitHub tokens, or other credentials. Set secrets via `gh secret set <NAME>` (which prompts privately) and tell the user to rotate any token they've pasted in plaintext.
