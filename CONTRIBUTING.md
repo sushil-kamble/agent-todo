@@ -60,12 +60,20 @@ Open an issue at <https://github.com/sushil-kamble/agent-todo/issues> with:
 
 ## Releases
 
-Releases are cut from `main` by the maintainer:
+Releases are automated via `.github/workflows/publish.yml`. Pushing a `v*` tag triggers a build and `npm publish --provenance --access public`. The workflow refuses to publish if the tag doesn't match the `version` in `package.json`.
+
+Maintainer flow:
 
 1. Update `CHANGELOG.md` (move `[Unreleased]` items into the new version).
-2. Bump `version` in the root `package.json`.
-3. `pnpm build && npm pack` and inspect the tarball.
-4. `npm publish` and tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-5. Create a GitHub release pointing at the tag.
+2. Bump `version` in the root `package.json` to match.
+3. `pnpm build && npm pack` and inspect the tarball locally.
+4. Commit, then tag and push:
+   ```bash
+   git tag vX.Y.Z
+   git push origin main vX.Y.Z
+   ```
+5. Watch the workflow at `gh run list --workflow=publish.yml`. Once it succeeds, create a GitHub release: `gh release create vX.Y.Z`.
+
+CI (`.github/workflows/ci.yml`) runs `typecheck`, `biome:check`, `test`, and `build` on every push to `main` and on PRs.
 
 See `CHANGELOG.md` for the version history.
