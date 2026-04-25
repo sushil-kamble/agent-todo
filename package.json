@@ -75,6 +75,7 @@
     "biome:check": "biome check .",
     "format": "biome check . --write",
     "start": "node bin/agentodo.mjs",
+    "pack:release": "mkdir -p .temp/npm-pack && npm pack --pack-destination .temp/npm-pack",
     "prepublishOnly": "pnpm run build",
     "check:ci": "pnpm typecheck && pnpm biome:check && pnpm test"
   },

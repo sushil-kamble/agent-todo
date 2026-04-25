@@ -58,7 +58,8 @@ Read before touching imports, dependencies, startup, or packaging.
   be in root `package.json` `dependencies`.
 - New runtime top-level files outside `bin/`, `packages/*/src`,
   `packages/client/dist` need root `package.json` `files` updates.
-- `prepublishOnly` runs `pnpm run build`; still inspect `npm pack` for layout changes.
+- `prepublishOnly` runs `pnpm run build`; still inspect release pack output for
+  layout changes.
 
 ## Architecture
 
@@ -157,14 +158,14 @@ npm view agentodo version
 # Update CHANGELOG.md: move [Unreleased] into [X.Y.Z] - YYYY-MM-DD and add footer.
 # Bump only root package.json.
 pnpm build
-npm pack
-tar -tzf agentodo-X.Y.Z.tgz | sort
-ls -lh agentodo-X.Y.Z.tgz
+pnpm pack:release
+tar -tzf .temp/npm-pack/agentodo-X.Y.Z.tgz | sort
+ls -lh .temp/npm-pack/agentodo-X.Y.Z.tgz
 
 rm -rf /tmp/agentodo-pack-test ~/.agentodo
 mkdir /tmp/agentodo-pack-test && cd /tmp/agentodo-pack-test
 npm init -y >/dev/null
-npm install /absolute/path/to/agentodo-X.Y.Z.tgz
+npm install /absolute/path/to/.temp/npm-pack/agentodo-X.Y.Z.tgz
 npx agentodo --no-open --port 3739 &
 sleep 4
 curl -sf http://localhost:3739/api/tasks
@@ -202,7 +203,8 @@ broken: confirm `npm whoami` as `sushil_kamble`, then `npm publish --access publ
   in workspace `devDependencies`.
 - `@anthropic-ai/claude-agent-sdk` is already heavyweight; measure
   `du -sh node_modules` and get sign-off before another large dep.
-- Inspect `npm pack` output for layout-affecting changes.
+- `pnpm pack:release` writes tarballs to ignored `.temp/npm-pack/`; inspect that
+  output for layout-affecting changes.
 - Never commit, log, or echo tokens. Set secrets with `gh secret set <NAME>` and
   tell the user to rotate plaintext tokens.
 
