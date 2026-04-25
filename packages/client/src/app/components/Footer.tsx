@@ -4,6 +4,7 @@ import { BrandLogo } from '#/app/components/BrandLogo'
 export function Footer() {
   const pathname = useRouterState({ select: state => state.location.pathname })
   const isAboutPage = pathname === '/about'
+  const showShortcuts = pathname === '/'
 
   return (
     <footer className="border-t border-border bg-background">
@@ -17,26 +18,28 @@ export function Footer() {
         </Link>
 
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <div className="flex flex-wrap items-center justify-end gap-5 text-[0.68rem] tracking-[0.14em] text-muted-foreground uppercase">
-            <span className="flex items-center gap-1.5">
-              <kbd className="border border-border bg-card px-1.5 py-0.5 text-[0.6rem] font-medium text-foreground normal-case">
-                N
-              </kbd>
-              new task
-            </span>
-            <span className="flex items-center gap-1.5">
-              <kbd className="border border-border bg-card px-1.5 py-0.5 text-[0.6rem] font-medium text-foreground normal-case">
-                B
-              </kbd>
-              open backlog
-            </span>
-            <span className="flex items-center gap-1.5">
-              <kbd className="border border-border bg-card px-1.5 py-0.5 text-[0.6rem] font-medium text-foreground normal-case">
-                /
-              </kbd>
-              search
-            </span>
-          </div>
+          {showShortcuts ? (
+            <div className="flex flex-wrap items-center justify-end gap-5 text-[0.68rem] tracking-[0.14em] text-muted-foreground uppercase">
+              <span className="flex items-center gap-1.5">
+                <kbd className="border border-border bg-card px-1.5 py-0.5 text-[0.6rem] font-medium text-foreground normal-case">
+                  N
+                </kbd>
+                new task
+              </span>
+              <span className="flex items-center gap-1.5">
+                <kbd className="border border-border bg-card px-1.5 py-0.5 text-[0.6rem] font-medium text-foreground normal-case">
+                  B
+                </kbd>
+                open backlog
+              </span>
+              <span className="flex items-center gap-1.5">
+                <kbd className="border border-border bg-card px-1.5 py-0.5 text-[0.6rem] font-medium text-foreground normal-case">
+                  /
+                </kbd>
+                search
+              </span>
+            </div>
+          ) : null}
           <Link
             to={isAboutPage ? '/' : '/about'}
             className="inline-flex h-8 items-center border border-border bg-card px-3 text-xs font-medium text-foreground transition-colors hover:border-foreground/60 hover:bg-background"

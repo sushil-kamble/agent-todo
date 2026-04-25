@@ -1,4 +1,5 @@
 import { ACTIVE_RUN_STATUSES } from '@agent-todo/shared/constants/run-status'
+import { useRouterState } from '@tanstack/react-router'
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef } from 'react'
 import { useStore } from 'zustand'
 import type { ColumnId, TaskCard } from '#/entities/task/types'
@@ -48,6 +49,7 @@ function findTaskSelection(tasks: TasksByColumn, taskId: string | null) {
 }
 
 function BoardStoreEffects() {
+  const pathname = useRouterState({ select: state => state.location.pathname })
   const { tasksStore, dialogStore } = useBoardStores()
   const hasLoadedOnce = useStore(tasksStore, state => state.hasLoadedOnce)
   const refresh = useStore(tasksStore, state => state.refresh)
@@ -122,6 +124,8 @@ function BoardStoreEffects() {
   }, [syncSelectionFromLocation])
 
   useEffect(() => {
+    if (pathname !== '/') return
+
     const handler = (event: KeyboardEvent) => {
       const action = resolveBoardShortcutAction(event)
       if (action === 'task') {
@@ -132,7 +136,7 @@ function BoardStoreEffects() {
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [openCreateTaskDialog])
+  }, [openCreateTaskDialog, pathname])
 
   return null
 }

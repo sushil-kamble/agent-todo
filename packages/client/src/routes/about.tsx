@@ -458,6 +458,19 @@ function FinalCta() {
           </a>
         </div>
       </div>
+
+      <div className="mt-8 flex flex-col gap-3 border-t border-dashed border-border pt-5 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <span>Show some love for the project and follow along on GitHub.</span>
+        <a
+          href="https://github.com/sushil-kamble/"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-2 text-sm font-medium text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+        >
+          <GithubLogoIcon size={15} weight="fill" />
+          Follow on GitHub
+        </a>
+      </div>
     </section>
   )
 }
