@@ -1,6 +1,6 @@
 {
   "name": "agentodo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local-first kanban board for AI agent tasks. Turn coding prompts into structured tasks, run Claude Code or Codex against them, keep the transcripts.",
   "keywords": [
     "ai",
@@ -36,12 +36,14 @@
     "packages/shared/package.json",
     "packages/client/dist",
     "packages/client/package.json",
+    "CHANGELOG.md",
     "README.md",
     "LICENSE"
   ],
   "engines": {
     "node": ">=22.5.0"
   },
+  "packageManager": "pnpm@10.33.0",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.97",
     "@base-ui/react": "^1.3.0",

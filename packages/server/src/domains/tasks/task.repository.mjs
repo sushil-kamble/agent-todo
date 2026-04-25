@@ -188,15 +188,5 @@ export function deleteTask(id) {
 }
 
 export function seedIfEmpty() {
-  const { c } = db.prepare('SELECT COUNT(*) AS c FROM tasks').get()
-  if (c > 0) return
-  const now = new Date().toISOString().slice(0, 10)
-  createTask({
-    id: 't-1cc',
-    title: 'Analyse the codebase and summarise the key features of this project',
-    project: '/Users/sushil/Projects/one-percent/1cc',
-    agent: 'codex',
-    column_id: 'todo',
-    created_at: now,
-  })
+  // Intentional no-op: new users get an empty board.
 }
