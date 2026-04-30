@@ -9,7 +9,6 @@ import { TaskCardView } from './TaskCardView'
 type Props = {
   column: Column
   tasks: TaskCard[]
-  index: number
   isDropTarget?: boolean
 }
 
@@ -46,7 +45,7 @@ function TaskCardSkeleton() {
 
 const SCROLL_BOTTOM_OFFSET = 80
 
-export function BoardColumn({ column, tasks, index, isDropTarget = false }: Props) {
+export function BoardColumn({ column, tasks, isDropTarget = false }: Props) {
   const { openCreateTaskDialog } = useBoardDialogs()
   const { isLoading } = useBoardTasks()
   const { setNodeRef } = useDroppable({
@@ -112,9 +111,6 @@ export function BoardColumn({ column, tasks, index, isDropTarget = false }: Prop
       <header className="flex items-center justify-between border-b border-border bg-background/60 px-4 py-3">
         <div className="flex items-center gap-2.5">
           <span className={`size-2 ${accent[column.id]}`} />
-          <span className="text-[0.62rem] font-medium tracking-[0.18em] text-muted-foreground uppercase">
-            {String(index + 1).padStart(2, '0')}
-          </span>
           <h2 className="font-heading text-xl leading-none text-foreground">{column.label}</h2>
           <span className="ml-1 border border-border bg-background px-1.5 text-[0.6rem] font-medium text-muted-foreground tabular-nums">
             {isLoading ? '–' : tasks.length}

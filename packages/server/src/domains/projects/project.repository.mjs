@@ -4,9 +4,13 @@
 import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
 import { db } from '#infra/db/index.mjs'
+import { dedupeProjectsByPath } from './project-utils.mjs'
 
 export function listProjects() {
-  return db.prepare('SELECT * FROM projects ORDER BY name ASC').all()
+  const projects = db
+    .prepare('SELECT * FROM projects ORDER BY name ASC, created_at ASC, id ASC')
+    .all()
+  return dedupeProjectsByPath(projects)
 }
 
 export function getProjectByPath(path) {

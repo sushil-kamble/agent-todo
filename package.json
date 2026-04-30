@@ -1,6 +1,6 @@
 {
   "name": "agentodo",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Local-first kanban board for AI agent tasks. Turn coding prompts into structured tasks, run Claude Code or Codex against them, keep the transcripts.",
   "keywords": [
     "ai",

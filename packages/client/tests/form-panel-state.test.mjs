@@ -6,6 +6,7 @@ import {
   resolveAvailableTaskTypes,
   resolveConstrainedTaskMode,
   resolveFormCopy,
+  resolveHasProjectSelection,
   resolveInitialFormState,
   resolveModelSelectionState,
   resolveTaskCreationValidation,
@@ -90,6 +91,26 @@ describe('form panel initial state', () => {
 })
 
 describe('task type mode constraints', () => {
+  it('trusts an edited task project before the async project list has loaded', () => {
+    expect(
+      resolveHasProjectSelection({
+        project: '/tmp/project',
+        projectOptions: [],
+        editingProject: '/tmp/project',
+      })
+    ).toBe(true)
+  })
+
+  it('does not treat a different unregistered edit project as selected', () => {
+    expect(
+      resolveHasProjectSelection({
+        project: '/tmp/changed-project',
+        projectOptions: [],
+        editingProject: '/tmp/project',
+      })
+    ).toBe(false)
+  })
+
   it('shows only projectless-compatible task types when no project is selected', () => {
     expect(resolveAvailableTaskTypes({ hasProject: false }).map(option => option.value)).toEqual([
       'brainstorming',

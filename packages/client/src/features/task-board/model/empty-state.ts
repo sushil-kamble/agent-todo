@@ -2,7 +2,7 @@ import { MAIN_BOARD_COLUMN_IDS } from '#/entities/task/types'
 import type { TasksByColumn } from './types'
 
 export type MainBoardContentState = 'loading' | 'empty' | 'board'
-export const MIN_BOARD_LOADING_MS = 1000
+export const MIN_BOARD_LOADING_MS = 2000
 
 export function isMainBoardEmpty(tasks: TasksByColumn) {
   return MAIN_BOARD_COLUMN_IDS.every(columnId => tasks[columnId].length === 0)

@@ -16,6 +16,7 @@ function buildServerTask(fast_mode) {
     model: null,
     effort: 'medium',
     fast_mode,
+    task_type: 'feature_plan',
   }
 }
 
@@ -32,6 +33,10 @@ describe('task mappers', () => {
 
     expect(task.workedTimeMs).toBe(62000)
     expect(task.activeTurnStartedAt).toBe('2026-04-12T10:00:00.000Z')
+  })
+
+  it('maps task_type into the editable task card taskType field', () => {
+    expect(toTaskCard(buildServerTask(0)).taskType).toBe('feature_plan')
   })
 
   it('groups backlog tasks into the backlog bucket', () => {

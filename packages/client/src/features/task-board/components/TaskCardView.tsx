@@ -162,10 +162,12 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
       ].join(' ')}
     >
       {/* Top: drag handle + task configuration */}
-      <div
+      <button
+        type="button"
         {...attributes}
         {...listeners}
-        className="flex cursor-grab items-center justify-between gap-2 border-b border-border px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground active:cursor-grabbing"
+        onClick={e => e.stopPropagation()}
+        className="flex w-full cursor-grab items-center justify-between gap-2 border-b border-border px-3 py-1.5 text-left text-muted-foreground transition-colors hover:text-foreground active:cursor-grabbing"
       >
         <div className="-ml-1 flex items-center gap-1 p-1">
           <DotsSixVerticalIcon size={14} weight="bold" />
@@ -191,127 +193,142 @@ export function TaskCardView({ task, column, isOverlay = false }: Props) {
             </span>
           ) : null}
         </div>
-      </div>
-
-      {/* Body: clickable to edit */}
-      <button
-        type="button"
-        onClick={() => !isDragging && openEditTask(task, column)}
-        className="block w-full cursor-pointer text-left"
-      >
-        <div className="px-4 py-4">
-          <h3
-            className={[
-              'font-heading text-sm leading-snug tracking-tight line-clamp-3',
-              isDone
-                ? 'text-muted-foreground line-through decoration-foreground/40'
-                : 'text-foreground',
-            ].join(' ')}
-          >
-            {task.title}
-          </h3>
-        </div>
       </button>
 
-      {column === 'todo' ? (
-        <div className="mt-auto border-t border-dashed border-border px-3 py-2">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
-              {task.createdAt.slice(5)}
-            </span>
-            {modelBadge}
-          </div>
-          <div className="-mx-3 my-2 border-t border-dashed border-border" />
-          <div className="flex items-center justify-between gap-2">
-            <span
-              className={[
-                'inline-flex min-w-0 items-center gap-1 text-[0.62rem]',
-                isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
-              ].join(' ')}
-              title={isProjectless ? 'No project assigned' : task.project}
-            >
-              {isProjectless ? (
-                <ProhibitIcon size={11} weight="bold" />
-              ) : (
-                <FolderIcon size={11} weight="duotone" />
-              )}
-              <span className="truncate">{projectLabel}</span>
-            </span>
-            {!isOverlay ? (
-              <button
-                type="button"
-                onClick={() => void moveToBacklog()}
-                disabled={movingToBacklog}
-                className="inline-flex items-center gap-1 border border-border bg-background px-1.5 py-1 text-[0.58rem] tracking-widest text-muted-foreground uppercase transition-colors hover:border-foreground hover:text-foreground disabled:opacity-50"
+      <div className="relative flex flex-1 cursor-pointer flex-col">
+        {!isOverlay ? (
+          <button
+            type="button"
+            aria-label={`Open ${task.title}`}
+            onClick={() => !isDragging && openEditTask(task, column)}
+            className="absolute inset-0 z-0 cursor-pointer border-0 bg-transparent p-0 text-left focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-foreground"
+          />
+        ) : null}
+
+        <div className="pointer-events-none relative z-10 flex flex-1 flex-col">
+          {/* Body */}
+          <div className="block w-full text-left">
+            <div className="px-4 py-4">
+              <h3
+                className={[
+                  'font-heading text-sm leading-snug tracking-tight line-clamp-3',
+                  isDone
+                    ? 'text-muted-foreground line-through decoration-foreground/40'
+                    : 'text-foreground',
+                ].join(' ')}
               >
-                <ArchiveIcon size={10} weight="bold" />
-                <span>Backlog</span>
-              </button>
-            ) : null}
+                {task.title}
+              </h3>
+            </div>
           </div>
+
+          {column === 'todo' ? (
+            <div className="mt-auto border-t border-dashed border-border px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
+                  {task.createdAt.slice(5)}
+                </span>
+                {modelBadge}
+              </div>
+              <div className="-mx-3 my-2 border-t border-dashed border-border" />
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className={[
+                    'inline-flex min-w-0 items-center gap-1 text-[0.62rem]',
+                    isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
+                  ].join(' ')}
+                  title={isProjectless ? 'No project assigned' : task.project}
+                >
+                  {isProjectless ? (
+                    <ProhibitIcon size={11} weight="bold" />
+                  ) : (
+                    <FolderIcon size={11} weight="duotone" />
+                  )}
+                  <span className="truncate">{projectLabel}</span>
+                </span>
+                {!isOverlay ? (
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation()
+                      void moveToBacklog()
+                    }}
+                    disabled={movingToBacklog}
+                    className="pointer-events-auto relative z-10 inline-flex items-center gap-1 border border-border bg-background px-1.5 py-1 text-[0.58rem] tracking-widest text-muted-foreground uppercase transition-colors hover:border-foreground hover:text-foreground disabled:opacity-50"
+                  >
+                    <ArchiveIcon size={10} weight="bold" />
+                    <span>Backlog</span>
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : column === 'backlog' ? (
+            <div className="mt-auto border-t border-dashed border-border px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className={[
+                    'inline-flex min-w-0 items-center gap-1 text-[0.62rem]',
+                    isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
+                  ].join(' ')}
+                  title={isProjectless ? 'No project assigned' : task.project}
+                >
+                  {isProjectless ? (
+                    <ProhibitIcon size={11} weight="bold" />
+                  ) : (
+                    <FolderIcon size={11} weight="duotone" />
+                  )}
+                  <span className="truncate">{projectLabel}</span>
+                </span>
+                <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
+                  {task.createdAt.slice(5)}
+                </span>
+              </div>
+              <div className="-mx-3 my-2 border-t border-dashed border-border" />
+              <div className="flex items-center justify-between gap-2">
+                {modelBadge}
+                {!isOverlay ? (
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation()
+                      void moveToTodo()
+                    }}
+                    disabled={movingToTodo}
+                    className="pointer-events-auto relative z-10 inline-flex items-center gap-1 border border-border bg-background px-1.5 py-1 text-[0.58rem] tracking-widest text-muted-foreground uppercase transition-colors hover:border-foreground hover:text-foreground disabled:opacity-50"
+                  >
+                    <span>Move to todo</span>
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-border px-3 py-2">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span
+                  className={[
+                    'inline-flex min-w-0 items-center gap-1 text-[0.62rem]',
+                    isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
+                  ].join(' ')}
+                  title={isProjectless ? 'No project assigned' : task.project}
+                >
+                  {isProjectless ? (
+                    <ProhibitIcon size={11} weight="bold" />
+                  ) : (
+                    <FolderIcon size={11} weight="duotone" />
+                  )}
+                  <span className="truncate">{projectLabel}</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
+                  {task.createdAt.slice(5)}
+                </span>
+                {modelBadge}
+              </div>
+            </div>
+          )}
         </div>
-      ) : column === 'backlog' ? (
-        <div className="mt-auto border-t border-dashed border-border px-3 py-2">
-          <div className="flex items-center justify-between gap-2">
-            <span
-              className={[
-                'inline-flex min-w-0 items-center gap-1 text-[0.62rem]',
-                isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
-              ].join(' ')}
-              title={isProjectless ? 'No project assigned' : task.project}
-            >
-              {isProjectless ? (
-                <ProhibitIcon size={11} weight="bold" />
-              ) : (
-                <FolderIcon size={11} weight="duotone" />
-              )}
-              <span className="truncate">{projectLabel}</span>
-            </span>
-            <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
-              {task.createdAt.slice(5)}
-            </span>
-          </div>
-          <div className="-mx-3 my-2 border-t border-dashed border-border" />
-          <div className="flex items-center justify-between gap-2">
-            {modelBadge}
-            {!isOverlay ? (
-              <button
-                type="button"
-                onClick={() => void moveToTodo()}
-                disabled={movingToTodo}
-                className="inline-flex items-center gap-1 border border-border bg-background px-1.5 py-1 text-[0.58rem] tracking-widest text-muted-foreground uppercase transition-colors hover:border-foreground hover:text-foreground disabled:opacity-50"
-              >
-                <span>Move to todo</span>
-              </button>
-            ) : null}
-          </div>
-        </div>
-      ) : (
-        <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-border px-3 py-2">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span
-              className={[
-                'inline-flex min-w-0 items-center gap-1 text-[0.62rem]',
-                isProjectless ? 'italic text-muted-foreground/50' : 'text-muted-foreground',
-              ].join(' ')}
-              title={isProjectless ? 'No project assigned' : task.project}
-            >
-              {isProjectless ? (
-                <ProhibitIcon size={11} weight="bold" />
-              ) : (
-                <FolderIcon size={11} weight="duotone" />
-              )}
-              <span className="truncate">{projectLabel}</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[0.58rem] tracking-widest text-muted-foreground uppercase">
-              {task.createdAt.slice(5)}
-            </span>
-            {modelBadge}
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Agent status — left-edge indicator (sits inside the 1px border). */}
       {isAgentWorking && (

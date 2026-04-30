@@ -40,7 +40,7 @@ type BoardProps = {
 }
 
 const BACKLOG_PANEL_WIDTH_PX = 384
-const BOARD_REVEAL_FADE_MS = 320
+const BOARD_REVEAL_FADE_MS = 500
 
 function renderBoardColumns({
   columns,
@@ -55,12 +55,11 @@ function renderBoardColumns({
 }) {
   return (
     <div className="grid h-full min-h-0 flex-1 grid-cols-3 items-stretch gap-5">
-      {columns.map((column, index) => (
+      {columns.map(column => (
         <BoardColumn
           key={column.id}
           column={column}
           tasks={filteredTasks[column.id]}
-          index={index}
           isDropTarget={dragTarget === column.id && dragOrigin !== column.id}
         />
       ))}
@@ -303,9 +302,12 @@ export function Board({ backlogOpen, onBacklogOpenChange }: BoardProps) {
         {resolvedBoardContent ? (
           <div
             className={[
-              'flex h-full min-h-0 flex-1 self-stretch transition-opacity duration-300 ease-out motion-reduce:transition-none',
-              isResolvedContentVisible ? 'opacity-100' : 'pointer-events-none opacity-0',
+              'flex h-full min-h-0 flex-1 self-stretch transition-opacity duration-500 ease-out motion-reduce:transition-none',
+              isResolvedContentVisible
+                ? 'opacity-100 blur-0'
+                : 'pointer-events-none opacity-0 blur-sm',
             ].join(' ')}
+            style={{ transitionProperty: 'opacity, filter' }}
           >
             {resolvedBoardContent}
           </div>
@@ -314,7 +316,7 @@ export function Board({ backlogOpen, onBacklogOpenChange }: BoardProps) {
         {isLoaderMounted ? (
           <div
             className={[
-              'absolute inset-0 flex h-full min-h-0 w-full transition-opacity duration-300 ease-out motion-reduce:transition-none',
+              'absolute inset-0 flex h-full min-h-0 w-full transition-opacity duration-500 ease-out motion-reduce:transition-none',
               isLoaderVisible ? 'opacity-100' : 'pointer-events-none opacity-0',
             ].join(' ')}
           >

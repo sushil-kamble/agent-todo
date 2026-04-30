@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { ChatPanel } from '#/features/run-console/components/ChatPanel'
 import { useBoardDialogs, useBoardTasks } from '#/features/task-board/model'
 import { FormPanel } from './FormPanel'
@@ -18,12 +18,24 @@ export function TaskDialog() {
   const isEdit = !!editingTask
   const isOpen = dialogOpen || isEdit
   const createColumn = createKind === 'backlog' ? 'backlog' : 'todo'
-  const close = isEdit
-    ? () => {
-        closeEditTask()
-        void refresh()
-      }
-    : closeCreateDialog
+  const dismiss = useCallback(() => {
+    if (isEdit) {
+      closeEditTask()
+      return
+    }
+    closeCreateDialog()
+  }, [closeCreateDialog, closeEditTask, isEdit])
+
+  const refreshAfterMutation = useCallback(
+    (mutation: Promise<void>) => {
+      void mutation
+        .then(() => refresh())
+        .catch(error => {
+          console.error('[task-dialog] mutation failed', error)
+        })
+    },
+    [refresh]
+  )
 
   useEffect(() => {
     if (!isOpen) return
@@ -32,7 +44,7 @@ export function TaskDialog() {
       e.preventDefault()
       e.stopPropagation()
       e.stopImmediatePropagation()
-      close()
+      dismiss()
     }
     window.addEventListener('keydown', handler, true)
     document.body.style.overflow = 'hidden'
@@ -40,7 +52,7 @@ export function TaskDialog() {
       window.removeEventListener('keydown', handler, true)
       document.body.style.overflow = ''
     }
-  }, [isOpen, close])
+  }, [isOpen, dismiss])
 
   if (!isOpen) return null
 
@@ -59,7 +71,7 @@ export function TaskDialog() {
       <button
         type="button"
         aria-label="Close"
-        onClick={close}
+        onClick={dismiss}
         className="animate-in fade-in absolute inset-0 bg-foreground/30 backdrop-blur-[2px] duration-200"
       />
 
@@ -70,28 +82,30 @@ export function TaskDialog() {
           createColumn={createColumn}
           editingTask={editingTask}
           editingColumn={editingColumn}
-          close={close}
+          close={dismiss}
           onCreate={input => {
             addTask(input)
             closeCreateDialog()
           }}
           onUpdate={(id, updates, fromColumn, toColumn) => {
-            updateTask(id, updates, fromColumn, toColumn)
-            close()
+            closeEditTask()
+            refreshAfterMutation(updateTask(id, updates, fromColumn, toColumn))
           }}
           onDelete={id => {
-            removeTask(id, editingColumn ?? 'todo')
             closeEditTask()
+            void removeTask(id, editingColumn ?? 'todo').catch(error => {
+              console.error('[task-dialog] delete failed', error)
+            })
           }}
           onMoveToBacklog={(id, updates) => {
-            updateTask(id, updates, 'todo', 'backlog')
-            close()
+            closeEditTask()
+            refreshAfterMutation(updateTask(id, updates, 'todo', 'backlog'))
           }}
         />
       )}
 
       {mode === 'chat' && editingTask && (
-        <ChatPanel task={editingTask} close={close} readOnly={readOnly} />
+        <ChatPanel task={editingTask} close={dismiss} readOnly={readOnly} />
       )}
     </div>
   )

@@ -54,14 +54,11 @@ type BoardTasksStore = {
 }
 
 export function createBoardTasksStore() {
-  const cachedTasks = readCachedTasks()
-
   return createStore<BoardTasksStore>((set, get) => ({
-    tasks: cachedTasks ?? createEmptyTasks(),
+    // Initialize empty so SSR and first client render match (no hydration mismatch).
+    // Cached tasks are only used as a fallback when the API fetch fails.
+    tasks: createEmptyTasks(),
     hasLoadedOnce: false,
-    // Always resolve the first visible board state from a fresh refresh cycle.
-    // Cached tasks remain useful as a fallback if the request fails, but they
-    // should not bypass the initial loading presentation on page load.
     isLoading: true,
     setTasks: updater =>
       set(state => ({
@@ -74,6 +71,8 @@ export function createBoardTasksStore() {
         set({ tasks, hasLoadedOnce: true })
       } catch (error) {
         console.error('[board] fetchTasks failed', error)
+        const cached = readCachedTasks()
+        if (cached) set({ tasks: cached, hasLoadedOnce: true })
       } finally {
         set({ isLoading: false, hasLoadedOnce: true })
       }

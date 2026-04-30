@@ -107,7 +107,7 @@ describe('board loader timing', () => {
     expect(
       getRemainingBoardLoaderMs({
         loadingStartedAt: 1_000,
-        now: 2_500,
+        now: 1_000 + MIN_BOARD_LOADING_MS,
       })
     ).toBe(0)
   })

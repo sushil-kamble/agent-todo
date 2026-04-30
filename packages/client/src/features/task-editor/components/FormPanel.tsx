@@ -247,6 +247,23 @@ export function resolveAvailableTaskTypes({ hasProject }: { hasProject: boolean 
     : TASK_TYPE_OPTIONS.filter(option => option.requiresProject !== true)
 }
 
+export function resolveHasProjectSelection({
+  project,
+  projectOptions,
+  editingProject,
+}: {
+  project: string
+  projectOptions: string[]
+  editingProject?: string | null
+}) {
+  const normalizedProject = project.trim()
+  if (!normalizedProject || normalizedProject === 'untitled') return false
+  if (projectOptions.includes(normalizedProject)) return true
+
+  const normalizedEditingProject = (editingProject ?? '').trim()
+  return normalizedEditingProject !== 'untitled' && normalizedProject === normalizedEditingProject
+}
+
 export function resolveConstrainedTaskMode({
   currentMode,
   taskType,
@@ -379,12 +396,17 @@ export function FormPanel({
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const projectInputRef = useRef<HTMLInputElement>(null)
   const selectedProjectItem = projectItems.find(item => item.value === project) ?? null
-  const hasProject = project.trim() !== '' && projectOptions.includes(project.trim())
+  const editingProject = editingTask?.project === 'untitled' ? '' : (editingTask?.project ?? null)
+  const hasProject = resolveHasProjectSelection({
+    project,
+    projectOptions,
+    editingProject,
+  })
   const isProjectLocked = isEdit && (editingColumn === 'in_progress' || editingColumn === 'done')
   const createTaskValidation = resolveTaskCreationValidation({
     title,
     project,
-    projectOptions,
+    projectOptions: hasProject ? [...new Set([...projectOptions, project.trim()])] : projectOptions,
     agent,
     mode,
     taskType,
