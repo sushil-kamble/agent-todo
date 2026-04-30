@@ -31,7 +31,7 @@
           "label": "Claude Sonnet 4.6",
           "isDefault": true,
           "defaultEffort": "medium",
-          "efforts": ["low", "medium", "high"]
+          "efforts": ["low", "medium", "high", "max"]
         },
         {
           "slug": "claude-opus-4-7",

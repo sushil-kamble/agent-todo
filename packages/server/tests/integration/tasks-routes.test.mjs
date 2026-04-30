@@ -351,6 +351,24 @@ describe('task routes integration', () => {
     expect(body.task.effort).toBe('medium')
   })
 
+  it('POST accepts max effort for Claude Sonnet 4.6', async () => {
+    const { status, body } = await server.json('/api/tasks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Max effort Sonnet',
+        project: 'server',
+        agent: 'claude',
+        model: 'claude-sonnet-4-6',
+        effort: 'max',
+      }),
+    })
+
+    expect(status).toBe(201)
+    expect(body.task.model).toBe('claude-sonnet-4-6')
+    expect(body.task.effort).toBe('max')
+  })
+
   it('PATCH switching codex models clears fast mode when the new model does not support it', async () => {
     const task = harness.tasks.createTask({
       ...taskFactory({ id: 't-fast-switch' }),

@@ -42,6 +42,7 @@ describe('shared agent model config', () => {
   })
 
   it('falls back to the model default effort when the effort is unsupported', () => {
+    expect(sanitizeEffort('claude', 'claude-sonnet-4-6', 'max')).toBe('max')
     expect(sanitizeEffort('claude', 'claude-haiku-4-5', 'max')).toBe('medium')
     expect(sanitizeEffort('claude', 'claude-opus-4-7', 'xhigh')).toBe('xhigh')
     expect(sanitizeEffort('codex', 'gpt-5.4-mini', 'max')).toBe('medium')
