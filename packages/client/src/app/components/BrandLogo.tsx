@@ -2,18 +2,19 @@ import { cn } from '#/shared/lib/utils'
 
 type BrandLogoProps = {
   className?: string
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'splash'
 }
 
 export function BrandLogo({ className, size = 'md' }: BrandLogoProps) {
   const compact = size === 'sm'
+  const splash = size === 'splash'
 
   return (
     <span className={cn('inline-flex shrink-0 select-none items-center gap-3', className)}>
       <span
         className={cn(
           'relative inline-flex shrink-0 items-center justify-center border border-foreground bg-card text-foreground',
-          compact ? 'size-10' : 'size-12'
+          compact ? 'size-10' : splash ? 'size-20' : 'size-12'
         )}
         aria-hidden="true"
       >
@@ -21,7 +22,7 @@ export function BrandLogo({ className, size = 'md' }: BrandLogoProps) {
         <svg
           className={cn(
             'pointer-events-none relative z-10 overflow-visible',
-            compact ? 'size-[2.45rem]' : 'size-[2.8rem]'
+            compact ? 'size-[2.45rem]' : splash ? 'size-[4.65rem]' : 'size-[2.8rem]'
           )}
           viewBox="0 0 100 100"
           fill="none"
@@ -56,13 +57,13 @@ export function BrandLogo({ className, size = 'md' }: BrandLogoProps) {
       <span
         className={cn(
           'inline-flex items-baseline leading-none text-foreground',
-          compact ? 'gap-0.5' : 'gap-0.75'
+          compact ? 'gap-0.5' : splash ? 'gap-1' : 'gap-0.75'
         )}
       >
         <span
           className={cn(
             'font-heading font-semibold tracking-[-0.06em]',
-            compact ? 'text-[1.05rem]' : 'text-[1.28rem]'
+            compact ? 'text-[1.05rem]' : splash ? 'text-[3.1rem]' : 'text-[1.28rem]'
           )}
         >
           Agent
@@ -70,7 +71,7 @@ export function BrandLogo({ className, size = 'md' }: BrandLogoProps) {
         <span
           className={cn(
             'font-logo text-primary tracking-[-0.04em]',
-            compact ? 'text-[1.45rem]' : 'text-[1.7rem]'
+            compact ? 'text-[1.45rem]' : splash ? 'text-[4rem]' : 'text-[1.7rem]'
           )}
         >
           Todo

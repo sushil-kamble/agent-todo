@@ -31,7 +31,8 @@ function applyThemeSurface(theme: Theme) {
 
 function applyTheme(theme: Theme) {
   const root = document.documentElement
-  root.classList.toggle('dark', theme === 'dark')
+  root.classList.remove('light', 'dark')
+  root.classList.add(theme)
   root.style.colorScheme = theme
   applyThemeSurface(theme)
 }
@@ -57,6 +58,6 @@ export function useTheme() {
   return { theme, toggleTheme }
 }
 
-export const themeCriticalStyle = `html,body{background:${LIGHT_BACKGROUND};color:${LIGHT_FOREGROUND}}html.dark,html.dark body{background:${DARK_BACKGROUND};color:${DARK_FOREGROUND}}`
+export const themeCriticalStyle = `html,body{background:${LIGHT_BACKGROUND};color:${LIGHT_FOREGROUND}}@media (prefers-color-scheme: dark){html,body{background:${DARK_BACKGROUND};color:${DARK_FOREGROUND};color-scheme:dark}}html.light,html.light body{background:${LIGHT_BACKGROUND};color:${LIGHT_FOREGROUND}}html.dark,html.dark body{background:${DARK_BACKGROUND};color:${DARK_FOREGROUND}}`
 
-export const themeInitScript = `(function(){try{var k='${STORAGE_KEY}';var s=localStorage.getItem(k);var t=(s==='light'||s==='dark')?s:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var r=document.documentElement;var bg=t==='dark'?'${DARK_BACKGROUND}':'${LIGHT_BACKGROUND}';var fg=t==='dark'?'${DARK_FOREGROUND}':'${LIGHT_FOREGROUND}';if(t==='dark')r.classList.add('dark');r.style.colorScheme=t;r.style.backgroundColor=bg;r.style.color=fg;if(document.body){document.body.style.backgroundColor=bg;document.body.style.color=fg;}}catch(e){}})();`
+export const themeInitScript = `(function(){try{var k='${STORAGE_KEY}';var s=localStorage.getItem(k);var t=(s==='light'||s==='dark')?s:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var r=document.documentElement;var bg=t==='dark'?'${DARK_BACKGROUND}':'${LIGHT_BACKGROUND}';var fg=t==='dark'?'${DARK_FOREGROUND}':'${LIGHT_FOREGROUND}';r.classList.remove('light','dark');r.classList.add(t);r.style.colorScheme=t;r.style.backgroundColor=bg;r.style.color=fg;if(document.body){document.body.style.backgroundColor=bg;document.body.style.color=fg;}}catch(e){}})();`

@@ -72,14 +72,14 @@ export function BoardLoadingState() {
             willChange: 'transform, opacity',
           }}
         >
-          <div className="scale-[1.6] sm:scale-[1.85]">
-            <BrandLogo />
+          <div>
+            <BrandLogo size="splash" />
           </div>
         </div>
 
         <p
           data-splash-anim
-          className="mt-12 font-heading text-xs tracking-[0.5em] text-muted-foreground uppercase sm:text-sm"
+          className="mt-8 font-heading text-lg leading-none tracking-[0.035em] text-muted-foreground uppercase sm:text-xl"
           style={{
             opacity: 0,
             animation: 'splash-rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 140ms both',
@@ -90,7 +90,7 @@ export function BoardLoadingState() {
 
         <div
           data-splash-anim
-          className="relative mt-10 h-[2px] w-72 overflow-hidden bg-border"
+          className="relative mt-7 h-[2px] w-72 overflow-hidden bg-border"
           style={{
             opacity: 0,
             animation: 'splash-rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 240ms both',
@@ -107,7 +107,7 @@ export function BoardLoadingState() {
 
         <p
           data-splash-anim
-          className="mt-10 max-w-2xl font-heading text-lg italic tracking-[0.005em] text-muted-foreground sm:text-xl"
+          className="mt-7 max-w-2xl font-heading text-xl italic tracking-[0.005em] text-muted-foreground sm:text-2xl"
           style={{
             opacity: 0,
             animation: 'splash-rise 800ms cubic-bezier(0.2, 0.8, 0.2, 1) 360ms both',

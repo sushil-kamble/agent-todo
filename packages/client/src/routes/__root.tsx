@@ -9,7 +9,6 @@ import appCss from '../app/styles/index.css?url'
 export const Route = createRootRoute({
   head: () => ({
     meta: [
-      { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'agentodo' },
     ],
@@ -48,10 +47,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <HeadContent />
+        <meta charSet="utf-8" />
+        {/* Must precede <HeadContent />: sync scripts wait on preceding
+            stylesheets, so the app CSS link cannot come before this script —
+            otherwise paint happens before the theme class is applied. */}
         <style>{themeCriticalStyle}</style>
-        {/* No-flash theme init — static trusted constant, runs before paint */}
         <script>{themeInitScript}</script>
+        <HeadContent />
       </head>
       <body suppressHydrationWarning>
         {children}
