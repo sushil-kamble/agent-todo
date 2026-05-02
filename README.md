@@ -1,5 +1,7 @@
 # agentodo
 
+![Agentodo product preview](packages/client/public/agentodo-hero.png)
+
 **A local-first kanban board for the work you hand to AI agents.**
 
 agentodo turns coding prompts into structured tasks on a real board. Assign an agent, pick a model, point it at a local project — then step away while it runs. Every run keeps its transcript, so you can review, follow up, or re-run from the same card.
